@@ -31,7 +31,7 @@ if [ ! -x "${VENV}/bin/pytest" ]; then
   rm -rf "${VENV}"
   "${PYTHON}" -I -m venv "${VENV}"
   "${VENV}/bin/pip" install --quiet -r "${SRC}/development.txt"
-  "${VENV}/bin/pip" install --quiet --require-hashes -r "${HERE}/requirements.txt"
+  "${VENV}/bin/pip" install --quiet --no-deps --require-hashes -r "${HERE}/requirements.txt"
 fi
 
 for plugin in "${HERE}"/plugins/*/; do

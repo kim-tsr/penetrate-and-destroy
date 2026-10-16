@@ -1,0 +1,4 @@
+# Python système de l'image (hors venv) : setuptools à jour (jaraco.context et wheel vendorisés vulnérables).
+setuptools==82.0.0 \
+    --hash=sha256:70b18734b607bd1da571d097d236cfcfacaf01de45717d59e6e04b96877532e0 \
+    --hash=sha256:22e0a2d69474c6ae4feb01951cb69d515ed23728cf96d05513d36e42b62b37cb

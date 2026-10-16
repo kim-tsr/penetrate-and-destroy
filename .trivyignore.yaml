@@ -47,3 +47,9 @@ misconfigurations:
     paths:
       - platform/kyverno/policies/rbac-background-controller.yaml
     statement: "ClusterRole agrégé au background controller Kyverno : requis pour que les politiques generate (add-default-networkpolicy, instance-guardrails) créent les NetworkPolicies des namespaces d'instance."
+
+vulnerabilities:
+  - id: CVE-2024-34069
+    paths:
+      - opt/venv/lib/python3.11/site-packages/Werkzeug-2.2.3.dist-info/METADATA
+    statement: "Werkzeug 2.2.3 est figé par CTFd 3.8.8 (le correctif exige Werkzeug 3.x, donc Flask 3.x, incompatible avec flask-babel 2.0.0 de CTFd : import impossible, vérifié). La faille est l'exécution de code via le débogueur interactif de Werkzeug, jamais activé en production (CTFd est lancé par gunicorn, sans debug)."
