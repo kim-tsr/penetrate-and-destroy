@@ -105,6 +105,10 @@ resource "opnsense_firewall_category" "pad" {
 locals {
   # proto : "TCP", "UDP", "TCP/UDP" ou "any" ; src/dst : alias, "any" ou "(self)" ; port : alias de ports ou numéro.
   matrix_rules = [
+    # M0 - administration par l'hôte (zone mgmt) : rebond SSH d'Ansible vers les LXC, et poste opérateur dont la route
+    # VPN vers 10.20.0.0/16 est traduite vers l'IP mgmt de l'hôte (kubectl, talosctl, kind des phases 9 à 12).
+    { id = "m0-host-zones", seq = 100, ifaces = [local.iface["mgmt"]], proto = "TCP", src = "host_proxmox_api", dst = "net_all_zones", port = "port_bastion", desc = "M0 hote mgmt -> zones SSH/HTTPS/6443/50000" },
+
     # M2/M3 - edge -> ingress du cluster, edge -> authentik
     { id = "m2-edge-ingress", seq = 200, ifaces = [local.iface["dmz"]], proto = "TCP", src = "host_edge", dst = "host_k8s_ingress", port = "port_web", desc = "M2 edge -> ingress PROD" },
     { id = "m3-edge-authentik", seq = 210, ifaces = [local.iface["dmz"]], proto = "TCP", src = "host_edge", dst = "host_authentik", port = tostring(local.p.https), desc = "M3 edge -> authentik 443" },
