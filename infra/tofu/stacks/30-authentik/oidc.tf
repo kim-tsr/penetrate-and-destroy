@@ -29,7 +29,7 @@ locals {
       # TODO : "à confirmer dans l'UI Warpgate, page de config SSO" (chemin /@warpgate/api/sso/return non vérifié en 0.29.2).
       redirect_uris = ["https://${local.host.bastion}/@warpgate/api/sso/return"]
       launch_url    = "https://${local.host.bastion}/"
-      groups        = local.staff_groups
+      groups        = local.infra_groups
       public        = false
     }
     grafana = {
@@ -38,7 +38,7 @@ locals {
       # compose.yml.j2 du rôle monitoring-stack (GF_AUTH_GENERIC_OAUTH_*), root_url = https://<grafana>.<domain>.
       redirect_uris = ["https://${local.host.grafana}/login/generic_oauth"]
       launch_url    = "https://${local.host.grafana}/"
-      groups        = local.staff_groups
+      groups        = local.infra_groups
       public        = false
     }
     argocd = {
@@ -51,7 +51,7 @@ locals {
         "http://localhost:8085/auth/callback",
       ]
       launch_url = "https://${local.host.argocd}/"
-      groups     = local.staff_groups
+      groups     = local.infra_groups
       public     = false
     }
     proxmox = {
@@ -60,7 +60,7 @@ locals {
       # var.proxmox_url vide : proxmox_url de secrets/site.sops.yaml.
       redirect_uris = [local.proxmox_url, "${local.proxmox_url}/"]
       launch_url    = local.proxmox_url
-      groups        = local.staff_groups
+      groups        = local.infra_groups
       public        = false
     }
     ctfd = {
@@ -69,7 +69,7 @@ locals {
       # aucun callback OIDC CTFd n'existe (les routes d'auth natives répondent 404). URI réservée, non fonctionnelle.
       redirect_uris = concat(["https://${local.host.ctfd_admin}/oidc/callback"], var.ctfd_extra_redirect_uris)
       launch_url    = "https://${local.host.ctfd_admin}/"
-      groups        = local.staff_groups
+      groups        = local.event_admin_groups
       public        = false
     }
   }
@@ -141,7 +141,7 @@ resource "authentik_application" "client" {
   policy_engine_mode = "any"
 }
 
-# Apps staff : infra-admins / ctf-admins ; front et NetBird : tous les groupes du contrat (joueurs inclus).
+# Apps infra : infra-admins seul ; CTFd admin : ctf-admins + infra-admins ; front et NetBird : tous les groupes du contrat (joueurs inclus).
 resource "authentik_policy_binding" "client" {
   for_each = merge([
     for k, v in local.oidc_clients : {
