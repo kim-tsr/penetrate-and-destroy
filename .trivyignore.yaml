@@ -1,0 +1,37 @@
+# Constats trivy acceptés, un par entrée (ID + fichier + raison). Aucun n'est global : chaque entrée est limitée à son fichier
+# (chemin relatif au dossier scanné par `trivy config` : gitops/ pour ces entrées).
+# Les contrôleurs Cluster API sont des composants tiers rendus par bootstrap/scripts/render-providers.sh ; leurs
+# ClusterRoles sont ceux publiés par les projets amont et ne sont pas modifiables sans casser le fonctionnement.
+misconfigurations:
+  - id: KSV041
+    paths:
+      - platform/capi-providers/manifests/core-cluster-api.yaml
+    statement: "ClusterRole capi-manager-role : CAPI génère et lit les Secrets de kubeconfig, de CA et de bootstrap des clusters."
+  - id: KSV046
+    paths:
+      - platform/capi-providers/manifests/core-cluster-api.yaml
+    statement: "ClusterRole capi-manager-role : règle amont à ressources génériques, requise pour que CAPI pilote les CRDs de tous les providers."
+  - id: KSV041
+    paths:
+      - platform/capi-providers/manifests/bootstrap-talos.yaml
+    statement: "ClusterRole cabpt-manager-role : le provider bootstrap Talos écrit les Secrets de configuration machine (talosconfig, bootstrap data)."
+  - id: KSV041
+    paths:
+      - platform/capi-providers/manifests/control-plane-talos.yaml
+    statement: "ClusterRole cacppt-manager-role : le control plane Talos gère les Secrets de CA, de talosconfig et de kubeconfig."
+  - id: KSV046
+    paths:
+      - platform/capi-providers/manifests/control-plane-talos.yaml
+    statement: "ClusterRole cacppt-manager-role : règle amont à ressources génériques, requise pour piloter les ressources du cluster géré."
+  - id: KSV050
+    paths:
+      - platform/capi-providers/manifests/control-plane-talos.yaml
+    statement: "Role cacppt-manager-role : écriture de roles/rolebindings dans son namespace, requise par le provider amont pour le RBAC du cluster géré."
+  - id: KSV041
+    paths:
+      - platform/capi-providers/manifests/infrastructure-proxmox.yaml
+    statement: "ClusterRole capmox-manager-role : CAPMOX lit et met à jour les Secrets d'identifiants Proxmox et de bootstrap des machines (requis par conception)."
+  - id: KSV056
+    paths:
+      - apps/netbird-sync/rbac.yaml
+    statement: "ClusterRole netbird-sync : patch des Services pour poser un finalizer ; borné aux namespaces inst-* par la ValidatingAdmissionPolicy pad-netbird-sync-inst-only du même fichier."

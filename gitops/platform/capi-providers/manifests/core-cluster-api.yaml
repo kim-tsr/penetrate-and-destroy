@@ -19610,11 +19610,14 @@ spec:
             privileged: false
             runAsGroup: 65532
             runAsUser: 65532
+            readOnlyRootFilesystem: true
           terminationMessagePolicy: FallbackToLogsOnError
           volumeMounts:
             - mountPath: /tmp/k8s-webhook-server/serving-certs
               name: cert
               readOnly: true
+            - name: tmp
+              mountPath: /tmp
       securityContext:
         runAsNonRoot: true
         seccompProfile:
@@ -19630,6 +19633,8 @@ spec:
         - name: cert
           secret:
             secretName: capi-webhook-service-cert
+        - name: tmp
+          emptyDir: {}
 status: {}
 ---
 apiVersion: admissionregistration.k8s.io/v1
