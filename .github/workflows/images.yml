@@ -53,10 +53,13 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build, push, sign
+      # Ordre imposé par scripts/build-image.sh : build -> scan Trivy bloquant (HIGH/CRITICAL corrigeables)
+      # -> push -> signature cosign. Un scan en échec empêche tout push et toute signature.
+      - name: Build, scan Trivy, push, sign
         if: steps.df.outputs.present == 'true'
         id: build
         env:
+          SCAN: '1'
           PUSH: '1'
           SIGN: '1'
           REGISTRY: ghcr.io/${{ github.repository_owner }}
@@ -66,13 +69,13 @@ jobs:
           CONTEXT: ${{ matrix.context }}
           DOCKERFILE: ${{ matrix.dockerfile }}
         run: |
+          set -euo pipefail
           ref=$(nix develop -c scripts/build-image.sh "$NAME" "$CONTEXT" "$DOCKERFILE" | tail -n1)
+          if [ -z "$ref" ]; then
+            echo "référence d'image vide" >&2
+            exit 1
+          fi
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
-      - name: Scan Trivy
-        if: steps.df.outputs.present == 'true'
-        env:
-          REF: ${{ steps.build.outputs.ref }}
-        run: nix develop -c trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$REF"
       - name: Résumé du digest
         if: steps.df.outputs.present == 'true'
         env:
