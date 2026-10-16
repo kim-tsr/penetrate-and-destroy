@@ -26,7 +26,7 @@ output "policy_ids" {
 }
 
 output "routing_peer_setup_keys" {
-  description = "Setup keys des routing peers (clés : challenges, bastion). À poser dans les secrets SOPS ansible/gitops ; commande : netbird up --setup-key <clé> --management-url <url>."
+  description = "Setup keys des routing peers (clés : challenges, bastion). Recopiées dans secrets/netbird-agent.sops.yaml par `task netbird:sync-keys`, puis utilisées par le rôle ansible netbird-agent."
   value = {
     challenges = netbird_setup_key.routing_challenges.key
     bastion    = netbird_setup_key.routing_bastion.key
@@ -52,7 +52,7 @@ output "management_url" {
 output "routing_peers" {
   description = "Routing peers attendus (IP du contrat) et network auquel ils appartiennent."
   value = {
-    challenges = { ip = local.c.netbird.routing_peer_ip, zone = local.c.netbird.routing_peer_zone, network = netbird_network.instances.name }
-    bastion    = { ip = local.c.services.warpgate.ip, zone = "bastion", network = netbird_network.bastion.name }
+    challenges = { ip = local.c.services[local.c.netbird.routing_peer_service].ip, zone = local.c.netbird.routing_peer_zone, network = netbird_network.instances.name }
+    bastion    = { ip = local.c.services[local.c.netbird.bastion_routing_peer_service].ip, zone = "bastion", network = netbird_network.bastion.name }
   }
 }

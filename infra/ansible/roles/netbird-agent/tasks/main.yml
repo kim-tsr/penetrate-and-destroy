@@ -1,0 +1,120 @@
+---
+- name: Exiger une zone de routing peer valide
+  ansible.builtin.assert:
+    that: netbird_agent_zone in ['challenges', 'bastion']
+    fail_msg: "netbird_agent_zone doit valoir challenges ou bastion (variable du play)."
+    quiet: true
+
+- name: Charger les secrets SOPS de l'agent NetBird
+  community.sops.load_vars:
+    file: "{{ pad_secrets_dir }}/netbird-agent.sops.yaml"
+  delegate_to: localhost
+  become: false
+  no_log: true
+
+- name: Retenir la setup key de la zone
+  ansible.builtin.set_fact:
+    netbird_agent_setup_key: "{{ lookup('ansible.builtin.vars', 'netbird_agent_setup_key_' ~ netbird_agent_zone) }}"
+  no_log: true
+
+- name: Vérifier que la setup key est renseignée
+  ansible.builtin.assert:
+    that:
+      - netbird_agent_setup_key | length > 0
+      - "'CHANGEME' not in netbird_agent_setup_key"
+    fail_msg: >-
+      Setup key '{{ netbird_agent_zone }}' absente de secrets/netbird-agent.sops.yaml :
+      appliquer la stack 40-netbird puis task netbird:sync-keys.
+    quiet: true
+
+- name: Vérifier la présence du périphérique /dev/net/tun
+  ansible.builtin.stat:
+    path: /dev/net/tun
+  register: netbird_agent_tun
+
+- name: Exiger /dev/net/tun (posé sur l'hôte par le rôle lxc-tun)
+  ansible.builtin.assert:
+    that: netbird_agent_tun.stat.exists and netbird_agent_tun.stat.ischr
+    fail_msg: "/dev/net/tun absent : jouer d'abord le play « lxc-tun » (--tags netbird-agent) qui l'ajoute au LXC depuis l'hôte Proxmox."
+    quiet: true
+
+- name: Installer les prérequis de l'agent (pare-feu pour le masquerade)
+  ansible.builtin.apt:
+    name: "{{ netbird_agent_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Déclarer le dépôt apt NetBird
+  ansible.builtin.deb822_repository:
+    name: netbird
+    types: [deb]
+    uris: "{{ netbird_agent_apt_uri }}"
+    suites: ["{{ netbird_agent_apt_suite }}"]
+    components: ["{{ netbird_agent_apt_component }}"]
+    signed_by: "{{ netbird_agent_apt_key_url }}"
+    state: present
+  register: netbird_agent_repo
+
+- name: Installer l'agent NetBird (version épinglée)
+  ansible.builtin.apt:
+    name: "netbird={{ netbird_agent_version }}"
+    state: present
+    update_cache: "{{ netbird_agent_repo is changed }}"
+    allow_downgrade: true
+
+- name: Geler la version de l'agent
+  ansible.builtin.dpkg_selections:
+    name: netbird
+    selection: hold
+
+- name: Activer le routage IPv4 (rendu persistant)
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: "1"
+    sysctl_file: /etc/sysctl.d/90-pad-netbird-router.conf
+    state: present
+    reload: true
+
+- name: Activer et démarrer le service netbird
+  ansible.builtin.systemd_service:
+    name: netbird
+    enabled: true
+    state: started
+
+- name: Lire l'état de l'agent
+  ansible.builtin.command: netbird status --json
+  register: netbird_agent_status
+  changed_when: false
+  failed_when: false
+
+- name: Déterminer si l'agent est déjà enrôlé et connecté
+  ansible.builtin.set_fact:
+    netbird_agent_connected: >-
+      {{ netbird_agent_status.rc == 0
+         and (netbird_agent_status.stdout is regex('(?s)"management":\s*\{[^}]*"connected":\s*true'))
+         and (netbird_agent_status.stdout is regex('(?s)"signal":\s*\{[^}]*"connected":\s*true')) }}
+
+- name: Enrôler l'agent avec la setup key (une seule fois)
+  ansible.builtin.command:
+    argv:
+      - netbird
+      - up
+      - --setup-key
+      - "{{ netbird_agent_setup_key }}"
+      - --management-url
+      - "{{ netbird_agent_management_url }}"
+  when: not netbird_agent_connected | bool
+  changed_when: true
+  no_log: true
+
+- name: Attendre la connexion au management et au signal
+  ansible.builtin.command: netbird status --json
+  register: netbird_agent_wait
+  changed_when: false
+  retries: "{{ netbird_agent_connect_retries }}"
+  delay: "{{ netbird_agent_connect_delay }}"
+  until: >-
+    netbird_agent_wait.rc == 0
+    and (netbird_agent_wait.stdout is regex('(?s)"management":\s*\{[^}]*"connected":\s*true'))
+    and (netbird_agent_wait.stdout is regex('(?s)"signal":\s*\{[^}]*"connected":\s*true'))

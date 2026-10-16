@@ -16,14 +16,17 @@ décrit. Le parcours complet, pas à pas : [Guide de déploiement](../guide-depl
 | `phase:1-reseau` | `00-host-network` puis `ansible:host` |
 | `phase:2-routeur` | `10-router`, attente d'OPNsense, `host:route`, `60-opnsense-rules` |
 | `phase:3-image-talos` | `15-talos-image` (template Talos) |
-| `phase:4-lxc` | `20-services-lxc` (cinq LXC, inventaire Ansible) |
+| `phase:4-lxc` | `20-services-lxc` (six LXC, inventaire Ansible) |
 | `phase:5-dns` | `70-dns` (A publics) |
 | `phase:6-services-1` | Ansible : monitoring, authentik, edge |
 | `phase:7-identite` | `30-authentik` puis `secrets:oidc-sync` |
 | `phase:8-services-2` | Ansible : monitoring, warpgate, netbird |
 | `phase:9-cluster` | `bootstrap:cluster` (kind, CAPI, VMs Talos, pivot) |
 | `phase:10-gitops` | contrôle « tout est poussé », `bootstrap:gitops` |
-| `phase:11-acces` | contrôle des jetons, Ansible netbird, `40-netbird`, `50-warpgate` |
+| `phase:11-acces` | contrôle des jetons, Ansible netbird, `40-netbird`, `netbird:sync-keys`, `netbird:agents` (routing peers), `50-warpgate` |
+| `netbird:sync-keys` | setup keys de `40-netbird` vers `secrets/netbird-agent.sops.yaml` |
+| `netbird:agents` | `/dev/net/tun` (hôte) puis agents NetBird de `nbrouter` et `warpgate` |
+| `netbird:rotate-keys` | recrée les setup keys, les recopie, rejoue les agents |
 | `phase:12-verify` | smoke tests et rappel des actions manuelles |
 | `check:0-prereqs` … `check:12-verify` | la vérification d'une phase, seule |
 | `check:cluster-detruit`, `check:tout-detruit` | contrôles après destruction |

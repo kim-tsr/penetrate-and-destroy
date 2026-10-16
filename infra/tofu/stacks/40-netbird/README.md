@@ -54,7 +54,7 @@ Matrice de flux : joueurs vers CHALLENGES uniquement, staff vers BASTION uniquem
 | CHALLENGES | `netbird.routing_peer_ip` | `pad-instances` | `challenges` |
 | BASTION | `services.warpgate.ip` (agent NetBird sur le LXC warpgate) | `pad-bastion` | `bastion` |
 
-L'enrôlement lui-même (`netbird up --setup-key ... --management-url ...`) relève d'ansible (LXC) / gitops (DaemonSet hostNetwork), non couvert ici. Le routeur est en masquerade : les cibles voient l'IP du routing peer (les règles OPNsense doivent autoriser ces IPs).
+Enrôlement (automatisé) : cette stack crée les deux setup keys (`setup_keys.tf`, réutilisables, bornées à `setup_key_usage_limit` usages, valables `setup_key_expiry_seconds`, jamais éphémères, groupes automatiques `pad-routers-*`). `task netbird:sync-keys` les recopie dans `secrets/netbird-agent.sops.yaml`, puis le rôle ansible `netbird-agent` (LXC `nbrouter` pour CHALLENGES, LXC warpgate pour BASTION) exécute `netbird up --setup-key ... --management-url ...` une seule fois. Clé expirée ou épuisée : `task netbird:rotate-keys`. Choix `one-off` : plus strict, mais toute reconstruction d'un LXC exige une nouvelle clé. Le routeur est en masquerade : les cibles voient l'IP du routing peer (les règles OPNsense doivent autoriser ces IPs).
 
 ## Intégration Authentik (OIDC)
 

@@ -32,12 +32,14 @@ Deux routing peers NetBird, un par zone, pour que la règle « CHALLENGES vers r
 
 | Peer | Zone | Network NetBird | Qui y accède |
 |---|---|---|---|
-| challenges (`10.20.70.10`) | CHALLENGES | `pad-instances` | joueurs, uniquement vers les IP d'instances de leur équipe |
+| challenges (LXC `nbrouter`, `10.20.70.10`) | CHALLENGES | `pad-instances` | joueurs, uniquement vers les IP d'instances de leur équipe |
 | bastion (LXC `warpgate`) | BASTION | `pad-bastion` | staff, uniquement vers le bastion |
 
-Le routing peer est en masquerade : les cibles voient l'IP du routing peer. Les règles OPNsense qui l'autorisent à
-joindre les IP d'instances sont une [action manuelle](../operations/actions-post-deploiement.md) tant qu'elles ne
-sont pas dans la stack.
+Le routing peer est en masquerade : les cibles voient l'IP du routing peer. Le trafic vers les IP d'instances reste dans la
+zone CHALLENGES (aucune règle). Les règles `N1` à `N6` de `60-opnsense-rules` ne couvrent que la sortie des deux routing peers
+vers le management/relay (HTTPS), STUN (UDP 3478), le WireGuard direct entre pairs (UDP 1024-65535, désactivable par
+`netbird_routers_direct_udp`) et, pour `nbrouter`, apt et NTP. Enrôlement : rôle `netbird-agent`, voir
+[NetBird](../composants/netbird.md).
 
 ## Refus journalisés
 

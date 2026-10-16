@@ -89,7 +89,7 @@ Voir [Tâches `task`](reference/taches.md) et le détail pas à pas dans le [run
 ## 4. Actions manuelles
 
 Quelques actions ne sont pas automatisables (policy NetBird par défaut, jeton de `netbird-sync`, clés du captcha, enrôlement MFA du premier administrateur,
-clé cosign, règle d'accès Zot, règles OPNsense des routing peers, protection de la branche `main`, fichiers de verrouillage). Elles sont toutes dans
+clé cosign, règle d'accès Zot, protection de la branche `main`, fichiers de verrouillage). Elles sont toutes dans
 [Actions manuelles après déploiement](operations/actions-post-deploiement.md). Ne pas ouvrir l'événement aux joueurs
 avant de les avoir faites.
 

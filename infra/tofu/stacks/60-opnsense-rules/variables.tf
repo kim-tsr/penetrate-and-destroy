@@ -55,3 +55,15 @@ variable "allow_edge_status_page" {
   type        = bool
   default     = true
 }
+
+variable "allow_netbird_routers" {
+  description = "Règles des routing peers NetBird (nbrouter en CHALLENGES, warpgate en BASTION) : HTTPS vers le management/signal/relay, STUN, NTP et apt pour nbrouter. Sans elles, aucun joueur ni staff ne rejoint le VPN."
+  type        = bool
+  default     = true
+}
+
+variable "netbird_routers_direct_udp" {
+  description = "Autoriser les routing peers à sortir en UDP 1024-65535 vers Internet (WireGuard direct avec les pairs, traversée de NAT). false = tout passe par le relay NetBird en HTTPS (plus lent, surface réduite)."
+  type        = bool
+  default     = true
+}

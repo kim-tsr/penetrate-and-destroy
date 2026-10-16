@@ -74,9 +74,10 @@ router:
 services:            # LXC non privilégiés, Debian 13, Docker Compose
   edge:       { vmid: 210, zone: dmz,        ip: 10.20.20.10, cores: 1, memory_mb: 512,  disk_gb: 8 }
   netbird:    { vmid: 211, zone: dmz,        ip: 10.20.20.11, cores: 1, memory_mb: 1024, disk_gb: 8 }
-  warpgate:   { vmid: 230, zone: bastion,    ip: 10.20.30.10, cores: 1, memory_mb: 256,  disk_gb: 4 }
+  warpgate:   { vmid: 230, zone: bastion,    ip: 10.20.30.10, cores: 1, memory_mb: 256,  disk_gb: 4, tun: true }   # tun : /dev/net/tun (agent NetBird, routing peer BASTION)
   authentik:  { vmid: 240, zone: identity,   ip: 10.20.40.10, cores: 2, memory_mb: 1536, disk_gb: 12 }
   monitoring: { vmid: 250, zone: monitoring, ip: 10.20.50.10, cores: 2, memory_mb: 3072, disk_gb: 60 }
+  nbrouter:   { vmid: 270, zone: challenges, ip: 10.20.70.10, cores: 1, memory_mb: 256,  disk_gb: 4, tun: true }   # routing peer NetBird de la zone CHALLENGES (netbird.routing_peer_service)
 
 kubernetes:
   cluster_name: pad-prod
@@ -156,12 +157,14 @@ netbird:
     players: ctf-players
     staff: infra-admins
   routing_peer_zone: challenges
-  routing_peer_ip: 10.20.70.10            # LXC/peer ou DaemonSet hostNetwork sur pool challenges
+  routing_peer_service: nbrouter          # LXC dédié en zone CHALLENGES (services.nbrouter) ; agent NetBird, masquerade
+  routing_peer_ip: 10.20.70.10            # = services.nbrouter.ip (source vue par les instances : PAD_FROM_CIDRS)
   overlay_cidr: 100.64.0.0/10             # plage CGNAT par défaut des peers NetBird
   api_url: https://vpn.CHANGEME.example.net/api   # = hostnames.vpn + domain (API management NetBird)
   team_group_prefix: "ctf-team-"           # groupe NetBird par équipe CTFd : ctf-team-<team_id>
   network_name: pad-instances              # Network NetBird portant les resources d'instances
-  bastion_routing_peer_ip: 10.20.30.10    # agent NetBird sur le LXC warpgate (= services.warpgate.ip)
+  bastion_routing_peer_service: warpgate  # agent NetBird sur le LXC warpgate
+  bastion_routing_peer_ip: 10.20.30.10    # = services.warpgate.ip
   bastion_network_name: pad-bastion        # Network NetBird de la zone BASTION (staff uniquement)
   technical_groups:
     routers_challenges: pad-routers-challenges

@@ -21,7 +21,7 @@ qui est aussi le résolveur DNS (Unbound) de la zone.
 | 40 | IDENTITY | `10.20.40.0/24` | LXC `authentik` (`.10`) |
 | 50 | MONITORING | `10.20.50.0/24` | LXC `monitoring` (`.10`) |
 | 60 | PROD | `10.20.60.0/24` | VIP Talos (`.5`), control plane, workers `platform`, pool LB d'ingress (`.200` à `.220`) |
-| 70 | CHALLENGES | `10.20.70.0/24` | workers `challenges`, routing peer NetBird (`.10`), pool LB des instances (`.100` à `.199`) |
+| 70 | CHALLENGES | `10.20.70.0/24` | workers `challenges`, LXC `nbrouter` = routing peer NetBird (`.10`), pool LB des instances (`.100` à `.199`) |
 
 Réseaux internes du cluster : pods `10.244.0.0/16`, services `10.96.0.0/12`. Overlay NetBird : `100.64.0.0/10`.
 

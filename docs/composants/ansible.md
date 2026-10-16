@@ -38,7 +38,7 @@ puis le rôle du service.
 
 - `infra/ansible/playbooks/` : `host.yml`, `services.yml`, `site.yml`.
 - `infra/ansible/roles/` : `base-hardening`, `docker`, `alloy`, `host-tuning`, `edge-traefik-crowdsec`, `netbird-server`,
-  `warpgate`, `authentik`, `monitoring-stack`.
+  `netbird-agent`, `lxc-tun`, `warpgate`, `authentik`, `monitoring-stack`.
 - `infra/ansible/inventories/prod/` : `hosts.example.yml` (hôte), `hosts.generated.yml` (écrit par tofu), `group_vars/all/`
   (`access.yml`, `contracts.yml`, `versions.yml`).
 - `infra/ansible/ansible.cfg`, `Taskfile.yml`.

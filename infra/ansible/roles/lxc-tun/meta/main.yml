@@ -1,0 +1,10 @@
+---
+galaxy_info:
+  author: penetrate-and-destroy
+  description: Périphérique /dev/net/tun pour les LXC non privilégiés qui en ont besoin (drapeau tun du contrat)
+  license: MIT
+  min_ansible_version: "2.17"
+  platforms:
+    - name: Debian
+      versions: [all]
+dependencies: []

@@ -86,6 +86,8 @@ resource "proxmox_virtual_environment_container" "this" {
 
   lifecycle {
     # Le mot de passe/clé n'est utilisé qu'à la création ; Ansible gère ensuite les accès.
-    ignore_changes = [initialization[0].user_account, features]
+    # /dev/net/tun (drapeau `tun` du contrat) est ajouté par Ansible (`pct set --dev0`, rôle lxc-tun) : l'API Proxmox
+    # le réserve à root@pam, un jeton non-root ne peut pas le poser. Tofu ne doit pas le retirer au prochain apply.
+    ignore_changes = [initialization[0].user_account, features, device_passthrough]
   }
 }

@@ -16,7 +16,7 @@ la page de la section [Composants](composants/index.md) ; pour une panne, les [r
 | 1 | `phase:1-reseau` | bridges et IP de l'hôte (`00-host-network`), réglages de l'hôte (Ansible) | 5 min |
 | 2 | `phase:2-routeur` | VM OPNsense (`10-router`), route de l'hôte, règles de pare-feu (`60-opnsense-rules`) | 15 min |
 | 3 | `phase:3-image-talos` | image Talos et template de VM (`15-talos-image`) | 10 min |
-| 4 | `phase:4-lxc` | les cinq LXC de services (`20-services-lxc`) | 10 min |
+| 4 | `phase:4-lxc` | les six LXC de services (`20-services-lxc`) | 10 min |
 | 5 | `phase:5-dns` | enregistrements DNS publics (`70-dns`) | 2 min |
 | 6 | `phase:6-services-1` | monitoring, Authentik, edge (Ansible, passe 1) | 20 min |
 | 7 | `phase:7-identite` | `30-authentik` + recopie des secrets OIDC | 5 min |
@@ -323,7 +323,7 @@ Toutes les commandes se lancent depuis la racine du dépôt, dans `nix develop`,
 
 ### Phase 4 : les LXC
 
-- **Fait** : `20-services-lxc` télécharge le template Debian 13 (somme de contrôle vérifiée), crée cinq LXC non privilégiés avec `nesting` (puis `keyctl`, posé par `task host:lxc-features` du rôle `host-tuning`, voir 2.2), injecte la clé SSH d'Ansible, et **écrit l'inventaire** `infra/ansible/inventories/prod/hosts.generated.yml`.
+- **Fait** : `20-services-lxc` télécharge le template Debian 13 (somme de contrôle vérifiée), crée six LXC non privilégiés avec `nesting` (puis `keyctl`, posé par `task host:lxc-features` du rôle `host-tuning`, voir 2.2), injecte la clé SSH d'Ansible, et **écrit l'inventaire** `infra/ansible/inventories/prod/hosts.generated.yml`.
 - **Commande** : `task phase:4-lxc`.
 - **Créé** :
 
@@ -434,12 +434,12 @@ Détail et vérification des signatures : [Images signées](operations/images-si
 
 ### Phase 11 : accès staff et joueurs
 
-- **Fait** : rejoue NetBird (le PAT du *owner* active le connecteur OIDC Authentik et les groupes JWT), `40-netbird` (groupes, réseaux `pad-instances` et `pad-bastion`, policy `staff-vers-bastion`, clés d'enrôlement des routing peers, utilisateurs de service) et `50-warpgate` (rôles et cibles : LXC, OPNsense, Proxmox). Elle **exige** les jetons de la phase 8 ; le contrôle préalable le dit si l'un manque. Voir [NetBird](composants/netbird.md), [netbird-sync](composants/netbird-sync.md).
+- **Fait** : rejoue NetBird (le PAT du *owner* active le connecteur OIDC Authentik et les groupes JWT), `40-netbird` (groupes, réseaux `pad-instances` et `pad-bastion`, policy `staff-vers-bastion`, clés d'enrôlement des routing peers, utilisateurs de service), recopie ces clés dans `secrets/netbird-agent.sops.yaml` (`task netbird:sync-keys`), enrôle les **deux routing peers** (`task netbird:agents` : `/dev/net/tun` ajouté depuis l'hôte aux LXC `nbrouter` et `warpgate`, agent NetBird épinglé, `netbird up` une seule fois) et `50-warpgate` (rôles et cibles : LXC, OPNsense, Proxmox). Elle **exige** les jetons de la phase 8 ; le contrôle préalable le dit si l'un manque. Voir [NetBird](composants/netbird.md), [netbird-sync](composants/netbird-sync.md).
 - **Commande** : `task phase:11-acces`. Si le provider échoue à joindre Warpgate par son nom public interne : `-var insecure_skip_verify=true` ou `-var warpgate_api_url=https://10.20.30.10:8888` via `task tofu:apply-stack STACK=50-warpgate -- -var …`.
 - **Actions manuelles ensuite** :
     1. Dashboard NetBird > *Team > Service Users* : créer un PAT pour `netbird-sync` → `gitops/apps/netbird-sync/secret.sops.yaml` (`NETBIRD_API_TOKEN`), et pour `pad-frontend-readonly` (rôle `auditor`) → `gitops/apps/frontend/secret.sops.yaml` (`NETBIRD_API_TOKEN`). Commit + push (ArgoCD redéploie). Ne jamais réutiliser le PAT de l'un pour l'autre.
-    2. Enrôler les **routing peers** : la sortie sensible `routing_peer_setup_keys` (`tofu -chdir=infra/tofu/stacks/40-netbird output -json routing_peer_setup_keys`) fournit une clé par zone (challenges `10.20.70.10`, bastion = LXC warpgate `10.20.30.10`). Ce dépôt n'enrôle pas encore ces pairs automatiquement : sur le LXC warpgate, installer l'agent NetBird et lancer `netbird up --setup-key <clé bastion> --management-url https://vpn.<domaine>` ; pour la zone challenges, un pair d'IP `10.20.70.10` reste à prévoir (point ouvert, voir [Limites connues](reference/limites.md)).
-    3. Règles OPNsense des routing peers (action 6 de [Actions manuelles](operations/actions-post-deploiement.md)).
+    2. **Routing peers** : rien à faire à la main, la phase s'en charge (voir « Ce que fait la phase » ci-dessous) ; seul le contrôle `task check:11-acces` est à lire.
+    3. Les règles OPNsense des routing peers sont dans `60-opnsense-rules` (règles `N1` à `N6` : HTTPS vers le management/relay, STUN, WireGuard direct, apt et NTP de `nbrouter`) : rien à ajouter.
     4. Zot : identifiants de pull sur les nœuds du pool `challenges` (action 8), puis publication dans Zot du scénario chall-manager et des images de challenge, depuis un poste qui joint `registry.pad.internal` (NetBird staff ou bastion) :
 
         ```bash
@@ -449,7 +449,8 @@ Détail et vérification des signatures : [Images signées](operations/images-si
         ```
 
         Le scénario (artefact OCI Pulumi, pas une image Docker) est compilé et poussé avec `oras` ; les images de challenge sont copiées de ghcr vers `registry.pad.internal/ctf/` à l'identique (`crane copy`), donc l'empreinte épinglée dans `challenge.yml` reste valable. Cosign et `enforce` (action 9) plus tard.
-- **Vérifier** : `task check:11-acces`, ou dashboard NetBird (groupes `ctf-players`, `infra-admins`, networks), `kubectl -n netbird-sync logs deploy/netbird-sync` (pas de 401/403, pas de « refus de démarrer »).
+- **Ce que fait la phase pour les routing peers** : un routing peer par zone, `nbrouter` (LXC dédié `10.20.70.10`, zone CHALLENGES, network `pad-instances`) et l'agent sur `warpgate` (zone BASTION, network `pad-bastion`), tous deux en masquerade. Setup keys réutilisables (5 usages, 30 jours) : rejouer la phase ne réenregistre rien. Clé expirée ou épuisée après une reconstruction : `task netbird:rotate-keys`.
+- **Vérifier** : `task check:11-acces` (pairs `pad-routers-*` connectés, routeur actif sur chaque network, `netbird status` sur les LXC), ou dashboard NetBird (groupes `ctf-players`, `infra-admins`, networks), `kubectl -n netbird-sync logs deploy/netbird-sync` (pas de 401/403, pas de « refus de démarrer »).
 - **Rejouer** : sans risque. Plans : `task plan:40-netbird`, `task plan:50-warpgate`.
 
 ### Phase 12 : vérification
@@ -526,7 +527,7 @@ Avant d'ouvrir l'événement aux joueurs :
 - [ ] **Flags et scoreboard** : un challenge statique et un challenge instancié se résolvent, le scoreboard se met à jour en direct.
 - [ ] **Alertes** : arrêter un exporter (`systemctl stop prometheus-node-exporter` sur un LXC) → l'alerte arrive sur Discord et par e-mail ; le `Watchdog` est vert ([Watchdog](runbooks/watchdog.md)).
 - [ ] **Sauvegarde** : `task backup`, puis un test de restauration sur un environnement jetable ([procédure](runbooks/backup-restore.md)).
-- [ ] Actions manuelles terminées ([liste](operations/actions-post-deploiement.md)) : MFA, policy Default, PAT, routing peers, Zot, cosign, protection de la branche `main`.
+- [ ] Actions manuelles terminées ([liste](operations/actions-post-deploiement.md)) : MFA, policy Default, PAT, Zot, cosign, protection de la branche `main`.
 - [ ] Clés age et phrase des states sauvegardées **hors machine**.
 
 ---

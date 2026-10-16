@@ -11,6 +11,8 @@ locals {
       cores     = s.cores
       memory_mb = s.memory_mb
       disk_gb   = s.disk_gb
+      # Le périphérique /dev/net/tun est posé par Ansible (rôle lxc-tun) ; l'étiquette le rend visible dans Proxmox.
+      extra_tags = try(s.tun, false) ? ["tun"] : []
     }
   }
 }

@@ -10,6 +10,9 @@
 #   M3  DMZ (edge) -> IDENTITY : 443 (authentik)
 #   M4  Joueurs NetBird -> CHALLENGES : via le routing peer situé DANS la zone challenges => intra-zone, pas de règle OPNsense
 #       (filtrage par policies NetBird + CiliumNetworkPolicy, contrôleur netbird-sync en phase 2)
+#   N*  Routing peers NetBird (LXC nbrouter en CHALLENGES, agent sur warpgate en BASTION) : sortie vers le management/signal/relay
+#       (HTTPS), STUN et WireGuard (UDP) ; nbrouter n'a pas d'egress Internet par ailleurs (zone CHALLENGES), d'où ses règles dédiées.
+#       Le trafic joueurs -> instances (nbrouter -> IP LB, même VLAN) est intra-zone : aucune règle ici.
 #   M5  Staff NetBird -> BASTION uniquement : peer de routage staff = LXC netbird (DMZ) -> warpgate (ports Warpgate)
 #   M6  BASTION -> toutes zones : SSH, HTTPS, kube API 6443, Talos API 50000 (+ OPNsense lui-même : SSH/GUI)
 #   M7  Toutes zones -> MONITORING : push uniquement
@@ -54,6 +57,7 @@ locals {
       host_edge           = { type = "host", content = [local.svc.edge.ip], description = "LXC edge (Traefik + CrowdSec)" }
       host_netbird        = { type = "host", content = [local.svc.netbird.ip], description = "LXC netbird (management, signal, relay, coturn ; routing peer staff)" }
       host_warpgate       = { type = "host", content = [local.svc.warpgate.ip], description = "LXC warpgate (bastion)" }
+      host_nbrouter       = { type = "host", content = [local.svc.nbrouter.ip], description = "LXC nbrouter (routing peer NetBird de la zone CHALLENGES)" }
       host_authentik      = { type = "host", content = [local.svc.authentik.ip], description = "LXC authentik (IdP)" }
       host_monitoring     = { type = "host", content = [local.svc.monitoring.ip], description = "LXC monitoring" }
       host_k8s_ingress    = { type = "host", content = [local.k8s.ingress_ip], description = "Traefik interne du cluster (LB Cilium)" }
@@ -73,6 +77,8 @@ locals {
       port_admin_self   = { type = "port", content = [tostring(local.p.ssh), tostring(local.p.https)], description = "Admin OPNsense (SSH, GUI)" }
       port_cilium_ctl   = { type = "port", content = [for x in [local.p.cilium.health_tcp, local.p.cilium.hubble_tcp] : tostring(x)], description = "Cilium health + Hubble (PROD -> workers challenges)" }
       port_k8s_node_udp = { type = "port", content = [tostring(local.p.cilium.vxlan_udp), tostring(local.p.cilium.wireguard_udp)], description = "Inter-nœuds UDP (Cilium VXLAN, WireGuard)" }
+      port_netbird_stun = { type = "port", content = [tostring(local.c.ports.netbird.stun)], description = "STUN NetBird" }
+      port_udp_high     = { type = "port", content = ["1024:65535"], description = "UDP éphémère (WireGuard direct entre pairs NetBird)" }
       port_egress_tcp   = { type = "port", content = [tostring(local.p.http), tostring(local.p.https)], description = "Egress Internet TCP" }
     },
   )
@@ -133,6 +139,26 @@ locals {
     { id = "m10-chall-egress", seq = 720, ifaces = [local.iface["challenges"]], proto = "TCP", src = "net_challenges", dst = "host_chall_egress", port = "port_egress_tcp", desc = "M10 CHALLENGES -> allowlist Internet" },
   ]
 
+  # N* - routing peers NetBird. Chaque règle porte son LXC source et l'interface de sa zone.
+  netbird_router_rules = !var.allow_netbird_routers ? [] : concat(
+    [
+      # nbrouter n'a pas l'egress de la zone CHALLENGES (allowlist) : apt, management/signal/relay en HTTPS, NTP.
+      { id = "n1-nbrouter-egress-tcp", seq = 910, ifaces = [local.iface["challenges"]], proto = "TCP", src = "host_nbrouter", dst = "!net_private", port = "port_egress_tcp", desc = "N1 nbrouter -> Internet 80/443 (apt, management NetBird)" },
+      { id = "n2-nbrouter-egress-ntp", seq = 911, ifaces = [local.iface["challenges"]], proto = "UDP", src = "host_nbrouter", dst = "!net_private", port = tostring(local.p.ntp), desc = "N2 nbrouter -> Internet NTP" },
+      # Résolution interne possible du nom public du VPN : edge (HTTPS) et netbird (STUN) en DMZ.
+      { id = "n3-nbrouter-edge", seq = 912, ifaces = [local.iface["challenges"]], proto = "TCP", src = "host_nbrouter", dst = "host_edge", port = tostring(local.p.https), desc = "N3 nbrouter -> edge 443 (management/signal/relay NetBird)" },
+      { id = "n4-nbrouter-stun-internal", seq = 913, ifaces = [local.iface["challenges"]], proto = "UDP", src = "host_nbrouter", dst = "host_netbird", port = "port_netbird_stun", desc = "N4 nbrouter -> netbird STUN" },
+      { id = "n4-warpgate-stun-internal", seq = 914, ifaces = [local.iface["bastion"]], proto = "UDP", src = "host_warpgate", dst = "host_netbird", port = "port_netbird_stun", desc = "N4 warpgate -> netbird STUN" },
+      { id = "n5-nbrouter-stun", seq = 915, ifaces = [local.iface["challenges"]], proto = "UDP", src = "host_nbrouter", dst = "!net_private", port = "port_netbird_stun", desc = "N5 nbrouter -> STUN public" },
+      { id = "n5-warpgate-stun", seq = 916, ifaces = [local.iface["bastion"]], proto = "UDP", src = "host_warpgate", dst = "!net_private", port = "port_netbird_stun", desc = "N5 warpgate -> STUN public" },
+    ],
+    # WireGuard direct entre pairs (traversée de NAT) ; sans cette règle, le trafic passe par le relay (HTTPS), plus lent.
+    !var.netbird_routers_direct_udp ? [] : [
+      { id = "n6-nbrouter-wg", seq = 917, ifaces = [local.iface["challenges"]], proto = "UDP", src = "host_nbrouter", dst = "!net_private", port = "port_udp_high", desc = "N6 nbrouter -> pairs NetBird (WireGuard direct)" },
+      { id = "n6-warpgate-wg", seq = 918, ifaces = [local.iface["bastion"]], proto = "UDP", src = "host_warpgate", dst = "!net_private", port = "port_udp_high", desc = "N6 warpgate -> pairs NetBird (WireGuard direct)" },
+    ],
+  )
+
   infra_rules = concat(
     !var.allow_dns_all_zones ? [] : [
       { id = "i1-zones-dns", seq = 800, ifaces = local.all_zone_ifaces, proto = "TCP/UDP", src = "net_all_zones", dst = "(self)", port = tostring(local.p.dns), desc = "I1 zones -> DNS Unbound" },
@@ -159,7 +185,7 @@ locals {
     ],
   )
 
-  pass_rules = { for r in concat(local.wan_rules, local.matrix_rules, local.chall_egress_rules, local.infra_rules) : r.id => r }
+  pass_rules = { for r in concat(local.wan_rules, local.matrix_rules, local.chall_egress_rules, local.netbird_router_rules, local.infra_rules) : r.id => r }
 }
 
 resource "opnsense_firewall_filter" "pass" {

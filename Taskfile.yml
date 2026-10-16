@@ -144,17 +144,38 @@ tasks:
     env: { PAD_MARK: "1" }
 
   phase:11-acces:
-    desc: "Phase 11 : accès staff/joueurs (connecteur NetBird via ansible, tofu 40-netbird, tofu 50-warpgate) ; exige les PAT créés à la main"
+    desc: "Phase 11 : accès staff/joueurs (NetBird via ansible, tofu 40-netbird, setup keys, agents des routing peers, tofu 50-warpgate) ; exige les PAT créés à la main"
     cmds:
       - "{{.CHECK}} pre-acces"
       # Le PAT du owner (netbird.sops.yaml) active, à ce second passage, le connecteur OIDC Authentik et les groupes JWT.
       - cmd: "{{.TASK_EXE}} ansible:services -- --tags netbird"
       - task: tofu:apply-stack
         vars: { STACK: 40-netbird }
+      # Setup keys créées par 40-netbird -> secrets/netbird-agent.sops.yaml -> agents des deux routing peers (CHALLENGES, BASTION).
+      - task: netbird:sync-keys
+      - task: netbird:agents
       - task: tofu:apply-stack
         vars: { STACK: 50-warpgate }
       - "{{.CHECK}} 11-acces"
     env: { PAD_MARK: "1" }
+
+  netbird:sync-keys:
+    desc: "Recopie les setup keys des routing peers (sortie de 40-netbird) dans secrets/netbird-agent.sops.yaml (à committer si vous versionnez les secrets)"
+    cmds:
+      - task: secrets:netbird-keys-sync
+
+  netbird:agents:
+    desc: "Enrôle les routing peers NetBird : /dev/net/tun sur l'hôte (lxc-tun) puis agent sur nbrouter (CHALLENGES) et warpgate (BASTION) ; rejouable"
+    cmds:
+      - cmd: "{{.TASK_EXE}} ansible:services -- --tags netbird-agent"
+
+  netbird:rotate-keys:
+    desc: "Recrée les setup keys des routing peers (expirées ou épuisées), les recopie dans le sops et rejoue les agents"
+    cmds:
+      - task: tofu:apply-stack
+        vars: { STACK: 40-netbird, CLI_ARGS: "-replace=netbird_setup_key.routing_challenges -replace=netbird_setup_key.routing_bastion" }
+      - task: netbird:sync-keys
+      - task: netbird:agents
 
   phase:12-verify:
     desc: "Phase 12 : smoke tests (scripts/verify.sh) et rappel des actions manuelles ; à lancer depuis un poste connecté à NetBird"
@@ -199,7 +220,7 @@ tasks:
     desc: "Vérifie la phase 10 (ArgoCD, secrets, Applications Synced/Healthy)"
     cmds: ["{{.CHECK}} 10-gitops"]
   check:11-acces:
-    desc: "Vérifie la phase 11 (stacks NetBird/Warpgate, policy Default, netbird-sync)"
+    desc: "Vérifie la phase 11 (stacks NetBird/Warpgate, policy Default, netbird-sync, routing peers connectés et routes actives)"
     cmds: ["{{.CHECK}} 11-acces"]
   check:12-verify:
     desc: "Smoke tests complets (équivaut à task verify) et rappel des actions manuelles"

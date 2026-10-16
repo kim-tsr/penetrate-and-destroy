@@ -42,6 +42,12 @@ all:
           zone: monitoring
           vlan: 50
           pad_service: monitoring
+        nbrouter:
+          ansible_host: 10.20.70.10      # contracts: services.nbrouter.ip
+          vmid: 270
+          zone: challenges
+          vlan: 70
+          pad_service: nbrouter
     svc_edge:
       hosts:
         edge:
@@ -57,6 +63,9 @@ all:
     svc_monitoring:
       hosts:
         monitoring:
+    svc_nbrouter:
+      hosts:
+        nbrouter:
     zone_dmz:
       hosts:
         edge:
@@ -70,3 +79,6 @@ all:
     zone_monitoring:
       hosts:
         monitoring:
+    zone_challenges:
+      hosts:
+        nbrouter:

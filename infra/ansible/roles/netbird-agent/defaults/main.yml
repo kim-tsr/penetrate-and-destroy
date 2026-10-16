@@ -1,0 +1,23 @@
+---
+# Agent NetBird d'un routing peer (LXC nbrouter pour la zone CHALLENGES, LXC warpgate pour la zone BASTION).
+# Le play fixe `netbird_agent_zone` (challenges | bastion) ; la setup key correspondante vient de
+# secrets/netbird-agent.sops.yaml (recopiée de la stack tofu 40-netbird par `task netbird:sync-keys`).
+netbird_agent_zone: ""
+
+netbird_agent_management_url: "https://{{ pad_fqdn.vpn }}"
+netbird_agent_version: "{{ pad_apt_versions.netbird }}"
+netbird_agent_apt_uri: https://pkgs.netbird.io/debian
+netbird_agent_apt_key_url: https://pkgs.netbird.io/debian/public.key
+netbird_agent_apt_suite: stable
+netbird_agent_apt_component: main
+
+# Paquets nécessaires au masquerade de l'agent (il choisit nftables, sinon iptables).
+netbird_agent_packages: [nftables, iptables]
+
+# Secrets chargés depuis SOPS (voir secrets/netbird-agent.example.yaml).
+netbird_agent_setup_key_challenges: ""
+netbird_agent_setup_key_bastion: ""
+
+# Attente de la connexion au management et au signal après `netbird up`.
+netbird_agent_connect_retries: 12
+netbird_agent_connect_delay: 5

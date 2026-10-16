@@ -16,7 +16,7 @@ déploiement. **Les faire avant d'ouvrir la plateforme aux joueurs.**
 | 3 | Enrôler le MFA du premier `infra-admins` | après `30-authentik` |
 | 4 | Supprimer la policy NetBird « Default » | après le déploiement de NetBird |
 | 5 | Créer les PAT NetBird (`netbird-sync`, front) | après le déploiement de NetBird |
-| 6 | Règles OPNsense des routing peers | avant le premier événement |
+| 6 | Vérifier les routing peers NetBird (enrôlement et règles OPNsense automatisés) | avant le premier événement |
 | 7 | Première publication des images (digests de remplacement) | après le premier push sur `main` |
 | 8 | Zot : identifiants de pull des nœuds challenges | avant le premier challenge instancié |
 | 9 | Clé cosign et passage en `enforce` | une fois les images signées |
@@ -104,20 +104,19 @@ Il faut aussi, une fois NetBird déployé, **un PAT administrateur** pour la sta
 (`secrets/netbird.sops.yaml`, `netbird_server_api_token`). Le jeton de Warpgate pour la stack `50-warpgate` suit le même
 principe (`secrets/warpgate-tofu.sops.yaml`).
 
-## 6. Règles OPNsense des routing peers
+## 6. Routing peers NetBird (automatisés, à vérifier)
 
-NetBird route le trafic des joueurs par un **routing peer** en masquerade : les cibles voient l'IP du routing peer.
-Deux routing peers existent (un par zone) et OPNsense doit les autoriser explicitement :
+NetBird route le trafic par un **routing peer** en masquerade : les cibles voient l'IP du routing peer. Il y en a un par zone,
+**enrôlés et autorisés par le dépôt** (phase 11 : setup keys de `40-netbird`, rôle Ansible `netbird-agent`, règles `N1` à `N6`
+de `60-opnsense-rules`) :
 
-| Peer | IP | Doit pouvoir joindre | Ports |
+| Peer | IP | Doit pouvoir joindre | Règles |
 |---|---|---|---|
-| challenges | `10.20.70.10` | les IP d'instances (pool `10.20.70.100` à `.199`), dans la même zone CHALLENGES | ports des instances |
-| bastion (LXC `warpgate`) | `10.20.30.10` | les cibles du bastion | selon les targets Warpgate |
+| challenges (LXC `nbrouter`) | `10.20.70.10` | les IP d'instances (pool `10.20.70.100` à `.199`), même zone : aucune règle OPNsense | sortie HTTPS, STUN, UDP direct, apt, NTP |
+| bastion (LXC `warpgate`) | `10.20.30.10` | les cibles du bastion | M6 existante + STUN et UDP direct |
 
-Pour le peer `challenges`, le trafic reste dans la zone CHALLENGES ; vérifier qu'aucune règle de l'interface n'interdit
-le flux intra-zone, et que la règle `CHALLENGES vers rien` n'inclut pas la destination des instances. Ces règles ne
-sont pas encore dans la stack `60-opnsense-rules` : les ajouter (de préférence dans le code, puis
-`task tofu:apply-stack STACK=60-opnsense-rules`) et noter ce que vous avez fait.
+Il reste à vérifier : `task check:11-acces` (pairs connectés, routeurs actifs). Si une setup key est expirée ou épuisée :
+`task netbird:rotate-keys`. Ces pairs ne survivent pas à `task destroy` mais sont réenrôlés par `task phase:11-acces`.
 
 Test : depuis un poste NetBird d'un joueur, une instance démarrée doit répondre ; sans NetBird, elle ne doit pas répondre.
 
