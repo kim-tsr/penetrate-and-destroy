@@ -30,3 +30,7 @@ CLAUDE.md
 # Documentation : venv local et site généré (task docs:serve, task docs:build).
 .venv-docs/
 site/
+
+# Binaires Go compilés localement
+apps/chall-manager-scenario/chall-manager-scenario
+apps/netbird-sync/netbird-sync
