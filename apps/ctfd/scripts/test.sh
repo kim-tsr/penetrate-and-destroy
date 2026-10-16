@@ -15,6 +15,15 @@ PYTHON="${PYTHON:-python3.11}"
 # Venv isolé : le PYTHONPATH du devshell nix (paquets python3.12) ne doit pas fuir dans le venv 3.11
 # (sinon cffi/_cffi_backend introuvable et conflits pip avec checkov, openai, pydantic).
 unset PYTHONPATH PYTHONHOME PYTHONSTARTUP PYTHONUSERBASE
+# Les roues manylinux du venv (greenlet via gevent) attendent libstdc++.so.6 : le devshell nix l'expose via
+# PAD_LIBSTDCXX_DIR (flake.nix). Ajouté à LD_LIBRARY_PATH uniquement dans ce script, donc pour le venv du harnais seul.
+if [ -n "${PAD_LIBSTDCXX_DIR:-}" ]; then
+  if [ -f "${PAD_LIBSTDCXX_DIR}/libstdc++.so.6" ]; then
+    export LD_LIBRARY_PATH="${PAD_LIBSTDCXX_DIR}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+  else
+    echo "avertissement : PAD_LIBSTDCXX_DIR=${PAD_LIBSTDCXX_DIR} ne contient pas libstdc++.so.6" >&2
+  fi
+fi
 export PIP_USER=0 PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONNOUSERSITE=1
 if ! command -v "${PYTHON}" >/dev/null 2>&1; then
   echo "interpréteur introuvable : ${PYTHON} (CTFd 3.8 tourne sur Python 3.11 ; 'nix develop' le fournit, sinon PYTHON=/chemin/python3.11)" >&2
@@ -31,6 +40,11 @@ if [ ! -x "${VENV}/bin/pytest" ]; then
   rm -rf "${VENV}"
   "${PYTHON}" -I -m venv "${VENV}"
   "${VENV}/bin/pip" install --quiet -r "${SRC}/development.txt"
+  # Échec bavard et précoce si greenlet (gevent) ne charge pas, plutôt qu'à l'import de CTFd.
+  "${VENV}/bin/python" -I -c 'import greenlet._greenlet' || {
+    echo "ÉCHEC : greenlet ne charge pas (libstdc++.so.6 ? PAD_LIBSTDCXX_DIR=${PAD_LIBSTDCXX_DIR:-non défini}, LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-vide})" >&2
+    exit 1
+  }
   "${VENV}/bin/pip" install --quiet --no-deps --require-hashes -r "${HERE}/requirements.txt"
 fi
 
