@@ -597,6 +597,7 @@ Avant d'ouvrir l'événement aux joueurs :
 | Symptôme | Piste |
 |---|---|
 | SYN reçu par un LXC sans réponse, `InCsumErrors` qui augmente (`grep -A1 ^Tcp: /proc/net/snmp` dans le LXC), `tcpdump -vv` : `incorrect cksum` | déchargements matériels actifs sur les NIC virtio d'OPNsense : le `config.xml` de bootstrap les désactive ; sur un routeur déjà installé, *Interfaces > Settings* (cocher les trois « Disable hardware ... offload ») puis redémarrer |
+| Ansible : hôtes `UNREACHABLE` au hasard (`Connection timed out during banner exchange`, `Data could not be sent`) alors que les LXC tournent | OpenSSH >= 9.8 sur l'hôte (`PerSourcePenalties`) refuse temporairement le poste qui ouvre trop de sessions. Le rebond est multiplexé (une seule session sur l'hôte, `~/.ansible/cp/pad-jump-*`) : vérifier que le dépôt est à jour ; en dernier recours, sur l'hôte, `PerSourcePenaltyExemptList` avec la plage du VPN |
 | `tofu` : `Error acquiring the state` ou illisible | `TF_VAR_state_passphrase` différent de celui du state ; ne jamais en changer sans détruire |
 | `tofu` : authentification Proxmox | jeton (2.2), `proxmox_url`, `proxmox.insecure` ; `task check:0-prereqs` |
 | Depuis le poste, aucune zone ne répond hors mgmt (SYN sans SYN-ACK) alors que l'hôte les joint | table `inet pad_raw` absente de l'hôte (`sudo nft list table inet pad_raw`) : `task ansible:host -- --tags host_bridge_notrack` |

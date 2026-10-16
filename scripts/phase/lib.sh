@@ -127,7 +127,9 @@ lxc_ssh() {
   local ip=$1 jump
   shift
   jump="${PAD_PROXMOX_JUMP:-$(host_target)}" || return 1
-  ssh "${SSH_OPTS[@]}" -o "ProxyJump=${jump}" "root@${ip}" "$@"
+  # Rebond multiplexé (même raison que dans l'inventaire Ansible : PerSourcePenalties d'OpenSSH >= 9.8 sur l'hôte).
+  mkdir -p "${HOME}/.ansible/cp"
+  ssh "${SSH_OPTS[@]}" -o "ProxyCommand=ssh -o BatchMode=yes -o ControlMaster=auto -o ControlPersist=300 -o ControlPath=${HOME}/.ansible/cp/pad-jump-check -W %h:%p ${jump}" "root@${ip}" "$@"
 }
 
 # --- état OpenTofu -----------------------------------------------------------------------------------------------------

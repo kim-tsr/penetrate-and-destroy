@@ -82,3 +82,12 @@ task ansible:lint                                   # ansible-lint + syntax-chec
 [docs.ansible.com](https://docs.ansible.com/)
 
 [Retour à l'index des composants](index.md){ .md-button }
+
+## Accès SSH aux LXC (rebond multiplexé)
+
+Par défaut (`PAD_ACCESS_MODE=proxmox`), Ansible et les scripts de vérification (`scripts/phase/lib.sh`, `lxc_ssh`) joignent les LXC
+par un rebond sur l'hôte Proxmox (`ssh_user@ssh_host` de `secrets/site.sops.yaml`). Ce rebond est **multiplexé** : un
+`ProxyCommand` réutilise une seule session SSH authentifiée vers l'hôte (`ControlMaster`, socket `~/.ansible/cp/pad-jump-*`,
+gardée 5 min). Raison : OpenSSH >= 9.8, livré avec Proxmox 9, active `PerSourcePenalties`, qui refuse temporairement une source
+ouvrant beaucoup de sessions (dont certaines sans authentification), ce qui rendait des hôtes `UNREACHABLE` au hasard pendant
+les playbooks. Configuration : `infra/ansible/inventories/prod/group_vars/all/access.yml` (`ansible_ssh_common_args`).
