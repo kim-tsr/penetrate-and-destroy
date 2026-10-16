@@ -323,6 +323,7 @@ check_storage() {
       && pass "type de stockage ${dsv} conforme au contrat (host.datastore_vm_type)" \
       || fail "${dsv} est de type $(jq -r '.type' <<<"$row"), le contrat dit $(c '.host.datastore_vm_type')" "task site:set -- datastore_vm_type=$(jq -r '.type' <<<"$row")"
     check_space "$(jq -r '.avail' <<<"$row")"
+    [[ "$(c '.host.datastore_vm_type')" == zfspool ]] && check_zfs_mountpoint "$dsv"
   fi
   row=$(jq -c --arg s "$dsi" '.data[] | select(.storage==$s)' <<<"$st")
   if [[ -z "$row" ]]; then
@@ -350,6 +351,24 @@ check_storage() {
       pass "RAM de l'hôte suffisante pour le minimum de la plateforme (≈ $((need / 1024)) Gio d'invités)"
     fi
   fi
+}
+
+# Un zfspool dont le dataset a mountpoint=none/legacy sert les zvols (VM) mais pas les subvols des LXC.
+check_zfs_mountpoint() {
+  local id=$1 ds mp
+  ds=$(pve_get "/storage/${id}" 2>/dev/null | jq -r '.data.pool // empty' 2>/dev/null) || ds=""
+  [[ -n "$ds" ]] || ds=$(host_ssh "sudo -n awk -v id='${id}' '\$2==id {f=1; next} /^[a-z]/ {f=0} f && \$1==\"pool\" {print \$2; exit}' /etc/pve/storage.cfg" 2>/dev/null) || ds=""
+  ds=${ds%%/}
+  if [[ -z "$ds" ]]; then
+    warn "dataset ZFS du stockage ${id} non lisible" "pvesm status ; grep -A5 'zfspool: ${id}' /etc/pve/storage.cfg"
+    return
+  fi
+  mp=$(host_ssh "sudo -n zfs get -H -o value mountpoint '${ds}'" 2>/dev/null) || mp=""
+  case "$mp" in
+    "") warn "point de montage du dataset ZFS ${ds} non lisible" "sur l'hôte : zfs get mountpoint ${ds}" ;;
+    none | legacy) fail "stockage ${id} : dataset ZFS ${ds} sans point de montage (les LXC ne peuvent pas être créés)" "sur l'hôte : zfs set mountpoint=/${ds} ${ds}" ;;
+    *) pass "dataset ZFS ${ds} monté sur ${mp} (création des LXC possible)" ;;
+  esac
 }
 
 check_space() {

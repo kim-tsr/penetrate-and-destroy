@@ -12,7 +12,7 @@ décrit. Le parcours complet, pas à pas : [Guide de déploiement](../guide-depl
 | Tâche | Effet |
 |---|---|
 | `up` | phases 0 à 12 dans l'ordre (idempotent, reprenable) |
-| `phase:0-prereqs` | outils, clés age, secrets, SSH et API Proxmox, privilèges du jeton, stockages |
+| `phase:0-prereqs` | outils, clés age, secrets, SSH et API Proxmox, privilèges du jeton, stockages (dont point de montage du dataset ZFS des VM) |
 | `phase:1-reseau` | `00-host-network` puis `ansible:host` |
 | `phase:2-routeur` | `10-router`, attente d'OPNsense, `host:route`, `60-opnsense-rules` |
 | `phase:3-image-talos` | `15-talos-image` (template Talos) |

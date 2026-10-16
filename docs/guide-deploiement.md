@@ -146,6 +146,14 @@ Il faut **deux stockages** (noms et types dans `infra/contracts.yaml`, bloc `hos
 Le type `zfspool` est le cas testé ; `lvmthin` et `dir` fonctionnent aussi avec Cluster API et le CSI Proxmox (les disques sont en `raw`
 dans tous les cas). Le réglage de l'ARC ZFS du rôle `host-tuning` n'est appliqué que si ZFS est présent (module chargé ou `datastore_vm_type: zfspool`), sans échec sinon.
 
+Pour un `zfspool`, le **dataset ZFS du stockage doit avoir un point de montage** : sans lui, les disques de VM (zvols) fonctionnent mais la création des LXC échoue (les LXC utilisent des datasets montés). La phase 0 le contrôle. À la main :
+
+```bash
+grep -A4 'zfspool: local-zfs' /etc/pve/storage.cfg   # ligne « pool » = le dataset
+zfs get mountpoint <dataset>                          # « none » ou « legacy » = à corriger
+zfs set mountpoint=/<dataset> <dataset>               # ex. zfs set mountpoint=/data/vmdata data/vmdata (réversible)
+```
+
 Le contenu `import` du stockage ISO (exigé par la phase 3) est **ajouté automatiquement** par le rôle `host-tuning` en phase 1, en conservant les contenus existants : rien à faire à la main. Le stockage doit être de type fichiers (`dir`, `nfs`...) ; sinon la phase 1 s'arrête en le disant.
 
 ### 2.2 Jeton API pour OpenTofu et Cluster API (liste exacte des privilèges)
@@ -588,6 +596,7 @@ Avant d'ouvrir l'événement aux joueurs :
 | `tofu` : authentification Proxmox | jeton (2.2), `proxmox_url`, `proxmox.insecure` ; `task check:0-prereqs` |
 | Ansible : hôte injoignable | clé dans l'agent ; `ssh_host`/`ssh_user` ; route de l'hôte vers les zones (`task host:route`, rôle `host-tuning`) |
 | `tofu` (phase 2) : `unable to authenticate user ... over SSH to "<IP>:22" ... i/o timeout` | le provider se connecte à `ssh_host` (et non à l'adresse annoncée par l'API Proxmox) : vérifier `ssh_host` dans `secrets/site.sops.yaml` (adresse joignable depuis le poste, ex. IP VPN) et que le dépôt est à jour |
+| Phase 4 (LXC) : `unable to create CT ... zfs error: cannot mount '...subvol-...': no mountpoint set` | le dataset ZFS du stockage des VM a `mountpoint=none` : `zfs set mountpoint=/<dataset> <dataset>` sur l'hôte (2.1), puis relancer la phase |
 | `kubectl` : `connection refused` / délai | route de votre poste vers `10.20.60.0/24` ; VIP `10.20.60.5` ; VM allumées |
 | Une phase échoue à mi-chemin | la corriger puis relancer **la même phase** ; elle reprend là où elle s'est arrêtée |
 | Savoir où l'on en est | `task status` (rapide) ou `task status -- --live` (contacte l'hôte) |
