@@ -354,7 +354,7 @@ tasks:
   # Valeurs de site, sauvegardes, tests
   # ===================================================================================================================
   site:set:
-    desc: "Valeurs de site non secrètes à mettre dans Git : task site:set -- node=pve datastore_vm=vmdata datastore_iso=local datastore_vm_type=zfspool domain=... (--show pour les voir)"
+    desc: "Valeurs de site non secrètes à mettre dans Git : task site:set -- node=pve datastore_vm=vmdata datastore_iso=local datastore_vm_type=zfspool wan_mode=nat domain=... (--show pour les voir)"
     cmds:
       - "python3 -I {{.ROOT_DIR}}/scripts/site-set.py {{.CLI_ARGS}}"
 

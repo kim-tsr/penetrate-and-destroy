@@ -240,6 +240,7 @@ task site:set -- git_repo=https://github.com/<vous>/<fork>.git git_ssh=git@githu
 | `domain` | domaine public racine (et `netbird.api_url`, `acme.email` s'ils le suivaient) | `domain` |
 | `acme_email` | contact Let's Encrypt | `acme.email` |
 | `git_repo`, `git_ssh` | dépôt suivi par ArgoCD | `git.repo`, `git.ssh` |
+| `wan_mode` | `routed_ip` (IP supplémentaire routée vers OPNsense) ou `nat` (IP de l'hôte, ports redirigés) | `wan.mode` |
 
 La commande est **idempotente** : elle met à jour le contrat puis chaque ligne de `gitops/` marquée `# contracts: …`, et affiche la liste des fichiers
 modifiés. Ensuite : `git diff`, `bash scripts/validate-gitops.sh` (si vous avez les outils), puis **commit et push dans votre fork**.
