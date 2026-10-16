@@ -36,15 +36,14 @@ tasks:
       - tofu -chdir=stacks/{{.STACK}} plan -input=false {{.CLI_ARGS}}
 
   destroy-stack:
-    desc: "tofu destroy d'un stack (STACK=<nom>) ; ignoré si le stack n'existe pas ou n'a pas de state"
+    desc: "tofu destroy d'un stack (STACK=<nom>, MODE=strict|tolerant) ; ignoré si le stack n'existe pas ou n'a pas de state"
     requires: { vars: [STACK] }
     status:
       # Rien à détruire : stack absent (pas encore livré) ou jamais appliqué.
-      - test ! -d stacks/{{.STACK}} || test ! -f {{.STATE_DIR}}/{{.STACK}}.tfstate
+      - test ! -d stacks/{{.STACK}} || test ! -s {{.STATE_DIR}}/{{.STACK}}.tfstate
     cmds:
-      - test -n "$TF_VAR_state_passphrase" || { echo "TF_VAR_state_passphrase doit être défini" >&2; exit 1; }
-      - tofu -chdir=stacks/{{.STACK}} init -input=false
-      - tofu -chdir=stacks/{{.STACK}} destroy -input=false -auto-approve {{.CLI_ARGS}}
+      # tolerant : pour les stacks qui configurent un service détruit juste après (le state est mis de côté si l'API a disparu).
+      - bash {{.ROOT_DIR}}/scripts/phase/destroy-stack.sh {{.STACK}} {{.MODE | default "strict"}}
 
   apply-netbird:
     desc: "Applique 40-netbird (groupes, networks, routing peers, policies ; nécessite NetBird déployé et un PAT dans secrets/netbird-tofu.sops.yaml)"

@@ -1,13 +1,17 @@
 version: "3"
 
-# Orchestration de bout en bout. Chaque phase est idempotente.
-# Prérequis : `nix develop`, secrets déchiffrables (SOPS_AGE_KEY_FILE), secrets/proxmox.sops.yaml et secrets/site.sops.yaml remplis.
-# Première fois : task secrets:keys && task secrets:init (puis compléter ce que task secrets:pending liste) ; docs/SECRETS.md.
+# Orchestration de bout en bout. Chaque phase est idempotente, rejouable et suivie d'une vérification (OK/KO).
+# `task up` = les phases 0 à 12 dans l'ordre ; chaque phase peut être jouée seule : task phase:<n>-<nom>.
+# Prérequis : `nix develop`, secrets déchiffrables (SOPS_AGE_KEY_FILE), TF_VAR_state_passphrase, secrets/proxmox.sops.yaml et
+# secrets/site.sops.yaml remplis. Première fois : task secrets:keys && task secrets:init (puis compléter ce que task secrets:pending
+# liste). Guide pas à pas : docs/guide-deploiement.md (task docs:serve).
 
 vars:
   STATE: "{{.ROOT_DIR}}/.state"
   STACKS: "{{.ROOT_DIR}}/infra/tofu/stacks"
   ANSIBLE: "{{.ROOT_DIR}}/infra/ansible"
+  PHASE: "{{.ROOT_DIR}}/scripts/phase"
+  CHECK: "bash {{.ROOT_DIR}}/scripts/phase/check.sh"
 
 env:
   TF_IN_AUTOMATION: "1"
@@ -24,61 +28,311 @@ tasks:
   default:
     cmds: [task --list]
 
+  # ===================================================================================================================
+  # Déploiement complet
+  # ===================================================================================================================
   up:
-    desc: Reconstruit toute la plateforme de zéro (idempotent)
+    desc: "Déploie toute la plateforme : phases 0 à 12 dans l'ordre (idempotent, reprenable ; PAD_CHECK_MODE=warn ne bloque pas sur un KO)"
     cmds:
       - mkdir -p {{.STATE}}
+      - task: phase:0-prereqs
+      - task: phase:1-reseau
+      - task: phase:2-routeur
+      - task: phase:3-image-talos
+      - task: phase:4-lxc
+      - task: phase:5-dns
+      - task: phase:6-services-1
+      - task: phase:7-identite
+      - task: phase:8-services-2
+      - task: phase:9-cluster
+      - task: phase:10-gitops
+      - task: phase:11-acces
+      - task: phase:12-verify
+
+  # ===================================================================================================================
+  # Phases (chacune : action, puis vérification ; la réussite est consignée dans .state/phases pour `task status`)
+  # ===================================================================================================================
+  phase:0-prereqs:
+    desc: "Phase 0 : outils, clés age, secrets sans CHANGEME bloquant, SSH et API Proxmox, privilèges du jeton, stockages (lecture seule)"
+    cmds:
+      - mkdir -p {{.STATE}}
+      - "{{.CHECK}} 0-prereqs"
+    env: { PAD_MARK: "1" }
+
+  phase:1-reseau:
+    desc: "Phase 1 : réseau de l'hôte (tofu 00-host-network : bridges vmbr2/vmbr1, IP mgmt) puis réglages de l'hôte (ansible:host)"
+    cmds:
       - task: tofu:apply-stack
         vars: { STACK: 00-host-network }
       - task: ansible:host
+      - "{{.CHECK}} 1-reseau"
+    env: { PAD_MARK: "1" }
+
+  phase:2-routeur:
+    desc: "Phase 2 : routeur OPNsense (tofu 10-router), attente du premier démarrage, route de l'hôte vers les zones, règles (tofu 60-opnsense-rules)"
+    cmds:
       - task: tofu:apply-stack
         vars: { STACK: 10-router }
-      - task: tofu:apply-stack
-        vars: { STACK: 15-talos-image }
+      - "{{.CHECK}} wait-opnsense"
+      - task: host:route
       - task: tofu:apply-stack
         vars: { STACK: 60-opnsense-rules }
+      - "{{.CHECK}} 2-routeur"
+    env: { PAD_MARK: "1" }
+
+  phase:3-image-talos:
+    desc: "Phase 3 : image Talos (Image Factory) et template de VM cloné par CAPMOX (tofu 15-talos-image)"
+    cmds:
+      - task: tofu:apply-stack
+        vars: { STACK: 15-talos-image }
+      - "{{.CHECK}} 3-image-talos"
+    env: { PAD_MARK: "1" }
+
+  phase:4-lxc:
+    desc: "Phase 4 : les cinq LXC de services et l'inventaire Ansible (tofu 20-services-lxc)"
+    cmds:
       - task: tofu:apply-stack
         vars: { STACK: 20-services-lxc }
-      # Services en deux passes : les secrets des clients OIDC (NetBird, Warpgate, Grafana, front) sont GÉNÉRÉS par
-      # tofu 30-authentik, qui a besoin d'Authentik et de l'edge (URL publique). Passe 1 : monitoring, authentik, edge.
+      - "{{.CHECK}} 4-lxc"
+    env: { PAD_MARK: "1" }
+
+  phase:5-dns:
+    desc: "Phase 5 : enregistrements DNS publics front/auth/vpn/status (tofu 70-dns), requis avant Authentik et le rétro-canal OIDC"
+    cmds:
+      - task: tofu:apply-stack
+        vars: { STACK: 70-dns }
+      - "{{.CHECK}} 5-dns"
+    env: { PAD_MARK: "1" }
+
+  phase:6-services-1:
+    desc: "Phase 6 : services Docker, passe 1 (ansible : monitoring, authentik, edge) ; certificats ACME et Authentik joignables"
+    cmds:
       - cmd: "{{.TASK_EXE}} ansible:services -- --tags monitoring,authentik,edge"
+      - "{{.CHECK}} 6-services-1"
+    env: { PAD_MARK: "1" }
+
+  phase:7-identite:
+    desc: "Phase 7 : identité (tofu 30-authentik, depuis le bastion/mgmt ou un CIDR autorisé) puis recopie des secrets OIDC dans les sops (oidc-sync)"
+    cmds:
       - task: tofu:apply-stack
         vars: { STACK: 30-authentik }
-      # Recopie les secrets OIDC (sortie tofu) dans les sops ; passe 2 : warpgate et netbird (qui les exigent) et monitoring
-      # (Grafana). Les rôles ansible sont idempotents : la passe 2 ne change que ce qui dépend de ces secrets.
-      - python3 {{.ROOT_DIR}}/scripts/sopsctl.py oidc-sync
+      - task: secrets:oidc-sync
+      - "{{.CHECK}} 7-identite"
+    env: { PAD_MARK: "1" }
+
+  phase:8-services-2:
+    desc: "Phase 8 : services Docker, passe 2 (ansible : monitoring, warpgate, netbird), qui exigent les secrets OIDC de la phase 7"
+    cmds:
       - cmd: "{{.TASK_EXE}} ansible:services -- --tags monitoring,warpgate,netbird"
+      - "{{.CHECK}} 8-services-2"
+    env: { PAD_MARK: "1" }
+
+  phase:9-cluster:
+    desc: "Phase 9 : cluster Kubernetes (kind éphémère, Cluster API, VMs Talos, Cilium, pivot, suppression de kind) ; reprenable"
+    cmds:
       - task: bootstrap:cluster
+      - "{{.CHECK}} 9-cluster"
+    env: { PAD_MARK: "1" }
+
+  phase:10-gitops:
+    desc: "Phase 10 : ArgoCD, Secrets sops-age et dépôt, Application root (exige que gitops/ et les sops soient commités ET poussés)"
+    cmds:
+      - "{{.CHECK}} pre-gitops"
       - task: bootstrap:gitops
+      - "{{.CHECK}} 10-gitops"
+    env: { PAD_MARK: "1" }
+
+  phase:11-acces:
+    desc: "Phase 11 : accès staff/joueurs (connecteur NetBird via ansible, tofu 40-netbird, tofu 50-warpgate) ; exige les PAT créés à la main"
+    cmds:
+      - "{{.CHECK}} pre-acces"
+      # Le PAT du owner (netbird.sops.yaml) active, à ce second passage, le connecteur OIDC Authentik et les groupes JWT.
+      - cmd: "{{.TASK_EXE}} ansible:services -- --tags netbird"
       - task: tofu:apply-stack
         vars: { STACK: 40-netbird }
       - task: tofu:apply-stack
         vars: { STACK: 50-warpgate }
-      - task: tofu:apply-stack
-        vars: { STACK: 70-dns }
-      - task: verify
+      - "{{.CHECK}} 11-acces"
+    env: { PAD_MARK: "1" }
+
+  phase:12-verify:
+    desc: "Phase 12 : smoke tests (scripts/verify.sh) et rappel des actions manuelles ; à lancer depuis un poste connecté à NetBird"
+    cmds:
+      - "{{.CHECK}} 12-verify"
+    env: { PAD_MARK: "1" }
+
+  # ===================================================================================================================
+  # Vérifications seules (lecture seule : OK / KO / WARN et quoi regarder)
+  # ===================================================================================================================
+  check:0-prereqs:
+    desc: "Vérifie la phase 0 (prérequis du poste, secrets, hôte Proxmox)"
+    cmds: ["{{.CHECK}} 0-prereqs"]
+  check:1-reseau:
+    desc: "Vérifie la phase 1 (bridges, IP mgmt, ARC ZFS, exporters)"
+    cmds: ["{{.CHECK}} 1-reseau"]
+  check:2-routeur:
+    desc: "Vérifie la phase 2 (VM OPNsense, GUI/API, route de l'hôte, règles)"
+    cmds: ["{{.CHECK}} 2-routeur"]
+  check:3-image-talos:
+    desc: "Vérifie la phase 3 (template Talos)"
+    cmds: ["{{.CHECK}} 3-image-talos"]
+  check:4-lxc:
+    desc: "Vérifie la phase 4 (cinq LXC démarrés, SSH par rebond)"
+    cmds: ["{{.CHECK}} 4-lxc"]
+  check:5-dns:
+    desc: "Vérifie la phase 5 (A publics = IP WAN)"
+    cmds: ["{{.CHECK}} 5-dns"]
+  check:6-services-1:
+    desc: "Vérifie la phase 6 (conteneurs sains, Authentik et edge en HTTPS valide)"
+    cmds: ["{{.CHECK}} 6-services-1"]
+  check:7-identite:
+    desc: "Vérifie la phase 7 (clients OIDC, secrets recopiés)"
+    cmds: ["{{.CHECK}} 7-identite"]
+  check:8-services-2:
+    desc: "Vérifie la phase 8 (Warpgate, NetBird, rétro-canal OIDC)"
+    cmds: ["{{.CHECK}} 8-services-2"]
+  check:9-cluster:
+    desc: "Vérifie la phase 9 (nœuds Ready, Cluster CAPI Provisioned, pivot, Cilium)"
+    cmds: ["{{.CHECK}} 9-cluster"]
+  check:10-gitops:
+    desc: "Vérifie la phase 10 (ArgoCD, secrets, Applications Synced/Healthy)"
+    cmds: ["{{.CHECK}} 10-gitops"]
+  check:11-acces:
+    desc: "Vérifie la phase 11 (stacks NetBird/Warpgate, policy Default, netbird-sync)"
+    cmds: ["{{.CHECK}} 11-acces"]
+  check:12-verify:
+    desc: "Smoke tests complets (équivaut à task verify) et rappel des actions manuelles"
+    cmds: ["{{.CHECK}} 12-verify"]
+  check:cluster-detruit:
+    desc: "Vérifie que le cluster est bien détruit (VM, kind, kubeconfig, volumes CSI orphelins)"
+    cmds: ["{{.CHECK}} cluster-detruit"]
+  check:tout-detruit:
+    desc: "Vérifie que tout est détruit (cluster, LXC, routeur, template, states tofu)"
+    cmds: ["{{.CHECK}} tout-detruit"]
+
+  status:
+    desc: "État du déploiement : quelles phases semblent faites (hors ligne) ; task status -- --live joue aussi chaque vérification"
+    cmds:
+      - "bash {{.PHASE}}/status.sh {{.CLI_ARGS}}"
+
+  # ===================================================================================================================
+  # Plans (sans rien appliquer)
+  # ===================================================================================================================
+  plan:00-host-network:
+    desc: "tofu plan de 00-host-network (aucune modification)"
+    cmds: [{ task: tofu:plan-stack, vars: { STACK: 00-host-network, CLI_ARGS: "{{.CLI_ARGS}}" } }]
+  plan:10-router:
+    desc: "tofu plan de 10-router (aucune modification)"
+    cmds: [{ task: tofu:plan-stack, vars: { STACK: 10-router, CLI_ARGS: "{{.CLI_ARGS}}" } }]
+  plan:15-talos-image:
+    desc: "tofu plan de 15-talos-image (aucune modification)"
+    cmds: [{ task: tofu:plan-stack, vars: { STACK: 15-talos-image, CLI_ARGS: "{{.CLI_ARGS}}" } }]
+  plan:20-services-lxc:
+    desc: "tofu plan de 20-services-lxc (aucune modification)"
+    cmds: [{ task: tofu:plan-stack, vars: { STACK: 20-services-lxc, CLI_ARGS: "{{.CLI_ARGS}}" } }]
+  plan:30-authentik:
+    desc: "tofu plan de 30-authentik (aucune modification)"
+    cmds: [{ task: tofu:plan-stack, vars: { STACK: 30-authentik, CLI_ARGS: "{{.CLI_ARGS}}" } }]
+  plan:40-netbird:
+    desc: "tofu plan de 40-netbird (aucune modification)"
+    cmds: [{ task: tofu:plan-stack, vars: { STACK: 40-netbird, CLI_ARGS: "{{.CLI_ARGS}}" } }]
+  plan:50-warpgate:
+    desc: "tofu plan de 50-warpgate (aucune modification)"
+    cmds: [{ task: tofu:plan-stack, vars: { STACK: 50-warpgate, CLI_ARGS: "{{.CLI_ARGS}}" } }]
+  plan:60-opnsense-rules:
+    desc: "tofu plan de 60-opnsense-rules (aucune modification ; TF_VAR_opnsense_uri si tunnel SSH)"
+    cmds: [{ task: tofu:plan-stack, vars: { STACK: 60-opnsense-rules, CLI_ARGS: "{{.CLI_ARGS}}" } }]
+  plan:70-dns:
+    desc: "tofu plan de 70-dns (aucune modification)"
+    cmds: [{ task: tofu:plan-stack, vars: { STACK: 70-dns, CLI_ARGS: "{{.CLI_ARGS}}" } }]
+
+  host:route:
+    desc: "Pose (idempotent, permanent) sur l'hôte Proxmox la route vers les zones via OPNsense ; déjà jouée par phase:2-routeur"
+    cmds:
+      - "bash {{.PHASE}}/host-route.sh"
+
+  # ===================================================================================================================
+  # Destruction et reconstruction (toutes passent par scripts/confirm-destroy.sh)
+  # ===================================================================================================================
+  cluster:destroy:
+    desc: "Détruit UNIQUEMENT le cluster Kubernetes : pivot inverse vers kind puis suppression des VMs par Cluster API (confirmation : taper destroy)"
+    cmds:
+      - "{{.ROOT_DIR}}/scripts/confirm-destroy.sh cluster"
+      - task: bootstrap:destroy
+      - bash {{.PHASE}}/mark.sh clear 9-cluster 10-gitops 12-verify
+      - "{{.CHECK}} cluster-detruit"
+
+  cluster:destroy-force:
+    desc: "Détruit le cluster SANS Cluster API (cluster cassé) : supprime les VMs par tag via l'API Proxmox (confirmation : taper destroy)"
+    cmds:
+      - "{{.ROOT_DIR}}/scripts/confirm-destroy.sh cluster"
+      - bash {{.PHASE}}/destroy-cluster-direct.sh
+      - bash {{.PHASE}}/mark.sh clear 9-cluster 10-gitops 12-verify
+      - "{{.CHECK}} cluster-detruit"
+
+  cluster:rebuild:
+    desc: "Reconstruit le cluster seul (détruit puis phases 9 et 10) sans toucher routeur, LXC ni DNS ; restaurer ensuite les données (task restore)"
+    cmds:
+      - task: cluster:destroy
+      - task: phase:9-cluster
+      - task: phase:10-gitops
+      - cmd: echo "Cluster reconstruit. Restaurer les données si besoin (task restore), puis task check:12-verify."
 
   destroy:
-    desc: "Détruit tout sauf l'hôte Proxmox (confirmation explicite : taper destroy, ou PAD_CONFIRM_DESTROY=destroy)"
+    desc: "Détruit tout sauf l'hôte Proxmox, en ordre inverse (confirmation : taper destroy, ou PAD_CONFIRM_DESTROY=destroy)"
     cmds:
-      - "{{.ROOT_DIR}}/scripts/confirm-destroy.sh"
+      - "{{.ROOT_DIR}}/scripts/confirm-destroy.sh all"
+      # 1. Configurations portées par des API : DNS d'abord (ressource externe, échec bloquant), puis accès et identité
+      #    (tolérant : si le service est déjà parti, le state est mis de côté).
+      - task: tofu:destroy-stack
+        vars: { STACK: 70-dns }
+      - task: tofu:destroy-stack
+        vars: { STACK: 50-warpgate, MODE: tolerant }
+      - task: tofu:destroy-stack
+        vars: { STACK: 40-netbird, MODE: tolerant }
+      - task: tofu:destroy-stack
+        vars: { STACK: 30-authentik, MODE: tolerant }
+      # 2. Cluster (pivot inverse, repli API Proxmox).
       - task: bootstrap:destroy
-      - for: [70-dns, 50-warpgate, 40-netbird, 30-authentik, 20-services-lxc, 60-opnsense-rules, 15-talos-image, 10-router, 00-host-network]
-        task: tofu:destroy-stack
-        vars: { STACK: "{{.ITEM}}" }
+      # 3. LXC, règles puis routeur, image, réseau de l'hôte.
+      - task: tofu:destroy-stack
+        vars: { STACK: 20-services-lxc }
+      - task: tofu:destroy-stack
+        vars: { STACK: 60-opnsense-rules, MODE: tolerant }
+      - task: tofu:destroy-stack
+        vars: { STACK: 15-talos-image }
+      - task: tofu:destroy-stack
+        vars: { STACK: 10-router }
+      - task: tofu:destroy-stack
+        vars: { STACK: 00-host-network }
+      - bash {{.PHASE}}/mark.sh clear all
+      - "{{.CHECK}} tout-detruit"
 
-  site:node:
-    desc: "Nom du nœud Proxmox si différent de « pve » : task site:node -- <nom> (contrat + manifests gitops marqués host.node)"
+  state:purge:
+    desc: "Après destroy : efface l'état local (.state/tofu, kubeconfig, marqueurs, inventaire généré) pour repartir de zéro ; -- --force abandonne des states non vides, -- --backups efface aussi les sauvegardes"
     cmds:
-      - "{{.ROOT_DIR}}/scripts/site-node.sh {{.CLI_ARGS}}"
+      - "bash {{.PHASE}}/purge-state.sh {{.CLI_ARGS}}"
 
   rebuild:
-    desc: destroy puis up, chronométré
+    desc: "destroy puis up, chronométré (les actions manuelles et la restauration des données restent à faire)"
     cmds:
       - task: destroy
       - cmd: date +%s > {{.STATE}}/rebuild.start
       - task: up
       - cmd: echo "Rebuild en $(( $(date +%s) - $(cat {{.STATE}}/rebuild.start) ))s"
+
+  # ===================================================================================================================
+  # Valeurs de site, sauvegardes, tests
+  # ===================================================================================================================
+  site:set:
+    desc: "Valeurs de site non secrètes à mettre dans Git : task site:set -- node=pve datastore_vm=vmdata datastore_iso=local datastore_vm_type=zfspool domain=... (--show pour les voir)"
+    cmds:
+      - "python3 -I {{.ROOT_DIR}}/scripts/site-set.py {{.CLI_ARGS}}"
+
+  site:node:
+    desc: "Alias de site:set pour le nom du nœud Proxmox si différent de « pve » : task site:node -- <nom>"
+    cmds:
+      - "{{.ROOT_DIR}}/scripts/site-node.sh {{.CLI_ARGS}}"
 
   backup:
     desc: "Sauvegarde MariaDB (CTFd) + buckets Garage en local, puis S3 externe si configuré (scripts/backup.sh)"
