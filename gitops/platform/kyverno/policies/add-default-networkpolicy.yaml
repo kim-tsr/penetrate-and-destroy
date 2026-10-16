@@ -1,5 +1,8 @@
-# À la création d'un namespace inst-*, génère un default-deny (entrée + sortie) et l'autorisation DNS.
-# Les ouvertures d'entrée (NetBird / LB) sont ajoutées par le scénario d'instance de chall-manager.
+# À la création d'un namespace inst-*, génère un default-deny (entrée + sortie), sans aucune ouverture.
+# Pas d'autorisation DNS par défaut : un egress DNS vers CoreDNS permettrait un tunnel vers Internet. Le DNS limité à
+# cluster.local est un opt-in (label pad.io/dns, voir instance-guardrails.yaml).
+# Les ouvertures d'entrée (NetBird / LB) sont ajoutées par le scénario d'instance de chall-manager
+# (NetworkPolicy `pad-instance`, nom distinct de `default-deny`).
 # contracts: namespaces.instances_prefix
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
@@ -28,30 +31,3 @@ spec:
           spec:
             podSelector: {}
             policyTypes: ["Ingress", "Egress"]
-    - name: allow-dns-egress
-      match:
-        any:
-          - resources:
-              kinds: ["Namespace"]
-              names: ["inst-*"]
-      generate:
-        apiVersion: networking.k8s.io/v1
-        kind: NetworkPolicy
-        name: allow-dns-egress
-        namespace: "{{request.object.metadata.name}}"
-        synchronize: true
-        data:
-          spec:
-            podSelector: {}
-            policyTypes: ["Egress"]
-            egress:
-              - to:
-                  - namespaceSelector:
-                      matchLabels:
-                        kubernetes.io/metadata.name: kube-system
-                    podSelector:
-                      matchLabels:
-                        k8s-app: kube-dns
-                ports:
-                  - { port: 53, protocol: UDP }
-                  - { port: 53, protocol: TCP }

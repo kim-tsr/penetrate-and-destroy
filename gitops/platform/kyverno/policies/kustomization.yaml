@@ -18,3 +18,4 @@ resources:
   - disallow-latest-tag.yaml
   - verify-images.yaml
   - add-default-networkpolicy.yaml
+  - instance-guardrails.yaml
