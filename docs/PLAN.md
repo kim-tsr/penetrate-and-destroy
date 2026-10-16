@@ -258,7 +258,11 @@ Après les vagues 0, 1 et la majeure partie de la vague 2, le lot 1 a complété
 - **netbird-sync** : la VAP limite le `patch` au seul finalizer `pad.io/netbird-sync` des Services `inst-*` (ni create ni delete, spec intouchable).
 - **Kyverno** : contrôleur d'admission en 2 réplicas, anti-affinité préférée, PDB `minAvailable: 1` (pas 3 : 2 workers platform et RAM serrée).
 
-### Prochain lot
-1. Revue de sécurité croisée.
-2. Documentation MkDocs : architecture, ADR, matrice de flux, runbooks (dont les 24 référencés par les alertes), guides joueur et manager, procédure du repo privé de challenges.
-3. Réécriture de l'historique avec `git filter-repo`, puis force-push après confirmation explicite. L'utilisateur passe ensuite le repo en public.
+### Lot 5 : prêt à déployer
+- **Déploiement pas à pas** : phases `task phase:0-prereqs` à `phase:12-verify`, chacune rejouable et suivie d'un `check:<phase>` (OK/KO/WARN) ; `task status` ; `task site:set` pour les valeurs non secrètes (nœud, stockages) ; destruction et reconstruction du cluster seul ou de tout (`cluster:destroy`, `cluster:rebuild`, `destroy`, `rebuild`, `state:purge`). Guide : [Guide de déploiement](guide-deploiement.md).
+- **Bloquants corrigés** : `playbooks/services.yml`, VMID unique du template Talos, route de l'hôte vers les zones, contenu `import` du stockage ISO, ARC ZFS conditionnel, split-DNS Unbound vers l'edge, `keyctl` et `/dev/net/tun` posés par Ansible (réservés à `root@pam` côté API), enrôlement automatique des routing peers NetBird (LXC `nbrouter` et agent bastion).
+- **Images** : empreintes réelles épinglées (`task apps:pin-digests`), publication dans Zot du scénario et des images de challenge (`task apps:zot:publish`).
+- **CI** : checkov et smoke e2e bloquants ; passe complète sur `main`, à la demande et chaque semaine. Les trois workflows sont verts.
+
+### Prochaine étape
+Premier déploiement réel par l'opérateur, en suivant le guide. Points validés uniquement hors ligne, à confirmer sur le matériel : adoption des objets CAPI par ArgoCD, user namespaces Talos, règles DNS L7 Cilium et FQDN de chall-manager, rôle NetBird `network_admin`, import de configuration OPNsense, overrides Unbound, enchaînement complet de `task up`.
