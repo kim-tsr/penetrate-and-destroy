@@ -18,7 +18,7 @@ resource "authentik_provider_proxy" "internal" {
   mode               = "forward_domain"
   external_host      = local.auth_url
   cookie_domain      = local.c.domain
-  authorization_flow = data.authentik_flow.authorization_implicit.id
+  authorization_flow = authentik_flow.authorization.uuid
   invalidation_flow  = data.authentik_flow.provider_invalidation.id
 }
 

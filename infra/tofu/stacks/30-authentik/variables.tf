@@ -52,6 +52,30 @@ variable "refresh_token_validity" {
   }
 }
 
+variable "login_max_failed_attempts" {
+  description = "Mots de passe faux avant annulation du flow de connexion."
+  type        = number
+  default     = 5
+}
+
+variable "login_reputation_threshold" {
+  description = "Nombre d'échecs de connexion cumulés (par IP) au-delà duquel la connexion est refusée. Élevé par défaut : plusieurs joueurs peuvent partager une IP (NAT, salle)."
+  type        = number
+  default     = 20
+}
+
+variable "login_reputation_check_username" {
+  description = "Verrouille aussi par identifiant. Désactivé par défaut : un joueur pourrait sinon verrouiller un compte staff en échouant exprès (la MFA protège les comptes staff)."
+  type        = bool
+  default     = false
+}
+
+variable "staff_mfa_reauth_minutes" {
+  description = "Un facteur MFA validé depuis moins de N minutes n'est pas redemandé (évite le double prompt connexion + application)."
+  type        = number
+  default     = 10
+}
+
 variable "email_from" {
   description = "Expéditeur des e-mails de vérification (le serveur SMTP est configuré côté rôle ansible authentik). Vide = noreply@<domain>."
   type        = string

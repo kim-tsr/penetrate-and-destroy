@@ -125,7 +125,7 @@ resource "authentik_provider_oauth2" "client" {
   client_id          = local.c.identity.oidc_clients[each.key]
   client_type        = each.value.public ? "public" : "confidential"
   client_secret      = each.value.public ? null : random_password.client_secret[each.key].result
-  authorization_flow = data.authentik_flow.authorization_implicit.id
+  authorization_flow = authentik_flow.authorization.uuid
   invalidation_flow  = data.authentik_flow.provider_invalidation.id
   signing_key        = data.authentik_certificate_key_pair.signing.id
   issuer_mode        = "per_provider"
