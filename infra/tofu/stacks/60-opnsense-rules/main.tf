@@ -138,7 +138,7 @@ locals {
       { id = "i1-zones-dns", seq = 800, ifaces = local.all_zone_ifaces, proto = "TCP/UDP", src = "net_all_zones", dst = "(self)", port = tostring(local.p.dns), desc = "I1 zones -> DNS Unbound" },
     ],
     !var.allow_oidc_all_zones ? [] : [
-      { id = "i2-zones-oidc", seq = 810, ifaces = local.all_zone_ifaces, proto = "TCP", src = "net_all_zones", dst = "host_authentik", port = tostring(local.p.https), desc = "I2 zones -> authentik 443 (OIDC back-channel)" },
+      { id = "i2-zones-oidc", seq = 810, ifaces = local.all_zone_ifaces, proto = "TCP", src = "net_all_zones", dst = "host_edge", port = tostring(local.p.https), desc = "I2 zones -> edge 443 (split-DNS : auth/vpn/front résolus vers l'edge, back-channel OIDC)" },
     ],
     !var.allow_kube_cross_zone ? [] : [
       # PROD -> CHALLENGES : l'API server (control plane) joint le kubelet des workers (logs, exec, métriques).

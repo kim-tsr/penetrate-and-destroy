@@ -39,7 +39,7 @@ variable "allow_dns_all_zones" {
 }
 
 variable "allow_oidc_all_zones" {
-  description = "Toutes les zones -> authentik:443 (back-channel OIDC : NetBird, Warpgate, Grafana, ArgoCD, front, Proxmox)."
+  description = "Toutes les zones -> edge:443 (split-DNS : les noms publics résolvent vers l'edge ; back-channel OIDC de NetBird, Warpgate, Grafana, ArgoCD, front, Proxmox, puis edge -> authentik par la règle M3)."
   type        = bool
   default     = true
 }

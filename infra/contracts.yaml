@@ -118,6 +118,8 @@ acme:                                     # cert-manager (ClusterIssuers ACME DN
   ovh_endpoint: ovh-eu                    # ovh-eu | ovh-ca selon le compte OVH qui porte la zone DNS
   webhook_group_name: acme.pad.io
 
+public_hostnames: [front, auth, vpn, status]   # clés de `hostnames` servies par l'edge : A publics (70-dns) ET overrides Unbound vers l'IP interne de l'edge (split-DNS, 60-opnsense-rules)
+
 hostnames:          # sous-domaines de `domain`
   front:      ctf          # public  -> edge -> 10.20.60.200
   auth:       auth         # public  -> edge -> authentik
