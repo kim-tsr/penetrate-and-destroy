@@ -2,7 +2,8 @@
 # Sévérités émises par les règles (monitoring/rules/*.yml) : critical, warning, info, none (Watchdog uniquement).
 {% set secrets = monitoring_secrets %}
 {% set webhook_default = secrets.discord_webhook_url %}
-{% set webhook_info = secrets.discord_webhook_url_info | default(webhook_default) %}
+{# default(..., true) : une chaîne vide (valeur du modèle) compte aussi comme absente. #}
+{% set webhook_info = secrets.discord_webhook_url_info | default(webhook_default, true) %}
 global:
   smtp_smarthost: {{ secrets.smtp_smarthost | to_json }}
   smtp_from: {{ secrets.smtp_from | to_json }}
