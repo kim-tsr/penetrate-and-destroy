@@ -7,8 +7,8 @@
 # Ports TCP ouverts au staff vers BASTION ; vide = flow_ports.warpgate du contrat (2222, 8888).
 # staff_bastion_ports = []
 
-# Rôle de l'utilisateur de service netbird-sync.
-# netbird_sync_role = "admin"
+# Rôle de l'utilisateur de service netbird-sync (network_admin recommandé ; admin en repli, voir README).
+# netbird_sync_role = "network_admin"
 
 # true = tofu porte l'IdP Authentik + groupes JWT (sinon rôle ansible netbird-server).
 # manage_identity_provider = false

@@ -34,9 +34,25 @@ variable "staff_bastion_ports" {
 }
 
 variable "netbird_sync_role" {
-  description = "Rôle NetBird de l'utilisateur de service utilisé par apps/netbird-sync (groupes, networks, resources, policies). TODO : tester network_admin (moindre privilège) ; admin par défaut car non vérifié."
+  description = "Rôle NetBird de l'utilisateur de service de apps/netbird-sync (groupes, networks, resources, policies, appartenance des pairs aux groupes d'équipe). network_admin = moindre privilège (pas de gestion des utilisateurs ni des jetons d'autrui). À vérifier au premier déploiement : si l'API répond 403 sur GET /users, repasser à admin (journal de netbird-sync) en acceptant le risque."
   type        = string
-  default     = "admin"
+  default     = "network_admin"
+
+  validation {
+    condition     = contains(["network_admin", "admin"], var.netbird_sync_role)
+    error_message = "netbird_sync_role doit valoir network_admin (recommandé) ou admin."
+  }
+}
+
+variable "frontend_readonly_role" {
+  description = "Rôle NetBird de l'utilisateur de service du front (lecture de /users et /peers pour l'état du tunnel). auditor = lecture seule : le jeton du front ne doit jamais hériter des droits d'un administrateur."
+  type        = string
+  default     = "auditor"
+
+  validation {
+    condition     = contains(["auditor"], var.frontend_readonly_role)
+    error_message = "frontend_readonly_role doit valoir auditor."
+  }
 }
 
 variable "manage_identity_provider" {
