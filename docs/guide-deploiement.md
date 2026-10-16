@@ -180,11 +180,16 @@ pveum user token add csi@pve csi --privsep 0    # le secret va dans gitops/platf
 OpenTofu (import de disque), Ansible (`host-tuning`) et les vérifications de ce guide se connectent en SSH à l'hôte :
 
 ```bash
-adduser pad-admin                                           # nom libre : c'est ssh_user de secrets/site.sops.yaml
-mkdir -p ~pad-admin/.ssh && cat pad_admin.pub >> ~pad-admin/.ssh/authorized_keys
+apt install -y sudo                                         # absent par défaut sur Proxmox
+adduser --disabled-password --comment "" pad-admin          # nom libre (ssh_user de secrets/site.sops.yaml) ; connexion par clé uniquement
+usermod -p '*' pad-admin                                    # aucun mot de passe, sans verrouiller le compte (sshd refuse les comptes « ! »)
+mkdir -p ~pad-admin/.ssh
+echo "ssh-ed25519 AAAA... pad-admin" >> ~pad-admin/.ssh/authorized_keys   # contenu de ~/.ssh/pad_admin.pub du POSTE (§1)
 chown -R pad-admin: ~pad-admin/.ssh && chmod 700 ~pad-admin/.ssh && chmod 600 ~pad-admin/.ssh/authorized_keys
-echo 'pad-admin ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/pad && chmod 440 /etc/sudoers.d/pad
+echo 'pad-admin ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/pad && chmod 440 /etc/sudoers.d/pad && visudo -c
 ```
+
+Depuis le poste : `ssh -i ~/.ssh/pad_admin pad-admin@<hôte> sudo -n true && echo OK`.
 
 ### 2.5 Réseau de l'hôte
 
