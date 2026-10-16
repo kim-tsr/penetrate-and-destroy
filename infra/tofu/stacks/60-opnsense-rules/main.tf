@@ -261,9 +261,10 @@ resource "opnsense_firewall_filter" "default_deny" {
 resource "opnsense_firewall_nat_port_forward" "wan" {
   for_each = { for e in local.c.wan.public_ports : "${e.proto}-${replace(tostring(e.port), "-", ":")}" => e }
 
-  enabled        = true
-  sequence       = 100 + index(local.c.wan.public_ports, each.value)
-  description    = "pad WAN ${upper(each.value.proto)} ${each.value.port} -> ${each.value.to}"
+  enabled  = true
+  sequence = 100 + index(local.c.wan.public_ports, each.value)
+  # Le provider n'accepte que [A-Za-z0-9 .] dans la description d'une redirection NAT.
+  description    = "pad WAN ${upper(each.value.proto)} ${replace(tostring(each.value.port), "-", " a ")} vers ${each.value.to}"
   interface      = ["wan"]
   ip_protocol    = "inet"
   protocol       = upper(each.value.proto)
