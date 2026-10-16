@@ -1,7 +1,7 @@
 # proxmox-csi : volumes persistants sur ZFS
 
 - Chart `proxmox-csi-plugin` 0.5.12 (OCI `ghcr.io/sergelogvinov/charts`), namespace `csi-proxmox`.
-- StorageClass par défaut `pad-zfs` sur le datastore `local-zfs` (`host.datastore_vm`), région et zone = `pve` (`host.node`).
+- StorageClass par défaut `pad-zfs` sur le datastore `host.datastore_vm`, région et zone = `pve` (`host.node`).
   Mode `WaitForFirstConsumer`, expansion activée, `reclaimPolicy: Delete`.
 - Les nodes doivent porter les labels `topology.kubernetes.io/region` et `topology.kubernetes.io/zone` = `pve`
   (posés par le cloud-controller Proxmox ; sinon ajouter `nodeLabels` dans les Talos machine configs).

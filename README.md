@@ -7,6 +7,7 @@ Plateforme CTF jetable et reconstructible de bout en bout (Proxmox + OPNsense + 
   - Lire en local : `task docs:serve` (aperçu sur http://127.0.0.1:8000, rechargement automatique) ; `task docs:build` (`mkdocs build --strict`, comme la CI).
     Les deux créent le venv `.venv-docs` et y installent `docs/requirements.txt` (versions exactes) s'il est absent. Sans `task` :
     `python3 -m venv .venv-docs && .venv-docs/bin/pip install -r docs/requirements.txt && .venv-docs/bin/mkdocs serve`.
+- Déployer pas à pas, vérifier, détruire : [Guide de déploiement](docs/guide-deploiement.md) (toute l'utilisation est dans la documentation : `task docs:serve`)
 - Plan et décisions : [docs/PLAN.md](docs/PLAN.md)
 - Conventions : [CONVENTIONS.md](CONVENTIONS.md)
 - Contrats réseau/identité : [infra/contracts.yaml](infra/contracts.yaml)
@@ -14,7 +15,7 @@ Plateforme CTF jetable et reconstructible de bout en bout (Proxmox + OPNsense + 
 
 ```bash
 nix develop
-task up       # reconstruit tout
+task up       # phases 0 à 12 ; ou une phase à la fois : task phase:0-prereqs, task status, task check:<phase>
 task destroy  # supprime tout sauf l'hôte
 ```
 

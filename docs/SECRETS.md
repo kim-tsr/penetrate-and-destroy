@@ -14,7 +14,7 @@ Le repo est public. Les secrets y sont **commités chiffrés** (SOPS + age) ; au
 1. `nix develop`, puis `task secrets:keys` : crée hors repo la clé opérateur (`~/.config/sops/age/keys.txt`) et la clé du cluster (`~/.config/pad/cluster.agekey`), renseigne les deux recipients de `.sops.yaml` (clés publiques, à commiter). **Sauvegarder les deux clés privées hors machine.**
 2. `task secrets:init` : crée tous les `*.sops.yaml` manquants (secrets aléatoires forts générés ; jamais de réécriture d'un fichier existant) et affiche ce qui reste à renseigner.
 3. Compléter les valeurs externes avec `sops <fichier>` (liste : `task secrets:pending`) : jeton Proxmox, OVH, webhook Discord, SMTP, PAT NetBird, etc.
-4. `task secrets:check` : doit afficher `OK` (chaque example a son sops, aucun `CHANGEME`, rien en clair suivi par git). Commiter les `*.sops.yaml` et `.sops.yaml`.
+4. `task secrets:pending` ne doit plus rien lister *d'exigible maintenant* (`task phase:0-prereqs` fait le tri) ; `task secrets:check` n'affichera `OK` qu'**à la fin du déploiement**, car les secrets OIDC et les PAT NetBird/Warpgate n'existent qu'après les phases 7 et 8 (voir le [Guide de déploiement](guide-deploiement.md)). Commiter les `*.sops.yaml` et `.sops.yaml`.
 5. `task up` : `bootstrap:gitops` injecte la clé du **cluster** (pas celle de l'opérateur) dans le Secret `sops-age` d'ArgoCD.
 
 ## Organisation des fichiers

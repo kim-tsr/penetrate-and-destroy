@@ -9,7 +9,7 @@ spec:
       sourceNode: pve # contracts: host.node
       templateID: 299 # contracts: kubernetes.talos_template.vmid (talos-v1.11.3-template, stack tofu 15-talos-image)
       full: true
-      format: raw # local-zfs (zfspool) n'accepte que raw
+      format: raw # raw convient à tous les types de stockage (zfspool, lvmthin, dir) ; host.datastore_vm_type
       storage: local-zfs # contracts: host.datastore_vm
       vmIDRange: { start: 300, end: 399 } # contracts: kubernetes.vmid_range
       numSockets: 1

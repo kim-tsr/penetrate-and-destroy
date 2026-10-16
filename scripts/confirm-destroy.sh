@@ -6,12 +6,25 @@
 # - Seules les ressources des stacks tofu et le cluster pad-prod sont supprimés (l'hôte Proxmox est conservé).
 set -euo pipefail
 
-cat >&2 <<'MSG'
+# Argument facultatif : `cluster` (message limité au cluster) ; sans argument, destruction complète.
+case "${1:-all}" in
+  cluster)
+    cat >&2 <<'MSG'
+=== DESTRUCTION DU CLUSTER KUBERNETES ===
+Sera détruit : le cluster pad-prod (VM Talos et données des volumes persistants).
+Conservés : routeur, LXC de services, réseau, configurations Authentik / NetBird / Warpgate, DNS.
+Les données (MariaDB de CTFd, buckets Garage) seront PERDUES : lancer `task backup` avant.
+MSG
+    ;;
+  *)
+    cat >&2 <<'MSG'
 === DESTRUCTION DE LA PLATEFORME ===
 Seront détruits : cluster Kubernetes (pad-prod), LXC de services, VM routeur, règles et zones réseau,
 configurations Authentik / NetBird / Warpgate, enregistrements DNS. L'hôte Proxmox est conservé.
 Les données (MariaDB de CTFd, buckets Garage) seront PERDUES : lancer `task backup` avant.
 MSG
+    ;;
+esac
 
 if [ "${PAD_CONFIRM_DESTROY:-}" = destroy ]; then
   echo "Confirmation fournie par PAD_CONFIRM_DESTROY." >&2

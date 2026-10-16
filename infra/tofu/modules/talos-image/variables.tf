@@ -25,7 +25,7 @@ variable "name" {
 }
 
 variable "datastore_id" {
-  description = "Datastore du disque du template (ex : local-zfs)."
+  description = "Datastore du disque du template (contrat : host.datastore_vm)."
   type        = string
 }
 
