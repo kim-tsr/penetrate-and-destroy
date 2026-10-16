@@ -1,8 +1,10 @@
 ---
 - name: Recharger sshd
+  # Debian 13 active sshd par socket systemd (ssh.socket tient le port 22) : un « reload » (SIGHUP) fait re-binder
+  # sshd, qui échoue (« Cannot bind any address »). Un redémarrage du service est sans risque : le socket reste ouvert.
   ansible.builtin.systemd_service:
     name: ssh
-    state: reloaded
+    state: restarted
 
 - name: Redémarrer journald
   ansible.builtin.systemd_service:
