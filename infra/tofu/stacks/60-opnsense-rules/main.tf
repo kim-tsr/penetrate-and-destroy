@@ -133,6 +133,9 @@ locals {
     # M10 - CHALLENGES : API kube + DNS interne + allowlist Internet, rien d'autre
     { id = "m10-chall-kubeapi", seq = 700, ifaces = [local.iface["challenges"]], proto = "TCP", src = "host_k8s_challenges", dst = "host_k8s_api", port = tostring(local.p.kube_api), desc = "M10 workers CHALLENGES -> API kube" },
     { id = "m10-chall-dns", seq = 710, ifaces = [local.iface["challenges"]], proto = "TCP/UDP", src = "net_challenges", dst = "(self)", port = tostring(local.p.dns), desc = "M10 CHALLENGES -> DNS interne (Unbound)" },
+    # Heure : la zone CHALLENGES n'a pas d'egress Internet ; ses nœuds Talos se synchronisent sur OPNsense (ntpd), sans quoi
+    # Talos ne démarre pas le kubelet (« Waiting for time sync »).
+    { id = "m10-chall-ntp", seq = 711, ifaces = [local.iface["challenges"]], proto = "UDP", src = "net_challenges", dst = "(self)", port = tostring(local.p.ntp), desc = "M10 CHALLENGES -> NTP OPNsense" },
   ]
 
   # M1 - Internet -> DMZ : une règle par entrée de wan.public_ports. La redirection WAN (DNAT) vient du config.xml de

@@ -62,3 +62,6 @@ task bootstrap:render-providers          # après un changement de version dans 
 [cluster-api.sigs.k8s.io](https://cluster-api.sigs.k8s.io/)
 
 [Retour à l'index des composants](index.md){ .md-button }
+
+- **Modèles immuables** : `ProxmoxMachineTemplate` et `TalosConfigTemplate` refusent toute modification (« Spec is immutable »). Pour changer la configuration des nœuds d'un pool, créer un modèle sous un **nouveau nom** et y faire pointer le `MachineDeployment` (déploiement progressif), ou, au bootstrap, supprimer `MachineDeployment` et modèles puis réappliquer `gitops/clusters/prod`.
+- **Heure des nœuds CHALLENGES** : sans egress Internet, ils se synchronisent sur OPNsense (`machine.time.servers: [<passerelle de la zone>]`, règle `m10-chall-ntp`). Symptôme sinon : `talosctl service kubelet` reste en `Waiting for time sync`.

@@ -18,6 +18,7 @@ déclarés dans la stack OpenTofu `60-opnsense-rules`, à partir des ports du co
 | M8 | `monitoring` | toutes les zones | 9000-9999, 10249, 10250, 12345 | scrape uniquement |
 | M9 | PROD | API Proxmox (`10.20.10.2:8006`) | 8006 | CAPMOX et CSI |
 | M10 | workers CHALLENGES (6443) ; zone CHALLENGES (DNS) | API Kubernetes ; DNS interne | 6443, 53 | l'API kube n'est ouverte qu'aux IP des workers (ni routing peer NetBird, ni IP d'instances) ; egress Internet par allowlist |
+| M10 (NTP) | CHALLENGES | OPNsense (`.1` de la zone) | UDP 123 | les nœuds Talos de la zone CHALLENGES (sans egress Internet) prennent l'heure sur OPNsense (`machine.time.servers`) ; sans heure synchronisée, Talos ne démarre pas le kubelet |
 | I1 | toutes les zones | OPNsense | 53 | DNS Unbound |
 | I2 | toutes les zones | `edge` | 443 | split-DNS : les noms publics (`auth`, `vpn`, `front`, `status`) résolvent vers l'IP interne de l'edge (overrides Unbound), qui relaie vers authentik (M3) ; back-channel OIDC |
 | I3 | nœuds Kubernetes PROD et CHALLENGES, **asymétrique** | nœuds Kubernetes de l'autre zone | PROD vers CHALLENGES : kubelet 10250 (control plane seul), Cilium health 4240 et Hubble 4244, VXLAN 8472, WireGuard 51871. CHALLENGES vers PROD : trustd 50001 (control plane seul), Cilium health 4240, VXLAN 8472, WireGuard 51871 | cluster étendu sur deux zones ; un worker challenges compromis n'atteint ni kubelet ni apid du control plane (apid : bastion seul, M6) |
