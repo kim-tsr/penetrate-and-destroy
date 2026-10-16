@@ -4,7 +4,7 @@ variable "node_name" {
 }
 
 variable "datastore_id" {
-  description = "Datastore des rootfs (ex : local-zfs)."
+  description = "Datastore des rootfs (contrat : host.datastore_vm)."
   type        = string
 }
 

@@ -34,7 +34,7 @@ variable "disk_gb" {
 }
 
 variable "datastore_id" {
-  description = "Datastore du disque de la VM (ex : local-zfs)."
+  description = "Datastore du disque de la VM (contrat : host.datastore_vm)."
   type        = string
 }
 

@@ -17,7 +17,8 @@ host:
   wan_bridge: vmbr0
   zones_bridge: vmbr2                   # VLAN-aware, pas d'uplink
   transit_bridge: vmbr1                 # uniquement en mode wan=nat
-  datastore_vm: local-zfs
+  datastore_vm: local-zfs               # stockage des disques de VM/LXC ; autre nom : task site:set -- datastore_vm=<nom>
+  datastore_vm_type: zfspool            # zfspool | lvmthin | lvm | dir : type de ce stockage (task site:set -- datastore_vm_type=...)
   datastore_iso: local
   zfs_arc_max_bytes: 4294967296         # 4 GiB
   mgmt_ip: 10.20.10.2                   # IP de l'hôte sur vmbr2.10 (API Proxmox pour CAPMOX/CSI, accès tofu -> OPNsense)
