@@ -420,6 +420,18 @@ c_2_routeur() {
   else
     warn "liste des règles non lisible par l'API (route d'API différente selon la version d'OPNsense)" "UI OPNsense > Pare-feu > Automatisation > Filtre : règles « Mxx / Ixx » attendues"
   fi
+  # Split-DNS : les noms publics servis par l'edge doivent résoudre vers l'IP interne de l'edge depuis les zones.
+  local edge_ip h
+  edge_ip=$(c '.services.edge.ip')
+  if out=$(opn_get '/api/unbound/settings/searchHostOverride' 2>/dev/null) && jq -e '.rows' >/dev/null 2>&1 <<<"$out"; then
+    for h in $(c '.public_hostnames[]'); do
+      jq -e --arg n "$(c ".hostnames.${h}")" --arg d "$(c '.domain')" --arg ip "$edge_ip" '.rows[] | select(.hostname==$n and .domain==$d and .server==$ip)' >/dev/null <<<"$out" \
+        && pass "split-DNS : $(fqdn "$h") -> ${edge_ip} (edge, IP interne)" \
+        || fail "split-DNS : override Unbound de $(fqdn "$h") absent ou différent de ${edge_ip}" "task tofu:apply-stack STACK=60-opnsense-rules ; Services > Unbound DNS > Overrides"
+    done
+  else
+    warn "overrides Unbound non lisibles par l'API" "UI OPNsense > Services > Unbound DNS > Overrides : $(c '.public_hostnames | join(", ")') vers ${edge_ip}"
+  fi
 }
 
 c_3_image_talos() {
