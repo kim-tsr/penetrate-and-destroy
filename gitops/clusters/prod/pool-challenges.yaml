@@ -1,17 +1,6 @@
 # Pool "challenges" : workers de la zone CHALLENGES (VLAN 70), autoscalés par cluster-autoscaler
 # (provider clusterapi). Pas de `replicas` : l'autoscaler le pilote (ignoré par ArgoCD, cf. Application cluster-prod).
 ---
-apiVersion: ipam.cluster.x-k8s.io/v1alpha2
-kind: InClusterIPPool
-metadata:
-  name: pad-prod-challenges
-  annotations:
-    ipam.capmox.cluster.x-k8s.io/gateway-metric: "100"
-spec:
-  addresses: [10.20.70.20-10.20.70.39] # contracts: kubernetes.pools.challenges.ip_pool
-  prefix: 24 # contracts: zones.challenges.cidr
-  gateway: 10.20.70.1 # contracts: zones.challenges.gw
----
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha2
 kind: ProxmoxMachineTemplate
 metadata:
@@ -36,16 +25,16 @@ spec:
       metadataSettings:
         providerIDInjection: true
       network:
+        # Zone CAPMOX du pool (ProxmoxCluster.spec.zoneConfig) : net0 reçoit UNE IP de kubernetes.pools.challenges.ip_pool,
+        # passerelle et route par défaut de la zone. Pas d'ipPoolRef ici : les pools s'ajoutent (IP et route en double).
+        zone: challenges # contracts: kubernetes.pools.challenges (nom du pool)
         networkDevices:
           - name: net0
             bridge: vmbr2 # contracts: host.zones_bridge
             vlan: 70 # contracts: zones.challenges.vlan
             model: virtio
-            defaultIPv4: false
-            ipPoolRef:
-              - apiGroup: ipam.cluster.x-k8s.io
-                kind: InClusterIPPool
-                name: pad-prod-challenges
+            defaultIPv4: true # IP de la zone ci-dessus (CAPMOX force de toute façon true sur net0)
+            # Obligatoire : CAPMOX v0.9.1 écrit les dnsServers du ProxmoxCluster (PROD), jamais ceux de zoneConfig.
             dnsServers: [10.20.70.1] # contracts: zones.challenges.gw
 ---
 apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3

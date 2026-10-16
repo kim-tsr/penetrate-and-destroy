@@ -28,7 +28,7 @@ spec:
             bridge: vmbr2 # contracts: host.zones_bridge
             vlan: 60 # contracts: zones.prod.vlan
             model: virtio
-            defaultIPv4: true # pool ProxmoxCluster.ipv4Config (IPs control plane)
+            defaultIPv4: true # zone "default" : pool ProxmoxCluster.ipv4Config (IPs control plane)
 ---
 apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
 kind: TalosControlPlane

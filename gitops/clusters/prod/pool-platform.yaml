@@ -1,16 +1,5 @@
 # Pool "platform" : workers de la zone PROD (VLAN 60), taille fixe.
 ---
-apiVersion: ipam.cluster.x-k8s.io/v1alpha2
-kind: InClusterIPPool
-metadata:
-  name: pad-prod-platform
-  annotations:
-    ipam.capmox.cluster.x-k8s.io/gateway-metric: "100"
-spec:
-  addresses: [10.20.60.20-10.20.60.39] # contracts: kubernetes.pools.platform.ip_pool
-  prefix: 24 # contracts: zones.prod.cidr
-  gateway: 10.20.60.1 # contracts: zones.prod.gw
----
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha2
 kind: ProxmoxMachineTemplate
 metadata:
@@ -35,16 +24,15 @@ spec:
       metadataSettings:
         providerIDInjection: true
       network:
+        # Zone CAPMOX du pool (ProxmoxCluster.spec.zoneConfig) : net0 reçoit UNE IP de kubernetes.pools.platform.ip_pool,
+        # passerelle et route par défaut de la zone. Pas d'ipPoolRef ici : les pools s'ajoutent (IP et route en double).
+        zone: platform # contracts: kubernetes.pools.platform (nom du pool)
         networkDevices:
           - name: net0
             bridge: vmbr2 # contracts: host.zones_bridge
             vlan: 60 # contracts: zones.prod.vlan
             model: virtio
-            defaultIPv4: false
-            ipPoolRef:
-              - apiGroup: ipam.cluster.x-k8s.io
-                kind: InClusterIPPool
-                name: pad-prod-platform
+            defaultIPv4: true # IP de la zone ci-dessus (CAPMOX force de toute façon true sur net0)
             dnsServers: [10.20.60.1] # contracts: zones.prod.gw
 ---
 apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3

@@ -51,6 +51,11 @@ task bootstrap:render-providers          # après un changement de version dans 
 - Le `Cluster` porte `Delete=false,Prune=false` : supprimer l'Application ArgoCD ne détruit pas les VM ; la destruction passe par `task bootstrap:destroy`.
 - L'Application `cluster-prod` ignore `replicas` du pool `challenges` (piloté par l'autoscaler).
 - Rotation du jeton Proxmox : modifier le Secret à la main, puis redémarrer `capmox-controller-manager`.
+- Réseau des workers : chaque pool de workers est une **zone CAPMOX** (`ProxmoxCluster.spec.zoneConfig` + `network.zone` du template),
+  jamais un `ipPoolRef` sur `net0` : CAPMOX force `defaultIPv4: true` sur `net0` et ajouterait une IP du control plane, d'où deux routes
+  par défaut (`route already exists for destination/metric`). Détails, cause et réparation : [CAPMOX, pièges connus](capmox.md#pieges-connus).
+- Templates d'infrastructure immuables : modifier un `ProxmoxMachineTemplate` appliqué impose de le supprimer puis de le recréer
+  (ou de le renommer) ; les `Machine` existantes ne sont pas modifiées, seules les nouvelles utilisent le nouveau template.
 
 ## Documentation officielle
 

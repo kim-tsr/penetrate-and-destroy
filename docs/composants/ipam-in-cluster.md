@@ -17,8 +17,11 @@ Installé par `clusterctl init` (provider IPAM) puis adopté par ArgoCD (`gitops
 
 ## Fichiers de configuration dans le dépôt
 
-- `gitops/clusters/prod/pool-challenges.yaml` et `pool-platform.yaml` : `InClusterIPPool` (plages du contrat : `10.20.70.20-39` pour challenges, `10.20.60.20-39` pour platform).
-- Le control plane utilise la plage de `ProxmoxCluster` (`10.20.60.10-14`).
+- Aucun `InClusterIPPool` n'est commité : [CAPMOX](capmox.md) les crée à partir de `gitops/clusters/prod/cluster.yaml` (`ProxmoxCluster`) :
+  `pad-prod-v4-icip` (zone `default`, control plane, `10.20.60.10-14`), `pad-prod-platform-v4-icip` (`10.20.60.20-39`) et
+  `pad-prod-challenges-v4-icip` (`10.20.70.20-39`), une zone CAPMOX par pool de workers (`spec.zoneConfig`).
+- Les `ProxmoxMachineTemplate` des workers choisissent leur pool par `network.zone` et non par `ipPoolRef` (qui ajouterait une seconde IP :
+  voir les pièges connus de [CAPMOX](capmox.md#reseau-des-workers-une-seule-ip-et-une-seule-route-par-defaut)).
 
 ## Interactions avec les autres briques
 
@@ -35,12 +38,12 @@ Pas de métrique propre ; un pool épuisé bloque la création de machines (voir
 ## Opérations courantes
 
 ```bash
-kubectl -n pad-cluster get inclusterippools,ipaddresses
+kubectl -n pad-cluster get inclusterippools,ipaddressclaims,ipaddresses.ipam.cluster.x-k8s.io
 ```
 
 ## Pièges connus
 
-Les plages `ip_pool` du contrat doivent rester synchronisées avec les pools commités ; le pool `challenges` (20 adresses) borne le nombre maximal de workers.
+Les plages `ip_pool` du contrat doivent rester synchronisées avec `ipv4Config` et `zoneConfig` du `ProxmoxCluster` ; le pool `challenges` (20 adresses) borne le nombre maximal de workers.
 
 ## Documentation officielle
 

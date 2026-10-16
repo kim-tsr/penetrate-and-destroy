@@ -35,10 +35,30 @@ spec:
     port: 6443
   # Résolveur : le .1 de la zone (Unbound OPNsense). contracts: zones.prod.gw / dns_resolver
   dnsServers: [10.20.60.1]
-  # Pool "par défaut" de CAPMOX = IPs du control plane (net0 avec defaultIPv4: true).
+  # Zone CAPMOX "default" = IPs du control plane uniquement (ProxmoxMachine sans `network.zone`).
   # contracts: kubernetes.control_plane.ip_pool / zones.prod
   ipv4Config:
     addresses: [10.20.60.10-10.20.60.14]
     prefix: 24
     gateway: 10.20.60.1
     metric: 100
+  # Une zone CAPMOX par pool de workers (sélectionnée par `network.zone` du ProxmoxMachineTemplate). Indispensable :
+  # le webhook de CAPMOX force `defaultIPv4: true` sur net0 de TOUTE machine (même écrit `false`) ; sans zone dédiée,
+  # un worker recevrait une IP du control plane EN PLUS de son pool, avec deux routes par défaut identiques
+  # (« route already exists for destination/metric »). CAPMOX crée lui-même les InClusterIPPool
+  # `pad-prod-<zone>-v4-icip`. Voir docs/composants/capmox.md (pièges connus).
+  zoneConfig:
+    - zone: platform # contracts: kubernetes.pools.platform (nom du pool)
+      dnsServers: [10.20.60.1] # contracts: zones.prod.gw
+      ipv4Config:
+        addresses: [10.20.60.20-10.20.60.39] # contracts: kubernetes.pools.platform.ip_pool
+        prefix: 24 # contracts: zones.prod.cidr
+        gateway: 10.20.60.1 # contracts: zones.prod.gw
+        metric: 100
+    - zone: challenges # contracts: kubernetes.pools.challenges (nom du pool)
+      dnsServers: [10.20.70.1] # contracts: zones.challenges.gw
+      ipv4Config:
+        addresses: [10.20.70.20-10.20.70.39] # contracts: kubernetes.pools.challenges.ip_pool
+        prefix: 24 # contracts: zones.challenges.cidr
+        gateway: 10.20.70.1 # contracts: zones.challenges.gw
+        metric: 100
