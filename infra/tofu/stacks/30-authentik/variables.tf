@@ -5,9 +5,9 @@ variable "state_passphrase" {
 }
 
 variable "captcha_enabled" {
-  description = "Active le captcha (Turnstile/hCaptcha/reCAPTCHA) dans le flow d'inscription des joueurs."
+  description = "Captcha (Turnstile/hCaptcha/reCAPTCHA) dans le flow d'inscription des joueurs. Activé par défaut ; le désactiver est un choix explicite (captcha_enabled=false). Clés : captcha_public_key/captcha_private_key ou secrets/authentik-tofu.sops.yaml."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "captcha_js_url" {
@@ -23,13 +23,13 @@ variable "captcha_api_url" {
 }
 
 variable "captcha_public_key" {
-  description = "Clé publique (site key) du captcha. Requise si captcha_enabled."
+  description = "Clé publique (site key) du captcha. Vide = captcha_public_key de secrets/authentik-tofu.sops.yaml. Requise si captcha_enabled."
   type        = string
   default     = ""
 }
 
 variable "captcha_private_key" {
-  description = "Clé privée (secret key) du captcha. Requise si captcha_enabled."
+  description = "Clé privée (secret key) du captcha. Vide = captcha_private_key de secrets/authentik-tofu.sops.yaml. Requise si captcha_enabled."
   type        = string
   default     = ""
   sensitive   = true

@@ -17,6 +17,10 @@ locals {
 
   proxmox_url = var.proxmox_url != "" ? trimsuffix(var.proxmox_url, "/") : trimsuffix(local.site.proxmox_url, "/")
 
+  # Clés captcha : variable tofu prioritaire, sinon secrets/authentik-tofu.sops.yaml (captcha_public_key / captcha_private_key).
+  captcha_public_key  = var.captcha_public_key != "" ? var.captcha_public_key : try(local.ak.captcha_public_key, "")
+  captcha_private_key = var.captcha_private_key != "" ? var.captcha_private_key : try(local.ak.captcha_private_key, "")
+
   # URL publique d'Authentik : https://<auth>.<domain>
   auth_host = "${local.c.hostnames.auth}.${local.c.domain}"
   auth_url  = "https://${local.auth_host}"

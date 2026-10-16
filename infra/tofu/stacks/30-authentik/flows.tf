@@ -261,7 +261,7 @@ resource "authentik_stage_prompt" "enrollment" {
 }
 
 # ---- Flow d'enrôlement des joueurs (self-registration) ----------------------------------------
-# captcha (optionnel) -> prompt -> création INACTIVE dans ctf-players -> e-mail de vérification
+# captcha (activé par défaut) -> prompt -> création INACTIVE dans ctf-players -> e-mail de vérification
 # (active le compte au clic) -> session.
 
 resource "authentik_flow" "player_enrollment" {
@@ -275,16 +275,16 @@ resource "authentik_stage_captcha" "enrollment" {
   count = var.captcha_enabled ? 1 : 0
 
   name        = "pad-enrollment-captcha"
-  public_key  = var.captcha_public_key
-  private_key = var.captcha_private_key
+  public_key  = local.captcha_public_key
+  private_key = local.captcha_private_key
   js_url      = var.captcha_js_url
   api_url     = var.captcha_api_url
   interactive = false
 
   lifecycle {
     precondition {
-      condition     = var.captcha_public_key != "" && var.captcha_private_key != ""
-      error_message = "captcha_enabled exige captcha_public_key et captcha_private_key."
+      condition     = local.captcha_public_key != "" && local.captcha_private_key != ""
+      error_message = "captcha_enabled (défaut) exige captcha_public_key et captcha_private_key (variables ou secrets/authentik-tofu.sops.yaml), ou captcha_enabled=false explicite."
     }
   }
 }
