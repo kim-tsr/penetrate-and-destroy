@@ -1,4 +1,4 @@
-# LXC de services d'infra : Debian 13, non privilégiés, nesting + keyctl pour Docker.
+# LXC de services d'infra : Debian 13, non privilégiés, nesting (+ keyctl posé par ansible) pour Docker.
 # Le template est téléchargé une seule fois (checksum vérifié par Proxmox) puis partagé par tous les LXC du module.
 
 resource "proxmox_virtual_environment_download_file" "template" {
@@ -23,9 +23,10 @@ resource "proxmox_virtual_environment_container" "this" {
   start_on_boot = true
   started       = true
 
+  # Seul `nesting` est posé ici : Proxmox réserve à root@pam toute autre feature (keyctl), refusée à un jeton API dédié.
+  # `keyctl` (requis par runc/containerd) est posé par le rôle ansible host-tuning (`pct set`, task host:lxc-features).
   features {
     nesting = true # Docker dans un LXC non privilégié
-    keyctl  = true # requis par runc/containerd (keyrings)
   }
 
   operating_system {
@@ -85,6 +86,6 @@ resource "proxmox_virtual_environment_container" "this" {
 
   lifecycle {
     # Le mot de passe/clé n'est utilisé qu'à la création ; Ansible gère ensuite les accès.
-    ignore_changes = [initialization[0].user_account]
+    ignore_changes = [initialization[0].user_account, features]
   }
 }
