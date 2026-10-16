@@ -1,0 +1,27 @@
+---
+# Features des LXC de services (Docker en LXC non privilégié : nesting + keyctl).
+# Proxmox (pve-container, check_ct_modify_config_perm) réserve à root@pam toute modification de `features` autre que `nesting` : un jeton
+# API non root@pam se voit refuser `keyctl`. OpenTofu ne pose donc que `nesting` ; `keyctl` est posé ici (l'hôte, en root via sudo,
+# est autorisé). Rejoué après la création des LXC (phase 4, `task host:lxc-features`) ; les LXC absents sont ignorés.
+- name: Lire la configuration des LXC de services
+  ansible.builtin.command: "pct config {{ item.value.vmid }}"
+  register: host_tuning_lxc_cfg
+  changed_when: false
+  failed_when: false
+  loop: "{{ pad.services | dict2items }}"
+  loop_control:
+    label: "{{ item.key }} ({{ item.value.vmid }})"
+
+- name: Appliquer nesting + keyctl et redémarrer le LXC si nécessaire
+  ansible.builtin.shell:
+    cmd: |
+      set -eu
+      pct set {{ item.item.value.vmid }} --features nesting=1,keyctl=1
+      if [ "$(pct status {{ item.item.value.vmid }})" = "status: running" ]; then pct reboot {{ item.item.value.vmid }}; fi
+  changed_when: true
+  when:
+    - item.rc == 0
+    - item.stdout is not search('^features:.*keyctl=1', multiline=True)
+  loop: "{{ host_tuning_lxc_cfg.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"

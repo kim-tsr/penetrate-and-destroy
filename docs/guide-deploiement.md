@@ -116,14 +116,9 @@ Il faut **deux stockages** (noms et types dans `infra/contracts.yaml`, bloc `hos
 | `host.datastore_iso` | `local` | image OPNsense, template LXC, image Talos | `iso`, `vztmpl`, **`import`** |
 
 Le type `zfspool` est le cas testé ; `lvmthin` et `dir` fonctionnent aussi avec Cluster API et le CSI Proxmox (les disques sont en `raw`
-dans tous les cas). Seul le réglage de l'ARC ZFS du rôle `host-tuning` n'a de sens que sur ZFS.
+dans tous les cas). Le réglage de l'ARC ZFS du rôle `host-tuning` n'est appliqué que si ZFS est présent (module chargé ou `datastore_vm_type: zfspool`), sans échec sinon.
 
-**Activer le contenu `import`** (exigé par la phase 3, que ni OpenTofu ni Ansible ne posent) :
-
-```bash
-pvesm status --storage local      # note le contenu actuel, p. ex. : backup,iso,vztmpl
-pvesm set local --content backup,iso,vztmpl,import     # REMPLACE la liste : reprendre l'existant et ajouter import
-```
+Le contenu `import` du stockage ISO (exigé par la phase 3) est **ajouté automatiquement** par le rôle `host-tuning` en phase 1, en conservant les contenus existants : rien à faire à la main. Le stockage doit être de type fichiers (`dir`, `nfs`...) ; sinon la phase 1 s'arrête en le disant.
 
 ### 2.2 Jeton API pour OpenTofu et Cluster API (liste exacte des privilèges)
 
@@ -151,9 +146,11 @@ pveum user token add pad@pve tofu --privsep 0     # affiche le secret UNE FOIS :
 La valeur à mettre dans `proxmox.api_token` est `pad@pve!tofu=<secret affiché>`. `task check:0-prereqs` lit les permissions réelles du jeton (`/access/permissions`) et nomme
 chaque privilège manquant.
 
-!!! warning "À valider sur votre Proxmox"
-    Certaines options de conteneur (`features: nesting, keyctl`) peuvent être refusées à un jeton non-`root@pam` selon la version de Proxmox
-    (« only root can set 'features' »). La phase 4 vous le dira ; dans ce cas, créez le jeton sur `root@pam` (`pveum user token add root@pam tofu --privsep 0`).
+!!! note "Features des LXC : `keyctl` n'est pas posé par le jeton"
+    Proxmox réserve à `root@pam` toute feature de conteneur autre que `nesting` (« changing feature flags (except nesting) is only allowed for root@pam »,
+    `pve-container`, `check_ct_modify_config_perm`). Un jeton `pad@pve` ne peut donc pas poser `keyctl`, même avec tous les privilèges. Plutôt que de donner un jeton
+    `root@pam` à OpenTofu, la stack 20 ne pose que `nesting` (privilège `VM.Allocate`, déjà accordé) et le rôle `host-tuning` pose `keyctl` par `pct set` (SSH sudo sur l'hôte),
+    rejoué automatiquement par la phase 4 (`task host:lxc-features`). Si vous avez malgré tout un jeton `root@pam`, rien ne change.
 
 ### 2.3 Jeton du CSI Proxmox (volumes persistants)
 
@@ -296,7 +293,7 @@ Toutes les commandes se lancent depuis la racine du dépôt, dans `nix develop`,
 ### Phase 1 : réseau de l'hôte
 
 - **Fait** : `00-host-network` crée le pont VLAN-aware `vmbr2` (sans uplink : seul OPNsense route entre zones), l'interface `vmbr2.10` de l'hôte (`10.20.10.2`, zone mgmt), et `vmbr1` en mode `nat`.
-  Puis `ansible:host` règle l'hôte : plafond de l'ARC ZFS, sysctl, DNAT de repli (mode `nat`), node-exporter, pve-exporter, Alloy. (Avant la phase 4 l'inventaire généré n'existe pas : `ansible:host` utilise l'inventaire d'exemple.)
+  Puis `ansible:host` règle l'hôte : plafond de l'ARC ZFS (si ZFS), contenu `import` du stockage ISO, sysctl, DNAT de repli (mode `nat`), node-exporter, pve-exporter, Alloy. La route vers les zones et `keyctl` des LXC sont ignorés à ce stade (ni routeur ni LXC) et posés par les phases 2 et 4. (Avant la phase 4 l'inventaire généré n'existe pas : `ansible:host` utilise l'inventaire d'exemple.)
 - **Commande** : `task phase:1-reseau`. Si `sudo` demande un mot de passe : `task ansible:host -- -K`.
 - **Créé** : ponts `vmbr2` (et `vmbr1`), `vmbr2.10`.
 - **Vérifier** : `task check:1-reseau`, ou sur l'hôte `ip -br addr show vmbr2.10` (doit porter `10.20.10.2/24`), `cat /sys/module/zfs/parameters/zfs_arc_max` (= 4294967296), `ss -ltn | grep :9100`.
@@ -306,7 +303,7 @@ Toutes les commandes se lancent depuis la racine du dépôt, dans `nix develop`,
 ### Phase 2 : routeur et pare-feu
 
 - **Fait** : `10-router` télécharge l'image OPNsense (somme de contrôle épinglée), construit sur **votre poste** un ISO contenant `config.xml`, le dépose sur l'hôte, crée la VM `200` (`10.20.10.1`),
-  puis envoie des frappes clavier pour déclencher l'import de la configuration. La tâche attend ensuite que la GUI réponde, pose sur l'hôte la **route vers les zones** (`pad-route.service`, permanente),
+  puis envoie des frappes clavier pour déclencher l'import de la configuration. La tâche attend ensuite que la GUI réponde, pose sur l'hôte la **route vers les zones** (rôle `host-tuning`, tag `host_route` : unité `pad-route.service`, permanente et idempotente ; `task host:route`),
   et `60-opnsense-rules` installe la matrice de flux (deny all par défaut, règles « automation » par zone). Détail : [OPNsense](composants/opnsense.md), [Matrice de flux](architecture/flux.md).
 - **Commande** : `task phase:2-routeur`. Pour la partie règles, l'API d'OPNsense doit être joignable : tunnel de la section 1 et `export TF_VAR_opnsense_uri=https://127.0.0.1:8443`.
 - **Créé** : VM `200` (OPNsense), règles de pare-feu, port-forwards WAN.
@@ -321,12 +318,12 @@ Toutes les commandes se lancent depuis la racine du dépôt, dans `nix develop`,
 - **Commande** : `task phase:3-image-talos`.
 - **Créé** : un template (VMID du contrat `kubernetes.talos_template.vmid`).
 - **Vérifier** : `task check:3-image-talos`, ou `qm list` (la ligne du template), `qm config <vmid> | grep template`.
-- **Erreurs** : téléchargement refusé « content type import » → section 2.1. Le VMID du template doit être **celui que les manifests Cluster API utilisent** ; la vérification signale une incohérence du contrat.
+- **Erreurs** : téléchargement refusé « content type import » → la phase 1 (rôle `host-tuning`) n'a pas posé le contenu `import` : `task ansible:host`. Le VMID du template (`kubernetes.talos_template.vmid`, clé unique du contrat, hors `vmid_range`) est celui des manifests Cluster API ; la vérification contrôle qu'il est bien un template et hors de la plage allouable par CAPMOX.
 - **Rejouer** : sans risque (le fichier image n'est pas retéléchargé).
 
 ### Phase 4 : les LXC
 
-- **Fait** : `20-services-lxc` télécharge le template Debian 13 (somme de contrôle vérifiée), crée cinq LXC non privilégiés avec Docker possible (`nesting`, `keyctl`), injecte la clé SSH d'Ansible, et **écrit l'inventaire** `infra/ansible/inventories/prod/hosts.generated.yml`.
+- **Fait** : `20-services-lxc` télécharge le template Debian 13 (somme de contrôle vérifiée), crée cinq LXC non privilégiés avec `nesting` (puis `keyctl`, posé par `task host:lxc-features` du rôle `host-tuning`, voir 2.2), injecte la clé SSH d'Ansible, et **écrit l'inventaire** `infra/ansible/inventories/prod/hosts.generated.yml`.
 - **Commande** : `task phase:4-lxc`.
 - **Créé** :
 
@@ -339,7 +336,7 @@ Toutes les commandes se lancent depuis la racine du dépôt, dans `nix develop`,
   | monitoring | 250 | 10.20.50.10 | supervision |
 
 - **Vérifier** : `task check:4-lxc`, ou `pct list` (5 lignes `running`), puis `ssh -J pad-admin@<hôte> root@10.20.40.10 hostname`.
-- **Erreurs** : SSH par rebond impossible → la route de la phase 2 est-elle en place ? OPNsense démarré ? Création refusée sur `features` → note de 2.2.
+- **Erreurs** : SSH par rebond impossible → la route de la phase 2 est-elle en place ? OPNsense démarré ? `keyctl` absent (la vérification le signale) → `task host:lxc-features`, voir la note de 2.2.
 - **Rejouer** : sans risque. Refaire un seul LXC : `tofu -chdir=infra/tofu/stacks/20-services-lxc apply -replace='module.lxc.proxmox_virtual_environment_container.this["edge"]'` puis `task ansible:services -- --limit edge`.
 
 ### Phase 5 : DNS public
@@ -378,7 +375,7 @@ Toutes les commandes se lancent depuis la racine du dépôt, dans `nix develop`,
 - **Fait** : Ansible déploie **Warpgate** (bastion SSH/HTTPS avec SSO), **NetBird** (VPN : serveur combiné management/signal/relay + dashboard) et rejoue le monitoring (Grafana en SSO). Voir [Warpgate](composants/warpgate.md), [NetBird](composants/netbird.md).
 - **Commande** : `task phase:8-services-2`.
 - **Vérifier** : `task check:8-services-2`, ou `curl -I https://vpn.<domaine>`, et **depuis le LXC netbird** : `curl -sS https://auth.<domaine>/application/o/pad-netbird/.well-known/openid-configuration` (rétro-canal OIDC).
-- **Erreurs** : le LXC netbird n'atteint pas `https://auth.<domaine>` : ce nom résout vers votre IP publique, que les zones internes ne joignent pas forcément (pas de réflexion NAT). Remède : dans OPNsense, *Services > Unbound DNS > Overrides*, ajouter `auth.<domaine>` et `vpn.<domaine>` vers l'IP de l'edge (`10.20.20.10`), puis rejouer. Point à valider sur votre matériel.
+- **Erreurs** : le LXC netbird n'atteint pas `https://auth.<domaine>` : les zones internes doivent résoudre les noms publics (`public_hostnames` du contrat) vers l'IP **interne** de l'edge, pas l'IP publique (pas de réflexion NAT). C'est posé par la stack `60-opnsense-rules` (overrides Unbound, `task check:2-routeur` les contrôle) et le flux I2 (toutes zones vers l'edge en 443). Vérifier : `dig +short auth.<domaine> @10.20.20.1` depuis un LXC doit rendre `10.20.20.10`.
 - **Rejouer** : sans risque.
 - **Actions manuelles à faire maintenant (avant la phase 11)** :
     1. Ouvrir `https://vpn.<domaine>`, se connecter par Authentik, **supprimer la policy « Default »** (*Access Control > Policies*) : sinon tout pair joint tout pair (action 4).
@@ -540,7 +537,7 @@ Avant d'ouvrir l'événement aux joueurs :
 |---|---|
 | `tofu` : `Error acquiring the state` ou illisible | `TF_VAR_state_passphrase` différent de celui du state ; ne jamais en changer sans détruire |
 | `tofu` : authentification Proxmox | jeton (2.2), `proxmox_url`, `proxmox.insecure` ; `task check:0-prereqs` |
-| Ansible : hôte injoignable | clé dans l'agent ; `ssh_host`/`ssh_user` ; route de l'hôte vers les zones (`task host:route`) |
+| Ansible : hôte injoignable | clé dans l'agent ; `ssh_host`/`ssh_user` ; route de l'hôte vers les zones (`task host:route`, rôle `host-tuning`) |
 | `kubectl` : `connection refused` / délai | route de votre poste vers `10.20.60.0/24` ; VIP `10.20.60.5` ; VM allumées |
 | Une phase échoue à mi-chemin | la corriger puis relancer **la même phase** ; elle reprend là où elle s'est arrêtée |
 | Savoir où l'on en est | `task status` (rapide) ou `task status -- --live` (contacte l'hôte) |

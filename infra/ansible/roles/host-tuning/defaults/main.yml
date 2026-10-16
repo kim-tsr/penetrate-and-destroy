@@ -1,5 +1,15 @@
 ---
 host_tuning_zfs_arc_max: "{{ pad.host.zfs_arc_max_bytes | int }}"
+host_tuning_datastore_vm_type: "{{ pad.host.datastore_vm_type }}"
+
+# Datastore ISO : doit porter le contenu « import » (stack 15-talos-image).
+host_tuning_iso_datastore: "{{ pad.host.datastore_iso }}"
+
+# Route de l'hôte vers les zones via OPNsense (plage privée /16 commune aux zones du contrat).
+host_tuning_router_vmid: "{{ pad.router.vmid }}"
+host_tuning_route_gw: "{{ pad.zones.mgmt.gw }}"
+host_tuning_route_dev: "{{ pad.host.zones_bridge }}.{{ pad.zones.mgmt.vlan }}"
+host_tuning_route_cidr: "{{ pad.zones.mgmt.cidr.split('.')[:2] | join('.') }}.0.0/16"
 
 host_tuning_sysctl:
   vm.swappiness: 10

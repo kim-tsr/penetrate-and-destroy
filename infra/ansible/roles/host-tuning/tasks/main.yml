@@ -9,8 +9,12 @@
     that: host_tuning_pve.stat.exists
     fail_msg: "host-tuning ne s'applique qu'à l'hôte Proxmox (pveversion introuvable)."
 
-- name: Configurer l'ARC ZFS
+- name: Configurer l'ARC ZFS (si l'hôte utilise ZFS)
   ansible.builtin.import_tasks: zfs_arc.yml
+
+- name: Activer le contenu import du datastore ISO
+  ansible.builtin.import_tasks: iso_import.yml
+  tags: [host_iso_import]
 
 - name: Appliquer les sysctl
   ansible.posix.sysctl:
@@ -25,6 +29,14 @@
 
 - name: Configurer le DNAT de repli
   ansible.builtin.import_tasks: nat.yml
+
+- name: Poser la route de l'hôte vers les zones (après la phase routeur)
+  ansible.builtin.import_tasks: route.yml
+  tags: [host_route]
+
+- name: Activer keyctl sur les LXC de services (après la phase LXC)
+  ansible.builtin.import_tasks: lxc_features.yml
+  tags: [host_lxc_features]
 
 - name: Installer node-exporter (tâches partagées avec base-hardening)
   ansible.builtin.include_role:

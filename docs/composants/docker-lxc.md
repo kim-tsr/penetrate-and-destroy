@@ -10,8 +10,8 @@ dans un LXC Debian 13 non privilégié.
 
 ## Où elle tourne et comment elle est déployée
 
-Rôle Ansible `docker` (dépôt apt officiel, paquets versionnés puis mis en `hold`). Les LXC sont créés avec `nesting` et `keyctl`
-par le module tofu `lxc-service`. Pas de `userns-remap` : incompatible avec un LXC non privilégié déjà dans un user namespace.
+Rôle Ansible `docker` (dépôt apt officiel, paquets versionnés puis mis en `hold`). Les LXC sont créés avec `nesting` par le module tofu `lxc-service` ; `keyctl`, réservé à `root@pam` par Proxmox,
+est posé par le rôle `host-tuning` (`pct set`, `task host:lxc-features`). Pas de `userns-remap` : incompatible avec un LXC non privilégié déjà dans un user namespace.
 
 ## Version épinglée
 
@@ -21,7 +21,7 @@ par le module tofu `lxc-service`. Pas de `userns-remap` : incompatible avec un L
 ## Fichiers de configuration dans le dépôt
 
 - `infra/ansible/roles/docker/` : `defaults/main.yml`, `templates/daemon.json.j2`.
-- `infra/tofu/modules/lxc-service/main.tf` : `unprivileged`, `features { nesting, keyctl }`.
+- `infra/tofu/modules/lxc-service/main.tf` : `unprivileged`, `features { nesting }` (keyctl : rôle `host-tuning`).
 - Répertoire des Compose : `pad_compose_root` (`/opt/pad/<service>`).
 
 ## Interactions avec les autres briques

@@ -1,4 +1,19 @@
 ---
+# Plafond de l'ARC ZFS : sans objet si l'hôte n'utilise pas ZFS (module absent et datastore VM non zfspool) ; aucun échec dans ce cas.
+- name: Détecter ZFS (module chargé)
+  ansible.builtin.stat:
+    path: /sys/module/zfs/parameters/zfs_arc_max
+  register: host_tuning_arc_param
+
+- name: Déterminer si le plafond ARC s'applique
+  ansible.builtin.set_fact:
+    host_tuning_zfs_active: "{{ host_tuning_arc_param.stat.exists or host_tuning_datastore_vm_type == 'zfspool' }}"
+
+- name: Signaler l'absence de ZFS
+  ansible.builtin.debug:
+    msg: "ZFS absent (module non chargé, datastore_vm_type={{ host_tuning_datastore_vm_type }}) : plafond de l'ARC ignoré."
+  when: not host_tuning_zfs_active
+
 - name: Persister la limite de l'ARC ZFS
   ansible.builtin.copy:
     dest: /etc/modprobe.d/zfs.conf
@@ -9,14 +24,18 @@
       # Géré par Ansible (rôle host-tuning) - contracts: host.zfs_arc_max_bytes
       options zfs zfs_arc_max={{ host_tuning_zfs_arc_max }}
   notify: Régénérer l'initramfs
+  when: host_tuning_zfs_active
 
 - name: Lire la limite ARC courante
   ansible.builtin.slurp:
     src: /sys/module/zfs/parameters/zfs_arc_max
   register: host_tuning_arc_current
+  when: host_tuning_arc_param.stat.exists
 
 - name: Appliquer la limite ARC à chaud
   ansible.builtin.shell:
     cmd: "printf '%s' {{ host_tuning_zfs_arc_max | quote }} > /sys/module/zfs/parameters/zfs_arc_max"
-  when: (host_tuning_arc_current.content | b64decode | trim) != (host_tuning_zfs_arc_max | string)
+  when:
+    - host_tuning_arc_param.stat.exists
+    - (host_tuning_arc_current.content | b64decode | trim) != (host_tuning_zfs_arc_max | string)
   changed_when: true
