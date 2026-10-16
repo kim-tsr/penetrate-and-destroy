@@ -68,10 +68,17 @@ sequenceDiagram
 
 | Paramètre | Défaut | Variable CTFd |
 |---|---|---|
-| instances simultanées par équipe | 3 | `PAD_INSTANCES_MAX_PER_SOURCE` |
+| instances simultanées par équipe | 3 (`instances.max_per_team`) | `PAD_INSTANCES_MAX_PER_SOURCE` |
+| instances simultanées sur la plateforme | 90 (`instances.max_total`) | `PAD_INSTANCES_MAX_TOTAL` |
 | délai entre deux créations | 30 s | `PAD_INSTANCES_COOLDOWN_SECONDS` |
 | TTL d'une instance | 1 h (60 s à 6 h, défini par `instance.ttl`) | `challenge.yml` |
 | renouvellements | selon le challenge (`max_renewals`) | API admin |
+
+La limite globale protège le pool LB-IPAM `instances` (100 IP) et les ressources du pool challenges : elle compte les
+instances vivantes et les instances préchauffées (`pool_min`) et reste sous la taille du pool pour garder de la marge.
+Au-delà, le joueur reçoit un 503 avec un message explicite. Le contrôle est côté CTFd (plugin `chall_manager_bridge`),
+non transactionnel : des créations simultanées peuvent dépasser la limite de quelques unités, absorbées par la marge ;
+l'alerte `InstancesLBPoolFilling` surveille le remplissage réel du pool.
 
 Les managers et admins contournent quota, cooldown, renouvellements et pause : c'est ce que le portail utilise pour le
 [test d'instance](../manager/exploitation-evenement.md).

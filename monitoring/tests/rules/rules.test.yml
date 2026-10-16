@@ -154,6 +154,221 @@ tests:
               description: "Écart de 18 entre les instances actives selon CTFd et les namespaces inst-* du cluster (instances orphelines ou janitor bloqué)."
               runbook_url: docs/runbooks/instances.md
 
+  # --- Pool LB-IPAM des instances : alerte de remplissage ---
+  - interval: 1m
+    input_series:
+      - series: 'kube_service_spec_type{namespace="inst-1", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-2", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-3", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-4", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-5", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-6", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-7", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-8", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-9", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-10", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-11", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-12", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-13", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-14", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-15", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-16", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-17", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-18", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-19", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-20", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-21", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-22", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-23", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-24", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-25", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-26", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-27", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-28", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-29", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-30", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-31", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-32", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-33", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-34", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-35", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-36", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-37", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-38", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-39", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-40", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-41", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-42", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-43", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-44", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-45", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-46", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-47", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-48", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-49", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-50", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-51", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-52", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-53", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-54", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-55", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-56", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-57", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-58", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-59", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-60", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-61", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-62", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-63", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-64", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-65", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-66", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-67", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-68", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-69", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-70", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-71", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-72", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-73", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-74", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-75", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-76", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-77", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-78", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-79", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-80", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-81", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-82", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-83", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-84", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-85", type="LoadBalancer"}'
+        values: "1+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-86", type="LoadBalancer"}'
+        values: "0+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-87", type="LoadBalancer"}'
+        values: "0+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-88", type="LoadBalancer"}'
+        values: "0+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-89", type="LoadBalancer"}'
+        values: "0+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-90", type="LoadBalancer"}'
+        values: "0+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-91", type="LoadBalancer"}'
+        values: "0+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-92", type="LoadBalancer"}'
+        values: "0+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-93", type="LoadBalancer"}'
+        values: "0+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-94", type="LoadBalancer"}'
+        values: "0+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-95", type="LoadBalancer"}'
+        values: "0+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-96", type="LoadBalancer"}'
+        values: "0+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-97", type="LoadBalancer"}'
+        values: "0+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-98", type="LoadBalancer"}'
+        values: "0+0x20"
+      - series: 'kube_service_spec_type{namespace="inst-99", type="LoadBalancer"}'
+        values: "0+0x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: InstancesLBPoolFilling
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Le pool d'IP des instances est rempli à plus de 80 %"
+              description: "85 Services LoadBalancer d'instances sur 100 IP (pool LB-IPAM instances) : proche de l'épuisement."
+              runbook_url: docs/runbooks/instances.md
+      - eval_time: 10m
+        alertname: InstancesLBPoolExhausted
+        exp_alerts: []
+
   # --- Soumissions CTFd : max par résultat, pas de doublon entre réplicas ---
   - interval: 1m
     input_series:

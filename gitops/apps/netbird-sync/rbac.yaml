@@ -17,7 +17,8 @@ rules:
   - apiGroups: [""]
     resources: [services, namespaces]
     verbs: [get, list, watch]
-  # Finalizer pad.io/netbird-sync sur les Services d'instances.
+  # Finalizer pad.io/netbird-sync sur les Services d'instances : `patch` seul (ni update, create, delete) ; restreint par
+  # la ValidatingAdmissionPolicy ci-dessous aux inst-* et au seul finalizer.
   - apiGroups: [""]
     resources: [services]
     verbs: [patch]
@@ -37,9 +38,15 @@ subjects:
     name: netbird-sync
     namespace: netbird-sync
 ---
-# Garde-fou : le patch est cluster-wide côté RBAC (un Role ne peut pas filtrer par préfixe de namespace) ;
-# l'admission le limite aux Services des namespaces d'instance (inst-*). Une compromission de netbird-sync ne peut
-# plus poser de finalizer bloquant sur les Services de la plateforme.
+# Garde-fou : le verbe `patch` est cluster-wide côté RBAC, car un Role ne peut pas filtrer par préfixe de namespace et
+# les namespaces inst-* sont créés dynamiquement. Un RoleBinding généré par Kyverno dans chaque inst-* a été écarté : à la
+# suppression du namespace, le RoleBinding peut disparaître avant le Service, et netbird-sync ne pourrait alors plus retirer
+# son finalizer (namespace bloqué en Terminating). L'admission réduit donc le droit au strict nécessaire :
+#  - jamais de CREATE ni de DELETE de Service par netbird-sync ;
+#  - UPDATE uniquement dans inst-*, sans toucher au spec, aux labels, aux annotations ni aux ownerReferences,
+#    et sans modifier d'autre finalizer que pad.io/netbird-sync.
+# Une compromission de netbird-sync ne peut donc ni détourner un Service (selector, ports, IP) ni bloquer un Service de la
+# plateforme ; au pire elle pose ou retire le finalizer pad.io/netbird-sync sur un Service d'instance.
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:
@@ -56,8 +63,21 @@ spec:
     - name: from-netbird-sync
       expression: "request.userInfo.username == 'system:serviceaccount:netbird-sync:netbird-sync'"
   validations:
+    - expression: "request.operation == 'UPDATE'"
+      message: "netbird-sync ne peut ni créer ni supprimer de Service : seulement gérer son finalizer"
     - expression: "request.namespace.startsWith('inst-')" # contracts: namespaces.instances_prefix
       message: "netbird-sync ne peut modifier que les Services des namespaces inst-*"
+    - expression: "object.spec == oldObject.spec"
+      message: "netbird-sync ne peut pas modifier le spec d'un Service"
+    - expression: >-
+        object.metadata.?labels.orValue({}) == oldObject.metadata.?labels.orValue({}) &&
+        object.metadata.?annotations.orValue({}) == oldObject.metadata.?annotations.orValue({}) &&
+        object.metadata.?ownerReferences.orValue([]) == oldObject.metadata.?ownerReferences.orValue([])
+      message: "netbird-sync ne peut pas modifier labels, annotations ni ownerReferences"
+    - expression: >-
+        object.metadata.?finalizers.orValue([]).filter(f, f != 'pad.io/netbird-sync') ==
+        oldObject.metadata.?finalizers.orValue([]).filter(f, f != 'pad.io/netbird-sync')
+      message: "netbird-sync ne peut modifier que le finalizer pad.io/netbird-sync"
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicyBinding

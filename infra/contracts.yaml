@@ -196,6 +196,9 @@ instances:         # politique d'isolation des instances de challenges (scénari
   limits_max: { cpu: "2", memory: 1Gi, ephemeral_storage: 1Gi }   # plafonds par conteneur (ParseConfig) ; ResourceQuota = 2 x ces plafonds
   pod_pids_limit: 256                    # kubelet podPidsLimit du pool challenges (anti fork bomb)
   max_pods_per_node: 40                  # kubelet maxPods du pool challenges
+  max_per_team: 3                        # instances simultanées par équipe (ou joueur en mode individuel) : PAD_INSTANCES_MAX_PER_SOURCE (plugin chall_manager_bridge)
+  max_total: 90                          # instances simultanées sur la plateforme, préchauffées comprises : PAD_INSTANCES_MAX_TOTAL ; < taille du pool LB-IPAM `instances`
+                                         # (100 IP) pour garder de la marge (courses, instances staff). Refus 503 côté joueur ; managers/admins exemptés.
   host_users: false                      # false = user namespace par pod (K8s >= 1.33, noyau Talos récent) ; true = désactivé (échappatoire)
   image_verification: audit              # audit | enforce : vérification cosign (Kyverno verify-images) ; enforce seulement une fois la clé réelle fournie
                                          # (ConfigMap kyverno/pad-image-policy : mode + clé publique ; voir docs/operations/images-signees.md)

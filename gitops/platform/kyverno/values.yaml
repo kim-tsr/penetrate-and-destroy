@@ -1,5 +1,10 @@
-# kyverno chart 3.9.1 (app v1.19.1). Budget RAM serré : 1 replica par contrôleur, platform pool uniquement.
-# 1 replica = pas de HA : le webhook d'admission est fail-closed sur les namespaces ciblés par les politiques.
+# kyverno chart 3.9.1 (app v1.19.1). Budget RAM serré : platform pool uniquement (2 workers de 3,5 Go).
+# Le webhook d'admission est fail-closed (failurePolicy Fail) sur les namespaces ciblés par les politiques : une panne
+# du contrôleur d'admission bloque la création de pods. Le contrôleur d'admission tourne donc en 2 réplicas, un par worker
+# (anti-affinité préférée sur le nom d'hôte), avec un PodDisruptionBudget minAvailable 1 : un drain ou la perte d'un worker
+# ne coupe plus l'admission. Compromis assumé : 2 et non 3 réplicas, car sur 2 workers un 3e réplica ne tolère pas plus de
+# pannes de nœud et coûte 160 Mi de requests (320 Mi de limite) sur des nœuds déjà serrés ; passer à 3 si le pool platform
+# passe à 3 workers ou plus. Les contrôleurs background et reports restent à 1 réplica (pas sur le chemin d'admission).
 # Les namespaces kyverno / kube-system sont exclus par défaut des webhooks.
 global:
   nodeSelector:
@@ -17,7 +22,21 @@ webhooksCleanup:
 # (CRDs : Application prometheus-crds, wave -10). kyverno_policy_results_total vient des contrôleurs
 # d'admission (requêtes) et background (scans).
 admissionController:
-  replicas: 1
+  replicas: 2
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  # Un réplica par worker quand c'est possible (préféré, pas imposé : une mise à jour progressive ou un worker en moins
+  # ne doit pas laisser un pod Pending et bloquer l'admission).
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/component: admission-controller
+              app.kubernetes.io/instance: kyverno
   container:
     resources:
       requests: { cpu: 100m, memory: 160Mi }

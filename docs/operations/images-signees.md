@@ -27,7 +27,7 @@ ghcr.io sont vérifiées en keyless et n'utilisent pas cette clé.
 
 `failurePolicy: Fail` signifie qu'un Kyverno indisponible bloque la création de pods dans `inst-*`, `ctfd`, `frontend`
 et `netbird-sync` (le webhook est limité à ces namespaces par `matchConditions` ; `kube-system` et `kyverno` ne sont jamais
-concernés). Kyverno tourne en un seul réplica sur le pool platform : voir le [runbook Kyverno](../runbooks/kyverno.md).
+concernés). Le contrôleur d'admission Kyverno tourne en 2 réplicas sur le pool platform (PDB `minAvailable: 1`) : voir le [runbook Kyverno](../runbooks/kyverno.md).
 
 ## Passer en Enforce
 
