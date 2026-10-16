@@ -11,11 +11,12 @@ labels:
     includeSelectors: false
 
 resources:
-  - cosign-pubkey-configmap.yaml
+  - image-policy-configmap.yaml
   - rbac-background-controller.yaml
   - pss-restricted.yaml
   - require-requests-limits.yaml
   - disallow-latest-tag.yaml
   - verify-images.yaml
+  - restrict-instance-images.yaml
   - add-default-networkpolicy.yaml
   - instance-guardrails.yaml

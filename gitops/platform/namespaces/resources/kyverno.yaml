@@ -29,6 +29,11 @@ spec:
     - fromEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: observability # contracts: namespaces.monitoring_agents
+    # Webhooks d'admission appelés par l'API server (control plane sur un autre nœud => remote-node).
+    - fromEntities: [kube-apiserver, remote-node, host]
+      toPorts:
+        - ports:
+            - { port: "9443", protocol: TCP }
   egress:
     - toEndpoints:
         - matchLabels:
@@ -44,3 +49,15 @@ spec:
             dns:
               - matchPattern: "*"
     - toEntities: [kube-apiserver]
+    # verifyImages : registre interne (via Traefik interne du cluster) pour lire les signatures cosign.
+    - toCIDR: ["10.20.60.200/32"] # contracts: kubernetes.ingress_ip
+      toPorts:
+        - ports:
+            - { port: "443", protocol: TCP }
+    # verifyImages keyless (images du projet sur ghcr.io) : registre + Rekor / Fulcio / TUF Sigstore.
+    - toFQDNs:
+        - matchName: ghcr.io
+        - matchPattern: "*.sigstore.dev"
+      toPorts:
+        - ports:
+            - { port: "443", protocol: TCP }

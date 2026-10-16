@@ -1,47 +1,188 @@
-# Vérification des signatures cosign des images du registry interne.
-# Mode Audit au départ (clé publique encore placeholder) : passer en Enforce une fois
-# cosign-pubkey renseignée et les images signées par la CI.
-# contracts: internal_domain (registry.pad.internal) ; hostnames.registry
+# Vérification des signatures cosign et des empreintes (digest) des images, en deux politiques complémentaires
+# pilotées par le ConfigMap kyverno/pad-image-policy (clé `mode`, contrat instances.image_verification) :
+#
+#   verify-images        : Enforce + failurePolicy Fail, appliquée seulement si mode == enforce ;
+#   verify-images-audit  : Audit  + failurePolicy Ignore, appliquée dans tous les autres cas (mode audit par défaut,
+#                          ou mode enforce mais clé cosign encore PLACEHOLDER pour les images du registre interne).
+#
+# Ce montage évite le piège « Enforce avec une clé factice : plus rien ne démarre » : on commence en audit, on lit
+# les PolicyReports, on fournit la vraie clé, puis on bascule `mode: enforce` par commit (docs/operations/images-signees.md).
+#
+# Périmètre (namespaces d'instances et applications de la plateforme) :
+#   - registre interne (registry.pad.internal/*) : clé publique cosign du ConfigMap, namespaces inst-* ;
+#   - images du projet (ghcr.io/kim-tsr/pad-*) : signature keyless produite par .github/workflows/images.yml (identité
+#     du workflow), namespaces ctfd, frontend, netbird-sync ; empreinte (@sha256) obligatoire.
+# Les images tierces des composants de la plateforme sont déjà épinglées par empreinte dans les manifests.
+#
+# Prérequis réseau : l'admission controller doit joindre le registre et, pour le keyless, Rekor / Fulcio / TUF
+# (egress du namespace kyverno, gitops/platform/namespaces/resources/kyverno.yaml).
+# contracts: apps.registry, namespaces.ctfd, namespaces.frontend, namespaces.netbird_sync, namespaces.instances_prefix, git.repo
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
   name: verify-images
   annotations:
-    policies.kyverno.io/title: Vérifier les signatures cosign
+    policies.kyverno.io/title: Vérifier les signatures cosign (Enforce)
     policies.kyverno.io/category: Software Supply Chain Security
     policies.kyverno.io/severity: high
+    policies.kyverno.io/description: >-
+      Refuse les images non signées ou sans empreinte dans inst-*, ctfd, frontend et netbird-sync. Inactive tant que
+      pad-image-policy.mode n'est pas « enforce » (voir verify-images-audit).
+spec:
+  validationFailureAction: Enforce
+  background: false
+  webhookConfiguration:
+    failurePolicy: Fail
+    timeoutSeconds: 20
+    # Limite le périmètre du webhook (un Kyverno indisponible ne bloque ni le reste du cluster ni lui-même).
+    matchConditions:
+      - name: pad-scope
+        expression: "request.namespace.startsWith('inst-') || request.namespace in ['ctfd', 'frontend', 'netbird-sync']"
+  rules:
+    - name: verify-internal-registry
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+              namespaces: ["inst-*"]
+      context:
+        - name: imgpol
+          configMap:
+            name: pad-image-policy
+            namespace: kyverno
+      preconditions:
+        all:
+          - key: "{{ imgpol.data.mode || 'audit' }}"
+            operator: Equals
+            value: enforce
+          # Clé encore factice : la règle reste portée par verify-images-audit.
+          - key: "{{ contains(imgpol.data.\"cosign.pub\" || '', 'CHANGEME') }}"
+            operator: Equals
+            value: false
+      verifyImages:
+        - imageReferences:
+            - "registry.pad.internal/*"
+          mutateDigest: false
+          verifyDigest: true
+          required: true
+          attestors:
+            - entries:
+                - keys:
+                    publicKeys: "{{ imgpol.data.\"cosign.pub\" }}"
+                    rekor:
+                      ignoreTlog: true
+                    ctlog:
+                      ignoreSCT: true
+    - name: verify-project-images
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+              namespaces: ["ctfd", "frontend", "netbird-sync"]
+      context:
+        - name: imgpol
+          configMap:
+            name: pad-image-policy
+            namespace: kyverno
+      preconditions:
+        all:
+          - key: "{{ imgpol.data.mode || 'audit' }}"
+            operator: Equals
+            value: enforce
+      verifyImages:
+        - imageReferences:
+            - "ghcr.io/kim-tsr/pad-*"
+          mutateDigest: false
+          verifyDigest: true
+          required: true
+          attestors:
+            - entries:
+                - keyless:
+                    issuer: https://token.actions.githubusercontent.com
+                    subjectRegExp: '^https://github\.com/kim-tsr/penetrate-and-destroy/\.github/workflows/images\.yml@refs/(heads/main|tags/v.+)$'
+                    rekor:
+                      url: https://rekor.sigstore.dev
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-images-audit
+  annotations:
+    policies.kyverno.io/title: Vérifier les signatures cosign (Audit)
+    policies.kyverno.io/category: Software Supply Chain Security
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/description: >-
+      Même périmètre que verify-images, en rapport seul (PolicyReport) : mode « audit » par défaut, ou clé cosign du
+      registre interne encore factice. Ne bloque jamais.
 spec:
   validationFailureAction: Audit
   background: false
   webhookConfiguration:
     failurePolicy: Ignore
-    timeoutSeconds: 15
+    timeoutSeconds: 20
+    matchConditions:
+      - name: pad-scope
+        expression: "request.namespace.startsWith('inst-') || request.namespace in ['ctfd', 'frontend', 'netbird-sync']"
   rules:
-    - name: verify-cosign-internal-registry
+    - name: verify-internal-registry
       match:
         any:
           - resources:
               kinds: ["Pod"]
-      exclude:
-        any:
-          - resources:
-              namespaces: ["kube-system", "kyverno"]
+              namespaces: ["inst-*"]
       context:
-        - name: cosign
+        - name: imgpol
           configMap:
-            name: cosign-pubkey
+            name: pad-image-policy
             namespace: kyverno
+      preconditions:
+        any:
+          - key: "{{ imgpol.data.mode || 'audit' }}"
+            operator: NotEquals
+            value: enforce
+          - key: "{{ contains(imgpol.data.\"cosign.pub\" || '', 'CHANGEME') }}"
+            operator: Equals
+            value: true
       verifyImages:
         - imageReferences:
             - "registry.pad.internal/*"
           mutateDigest: false
-          verifyDigest: false
+          verifyDigest: true
           required: true
           attestors:
             - entries:
                 - keys:
-                    publicKeys: "{{ cosign.data.\"cosign.pub\" }}"
+                    publicKeys: "{{ imgpol.data.\"cosign.pub\" }}"
                     rekor:
                       ignoreTlog: true
                     ctlog:
                       ignoreSCT: true
+    - name: verify-project-images
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+              namespaces: ["ctfd", "frontend", "netbird-sync"]
+      context:
+        - name: imgpol
+          configMap:
+            name: pad-image-policy
+            namespace: kyverno
+      preconditions:
+        all:
+          - key: "{{ imgpol.data.mode || 'audit' }}"
+            operator: NotEquals
+            value: enforce
+      verifyImages:
+        - imageReferences:
+            - "ghcr.io/kim-tsr/pad-*"
+          mutateDigest: false
+          verifyDigest: true
+          required: true
+          attestors:
+            - entries:
+                - keyless:
+                    issuer: https://token.actions.githubusercontent.com
+                    subjectRegExp: '^https://github\.com/kim-tsr/penetrate-and-destroy/\.github/workflows/images\.yml@refs/(heads/main|tags/v.+)$'
+                    rekor:
+                      url: https://rekor.sigstore.dev

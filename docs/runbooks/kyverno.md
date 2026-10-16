@@ -41,7 +41,7 @@ kubectl get policyreport -A -o json \
 ## Remédiation
 
 1. **Image d'un challenge refusée par `restricted`** : l'image doit tourner en utilisateur non-root, sans élévation de privilèges, avec `capabilities: drop ALL`. Corriger le `Dockerfile` du challenge, pas la politique.
-2. **Violations en Audit** (`verify-images`) : normal tant que la clé publique cosign n'est pas renseignée. Pour passer en `Enforce`, renseigner `cosign-pubkey`, vérifier que toutes les images du registry sont signées par la CI, puis changer `validationFailureAction` par commit.
+2. **Violations en Audit** (`verify-images`) : normal tant que la clé publique cosign n'est pas renseignée. Pour passer en `Enforce`, renseigner `pad-image-policy`, vérifier que toutes les images du registry sont signées par la CI, puis changer `validationFailureAction` par commit.
 3. **Webhook indisponible** : la politique est en `failurePolicy: Ignore` pour `verify-images`, mais les politiques Enforce peuvent bloquer des créations si Kyverno est down. Relancer `kyverno-admission-controller`.
 4. **Métriques absentes** : vérifier le ServiceMonitor du namespace `kyverno`.
 
