@@ -4,7 +4,7 @@
 Usage : scripts/site-set.py cle=valeur [cle=valeur ...]     (via `task site:set -- node=pve datastore_vm=vmdata`)
         scripts/site-set.py --show                          (valeurs courantes)
 
-Clés : node, datastore_vm, datastore_iso, datastore_vm_type (zfspool|lvmthin|lvm|dir), wan_mode (routed_ip|nat), domain, acme_email, git_repo, git_ssh.
+Clés : node, datastore_vm, datastore_iso, datastore_vm_type (zfspool|lvmthin|lvm|dir), wan_mode (routed_ip|nat), dns_zone, domain, acme_email, git_repo, git_ssh.
 Idempotent : met à jour infra/contracts.yaml puis chaque ligne de gitops/ portant `# contracts: <marqueur>` (domain : toute
 occurrence littérale de l'ancien domaine dans gitops/ hors *.sops.yaml). Les valeurs secrètes (URL de l'API Proxmox, accès SSH,
 IP publique) restent dans secrets/site.sops.yaml et ne passent jamais par ici.
@@ -25,6 +25,7 @@ KEYS = {
     "datastore_vm_type": (("host", "datastore_vm_type"), None, None, r"^(zfspool|lvmthin|lvm|dir)$"),
     "wan_mode": (("wan", "mode"), None, None, r"^(routed_ip|nat)$"),
     "domain": (("domain",), "domain", "domain", r"^[a-z0-9]([a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$|^CHANGEME\.example\.net$"),
+    "dns_zone": (("dns_zone",), None, None, r"^[a-z0-9]([a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$"),
     "acme_email": (("acme", "email"), "acme.email", "literal", r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$"),
     "git_repo": (("git", "repo"), "git.repo", "literal", r"^https://\S+$"),
     "git_ssh": (("git", "ssh"), "git.ssh", "literal", r"^\S+@\S+:\S+$"),

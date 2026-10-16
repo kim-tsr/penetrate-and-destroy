@@ -5,7 +5,8 @@
 # ici : elles sont fournies par l'opérateur dans secrets/site.sops.yaml (modèle : secrets/site.example.yaml).
 
 project: penetrate-and-destroy
-domain: CHANGEME.example.net           # domaine public racine
+domain: CHANGEME.example.net           # domaine public de la plateforme (ex. lab.mondomaine.fr) : ctf.<domain>, auth.<domain>...
+dns_zone: ""                            # zone DNS OVH qui le contient (ex. mondomaine.fr) ; vide = domain lui-même
 internal_domain: pad.internal           # domaine de recherche interne (OPNsense, LXC) ; non publié
 git:
   repo: https://github.com/kim-tsr/penetrate-and-destroy.git
