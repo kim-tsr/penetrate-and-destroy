@@ -231,36 +231,10 @@ resource "opnsense_firewall_filter" "pass" {
   depends_on = [opnsense_firewall_alias.this]
 }
 
-# Deny par défaut, journalisé, en toute fin (après toutes les règles pad).
-resource "opnsense_firewall_filter" "default_deny" {
-  enabled     = true
-  sequence    = 60000
-  description = "pad DENY par défaut (journalisé)"
-  categories  = [opnsense_firewall_category.pad.id]
-
-  interface = {
-    interface = toset(concat(["wan"], local.all_zone_ifaces))
-  }
-
-  filter = {
-    action      = "block"
-    direction   = "in"
-    quick       = true
-    ip_protocol = "inet"
-    protocol    = "any"
-    log         = true
-
-    source = {
-      net = "any"
-    }
-
-    destination = {
-      net = "any"
-    }
-  }
-
-  depends_on = [opnsense_firewall_filter.pass]
-}
+# Pas de règle « deny » explicite : une règle bloquante posée sur plusieurs interfaces est traitée par OPNsense comme
+# une règle flottante, évaluée AVANT les règles d'interface (quel que soit son numéro de séquence) ; elle masquait
+# donc toute la matrice. Le blocage par défaut intégré d'OPNsense, en fin de chaîne, fait ce travail et il est
+# journalisé (config.xml de bootstrap sans <nologdefaultblock>).
 
 # --- NAT -----------------------------------------------------------------------------------------
 # Aucune ressource NAT ici :
