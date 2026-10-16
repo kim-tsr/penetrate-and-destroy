@@ -603,6 +603,8 @@ Avant d'ouvrir l'événement aux joueurs :
 | Phase 4 (LXC) : `unable to create CT ... zfs error: cannot mount '...subvol-...': no mountpoint set` | le dataset ZFS du stockage des VM a `mountpoint=none` : `zfs set mountpoint=/<dataset> <dataset>` sur l'hôte (2.1), puis relancer la phase |
 | Phase 5 OK, mais le navigateur ou le poste ne résout pas encore le nom | cache négatif du résolveur local : attendre le TTL négatif de la zone ou vider le cache DNS du poste |
 | `kubectl` : `connection refused` / délai | route de votre poste vers `10.20.60.0/24` ; VIP `10.20.60.5` ; VM allumées |
+| Certificat « TRAEFIK DEFAULT CERT » servi par l'edge | les routeurs n'ont pas de `certResolver` (un `tls: {}` écrase la configuration de l'entrypoint ; ils doivent porter `tls: *pad_tls`) : vérifier `docker logs pad-edge-traefik-1 \| grep lego` |
+| `ovh: could not find zone for domain` / timeouts DNS (1.1.1.1, 9.9.9.9) depuis l'edge | règle `i5-egress-dns` (DNS sortant 53 TCP/UDP, nécessaire à ACME DNS-01) non appliquée : `task tofu:apply-stack STACK=60-opnsense-rules` |
 | Une phase échoue à mi-chemin | la corriger puis relancer **la même phase** ; elle reprend là où elle s'est arrêtée |
 | Savoir où l'on en est | `task status` (rapide) ou `task status -- --live` (contacte l'hôte) |
 

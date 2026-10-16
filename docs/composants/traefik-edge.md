@@ -59,6 +59,8 @@ Pour essayer l'ACME sans consommer le quota, renseigner `edge_traefik_crowdsec_a
 - Le plugin est téléchargé au démarrage : un LXC sans sortie vers le catalogue de plugins ne démarre pas Traefik correctement.
 - `readTimeout: 0s` sur `websecure` est voulu (flux longs gRPC et websocket de NetBird).
 - Les CIDR des zones sont de confiance pour le bouncer : ils ne sont jamais bannis.
+- Les routeurs dynamiques portent `tls: *pad_tls` (ancre YAML : `certResolver: le`, `main` = domaine, `sans` = `*.domaine`) : un seul certificat wildcard par DNS-01 OVH. Ne jamais remettre `tls: {}` sur un routeur : cela écrase la configuration TLS de l'entrypoint `websecure`, Traefik ne demande alors aucun certificat et sert « TRAEFIK DEFAULT CERT ». Vérifier avec `docker logs pad-edge-traefik-1 | grep lego`.
+- Le DNS-01 exige la règle OPNsense `i5-egress-dns` (53 TCP/UDP vers Internet) : lego interroge des résolveurs publics et les serveurs faisant autorité de la zone pour vérifier la propagation.
 
 ## Documentation officielle
 

@@ -22,7 +22,7 @@ déclarés dans la stack OpenTofu `60-opnsense-rules`, à partir des ports du co
 | I2 | toutes les zones | `edge` | 443 | split-DNS : les noms publics (`auth`, `vpn`, `front`, `status`) résolvent vers l'IP interne de l'edge (overrides Unbound), qui relaie vers authentik (M3) ; back-channel OIDC |
 | I3 | nœuds Kubernetes PROD et CHALLENGES, **asymétrique** | nœuds Kubernetes de l'autre zone | PROD vers CHALLENGES : kubelet 10250 (control plane seul), Cilium health 4240 et Hubble 4244, VXLAN 8472, WireGuard 51871. CHALLENGES vers PROD : trustd 50001 (control plane seul), Cilium health 4240, VXLAN 8472, WireGuard 51871 | cluster étendu sur deux zones ; un worker challenges compromis n'atteint ni kubelet ni apid du control plane (apid : bastion seul, M6) |
 | I4 | `edge` | `monitoring` | 3001 | page de statut Uptime Kuma |
-| I5 | zones listées | Internet (hors plages privées) | 80, 443, 123/udp | mises à jour, ACME ; activable par zone |
+| I5 | zones listées | Internet (hors plages privées) | 80, 443, 53 (TCP/UDP), 123/udp | mises à jour, ACME (dont DNS-01 : résolveurs publics et serveurs faisant autorité) ; activable par zone |
 
 M1 ne fait qu'autoriser le trafic : la redirection de ports WAN (DNAT vers `edge` et `netbird`) est posée par le
 `config.xml` de bootstrap (stack `10-router`), sans règle de filtre associée, car l'API `d_nat` n'existe qu'à partir
