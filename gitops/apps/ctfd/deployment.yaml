@@ -67,7 +67,7 @@ spec:
         - name: ctfd
           # Référence par empreinte obligatoire (Kyverno verify-images, CONVENTIONS.md). Tag et empreinte sont tenus à jour par la
           # `task apps:pin-digests` (scripts/pin-image-digests.sh) : ne pas les éditer à la main.
-          image: ghcr.io/kim-tsr/pad-ctfd:5459b3a@sha256:bbf7b7f171701175b7ddcbee466e5f2c14640dccedc8b088975f981fa45984d8
+          image: ghcr.io/kim-tsr/pad-ctfd:b9039cf@sha256:54d3333549b638ae0389cd14063088636f719799586939450babc40083408eec
           ports:
             - name: http
               containerPort: 8000
@@ -105,7 +105,7 @@ spec:
               valueFrom: { secretKeyRef: { name: ctfd-secrets, key: AWS_SECRET_ACCESS_KEY } }
             # --- Plugins pad_* ---
             - { name: PAD_CHALL_MANAGER_URL, value: "http://chall-manager.chall-manager.svc.cluster.local:8080" } # contracts: apps.chall_manager.service
-            - { name: PAD_GENERIC_SCENARIO, value: "registry.CHANGEME.example.net/pad/scenarios/k8s-instance:0.1.0" } # contracts: apps.chall_manager.generic_scenario (+ tag)
+            - { name: PAD_GENERIC_SCENARIO, value: "registry.pad.internal/pad/scenarios/k8s-instance:0.1.0" } # contracts: apps.chall_manager.generic_scenario (+ tag)
             - { name: PAD_INSTANCES_MAX_TOTAL, value: "90" } # contracts: instances.max_total
             - { name: PAD_INSTANCES_MAX_PER_SOURCE, value: "3" } # contracts: instances.max_per_team (le plugin lit PAD_INSTANCES_MAX_PER_SOURCE)
             - { name: PAD_GROUP_ADMINS, value: ctf-admins } # contracts: identity.groups

@@ -95,6 +95,7 @@ Stacks : `00-host-network`, `10-router`, `15-talos-image`, `20-services-lxc`, `3
 | Tâche | Effet |
 |---|---|
 | `apps:pin-digests -- [tag]` | épingle dans les manifests les empreintes des images publiées sur ghcr (tag = sha court, défaut HEAD) : [Images signées](../operations/images-signees.md) |
+| `apps:zot:publish -- [tag]` | publie dans Zot le scénario chall-manager (OCI, `oras`) et copie les images de challenge de ghcr vers `registry.pad.internal/ctf/` (même empreinte) ; après la phase 10 : [Guide, phase 11](../guide-deploiement.md) |
 | `apps:build`, `apps:push`, `apps:sign` | construit / pousse / pousse et signe (cosign) les images |
 | `apps:build:ctfd`, `:frontend`, `:netbird-sync`, `:chall-manager-scenario` | image d'un composant |
 | `apps:build:chal-pwn-ret2win-instanced`, `:chal-web-sqli-instanced` | images des exemples de challenges |

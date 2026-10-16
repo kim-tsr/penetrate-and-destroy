@@ -443,7 +443,15 @@ Détail et vérification des signatures : [Images signées](operations/images-si
     1. Dashboard NetBird > *Team > Service Users* : créer un PAT pour `netbird-sync` → `gitops/apps/netbird-sync/secret.sops.yaml` (`NETBIRD_API_TOKEN`), et pour `pad-frontend-readonly` (rôle `auditor`) → `gitops/apps/frontend/secret.sops.yaml` (`NETBIRD_API_TOKEN`). Commit + push (ArgoCD redéploie). Ne jamais réutiliser le PAT de l'un pour l'autre.
     2. Enrôler les **routing peers** : la sortie sensible `routing_peer_setup_keys` (`tofu -chdir=infra/tofu/stacks/40-netbird output -json routing_peer_setup_keys`) fournit une clé par zone (challenges `10.20.70.10`, bastion = LXC warpgate `10.20.30.10`). Ce dépôt n'enrôle pas encore ces pairs automatiquement : sur le LXC warpgate, installer l'agent NetBird et lancer `netbird up --setup-key <clé bastion> --management-url https://vpn.<domaine>` ; pour la zone challenges, un pair d'IP `10.20.70.10` reste à prévoir (point ouvert, voir [Limites connues](reference/limites.md)).
     3. Règles OPNsense des routing peers (action 6 de [Actions manuelles](operations/actions-post-deploiement.md)).
-    4. Zot : identifiants de pull sur les nœuds du pool `challenges` (action 8), puis poussée des images de challenge dans Zot. Cosign et `enforce` (action 9) plus tard.
+    4. Zot : identifiants de pull sur les nœuds du pool `challenges` (action 8), puis publication dans Zot du scénario chall-manager et des images de challenge, depuis un poste qui joint `registry.pad.internal` (NetBird staff ou bastion) :
+
+        ```bash
+        oras login registry.pad.internal -u pad-ci        # mot de passe : sops -d secrets/credentials.sops.yaml
+        crane auth login registry.pad.internal -u pad-ci -p '<mot de passe>'
+        task apps:zot:publish -- <sha court publié sur ghcr>   # défaut : HEAD
+        ```
+
+        Le scénario (artefact OCI Pulumi, pas une image Docker) est compilé et poussé avec `oras` ; les images de challenge sont copiées de ghcr vers `registry.pad.internal/ctf/` à l'identique (`crane copy`), donc l'empreinte épinglée dans `challenge.yml` reste valable. Cosign et `enforce` (action 9) plus tard.
 - **Vérifier** : `task check:11-acces`, ou dashboard NetBird (groupes `ctf-players`, `infra-admins`, networks), `kubectl -n netbird-sync logs deploy/netbird-sync` (pas de 401/403, pas de « refus de démarrer »).
 - **Rejouer** : sans risque. Plans : `task plan:40-netbird`, `task plan:50-warpgate`.
 
