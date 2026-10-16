@@ -88,7 +88,9 @@ restore_mariadb() {
   local reader=(cat "$file")
   if [[ "$file" == *.age ]]; then
     need age
-    [ -n "${PAD_BACKUP_AGE_IDENTITY:-}" ] && [ -f "$PAD_BACKUP_AGE_IDENTITY" ] || die "dump chiffré : PAD_BACKUP_AGE_IDENTITY (fichier d'identité age) requis"
+    if [ -z "${PAD_BACKUP_AGE_IDENTITY:-}" ] || [ ! -f "$PAD_BACKUP_AGE_IDENTITY" ]; then
+      die "dump chiffré : PAD_BACKUP_AGE_IDENTITY (fichier d'identité age) requis"
+    fi
     reader=(age -d -i "$PAD_BACKUP_AGE_IDENTITY" "$file")
   fi
   log "MariaDB : import de $(basename "$file") dans $CTFD_NS/$MARIADB_POD"
