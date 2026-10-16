@@ -76,10 +76,19 @@ step_kind() {
 }
 
 # --- 2. Manifests du cluster ---
+# Les objets annotés pad.io/bootstrap=gitops (pool challenges : MachineDeployment et templates) ne sont PAS appliqués
+# ici : ArgoCD les crée après la phase 10 (Application cluster-prod). Ces workers n'ont aucun egress Internet et tirent
+# leurs images (kubelet compris) du miroir Zot, qui n'existe qu'après la phase 10 : créés maintenant, ils ne
+# rejoindraient pas le cluster et `clusterctl move` refuserait de pivoter (« still provisioning the node » : toute
+# Machine doit avoir un nodeRef). Le control plane et le pool platform suffisent au pivot et à la phase 10.
 step_apply() {
   has_prod_managing && return 0
-  log "kubectl apply -k gitops/clusters/prod"
-  retry 10 15 kkind apply --server-side --force-conflicts -k "${GITOPS_DIR}/clusters/prod"
+  # Rendu sur disque (manifests publics, rien de secret) : retry peut rejouer l'apply, ce qu'un pipe ne permet pas.
+  local rendered="${STATE_DIR}/clusters-prod.bootstrap.yaml"
+  kubectl kustomize "${GITOPS_DIR}/clusters/prod" \
+    | yq 'select(.metadata.annotations["pad.io/bootstrap"] != "gitops")' >"$rendered"
+  log "kubectl apply gitops/clusters/prod (hors pool challenges, créé par ArgoCD en phase 10)"
+  retry 10 15 kkind apply --server-side --force-conflicts -f "$rendered"
 }
 
 step_wait_cluster() {

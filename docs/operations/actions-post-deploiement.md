@@ -152,7 +152,12 @@ comptes htpasswd (`pad-ci`, `pad-pull`) sont générés par `task secrets:init` 
     unset pw
     ```
 
-   Le patch s'applique à chaud (containerd relit la configuration de registre, sans redémarrage).
+   Le patch se fusionne avec la configuration TLS de `registry.pad.internal` déjà portée par le template
+   (`tls.insecureSkipVerify`, voir [Zot, miroir pull-through](../composants/zot.md#miroir-pull-through-zone-challenges)).
+   La documentation Talos indique que le plugin CRI de containerd ne relit les identifiants qu'au redémarrage : si un pull
+   `ctf/` répond encore `401`, `talosctl -n <ip-du-noeud> reboot`.
+   Les images système de ces nœuds (kubelet, Cilium, CSI...) ne demandent aucun identifiant : elles passent par le cache
+   pull-through anonyme `mirror/` de Zot.
 2. **Nœuds créés ensuite par l'autoscaler** : ils naissent du `TalosConfigTemplate` du dépôt, donc sans ces identifiants. Rejouer
    l'étape 1 sur chaque nouveau nœud challenges (`kubectl get nodes -l pad.io/pool=challenges -o wide` donne les IP) ; tant que ce n'est
    pas fait, les pods d'instance posés sur ce nœud restent en `ImagePullBackOff`.

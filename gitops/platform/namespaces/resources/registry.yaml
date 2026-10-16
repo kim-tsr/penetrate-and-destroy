@@ -44,3 +44,32 @@ spec:
             dns:
               - matchPattern: "*"
     - toEntities: [kube-apiserver]
+---
+# Zot : entrée HTTP (5000) depuis Traefik uniquement (Ingress registry.pad.internal : CI, poste staff, nœuds
+# challenges pour le miroir pull-through et ctf/**) ; sortie HTTPS vers Internet hors plages privées pour la
+# synchronisation à la demande (registry-1.docker.io, ghcr.io, quay.io, registry.k8s.io, factory.talos.dev et leurs
+# CDN de blobs, qui redirigent vers des buckets cloud : liste de FQDN instable, d'où un CIDR) et la base Trivy (ghcr.io).
+# OPNsense borne aussi cette sortie (règle I5 : PROD -> Internet 80/443).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: zot
+  namespace: registry # contracts: namespaces.registry
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: zot
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: traefik
+      toPorts:
+        - ports:
+            - { port: "5000", protocol: TCP } # = service.port de gitops/platform/zot/values.yaml
+  egress:
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10] # privées/CGNAT (= alias net_private d'OPNsense)
+      toPorts:
+        - ports:
+            - { port: "443", protocol: TCP }

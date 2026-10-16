@@ -14,3 +14,16 @@ resource "opnsense_unbound_host_override" "public" {
   server      = local.svc.edge.ip
   description = "pad split-DNS: ${each.value} -> edge (IP interne)"
 }
+
+# Nom interne du registre Zot (contrat apps.registry = hostnames.registry + internal_domain) -> ingress du cluster
+# (Traefik, kubernetes.ingress_ip). Sans cet override, registry.pad.internal ne résout nulle part (NXDOMAIN) : ni les
+# nœuds de la zone CHALLENGES (miroir pull-through de leurs images, règle M10 m10-chall-registry), ni les pods
+# (chall-manager), ni le poste staff ne joignent Zot.
+resource "opnsense_unbound_host_override" "registry" {
+  enabled     = true
+  hostname    = local.c.hostnames.registry
+  domain      = local.c.internal_domain
+  type        = "A"
+  server      = local.k8s.ingress_ip
+  description = "pad registre Zot (${local.c.apps.registry}) -> ingress du cluster"
+}

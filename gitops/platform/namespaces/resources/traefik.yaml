@@ -44,3 +44,33 @@ spec:
             dns:
               - matchPattern: "*"
     - toEntities: [kube-apiserver]
+---
+# Traefik (ingress interne du cluster) : entrée sur les entrypoints web (8000) et websecure (8443), ports des
+# conteneurs (la politique s'applique après la traduction du Service LoadBalancer 80/443).
+# - world : l'edge (règle OPNsense M2) et, avant que Cilium ne tourne sur eux, les nœuds challenges (règle M10 vers
+#   registry.pad.internal : leur IP n'est pas encore connue de Cilium) ;
+# - remote-node / host : un nœud du cluster qui joint l'IP de LB (containerd des nœuds challenges qui tire via le
+#   miroir Zot : le socket-LB de Cilium envoie directement au pod Traefik, source = identité du nœud).
+# Le filtrage des sources est fait en amont par OPNsense (seuls l'edge et les nœuds challenges sont autorisés vers
+# l'ingress depuis une autre zone) ; le trafic intra-zone PROD ne traverse pas OPNsense.
+# Sortie : vers les pods du cluster (backends des Ingress) ; chaque backend filtre lui-même son entrée (ex. Zot,
+# CTFd, front : entrée depuis le namespace traefik).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: traefik
+  namespace: traefik
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: traefik
+  ingress:
+    - fromEntities: [world, remote-node, host]
+      toPorts:
+        - ports:
+            - { port: "8000", protocol: TCP } # ports.web.port de gitops/platform/traefik/values.yaml
+            - { port: "8443", protocol: TCP } # ports.websecure.port
+  egress:
+    - toEndpoints:
+        - matchExpressions:
+            - { key: io.kubernetes.pod.namespace, operator: Exists }

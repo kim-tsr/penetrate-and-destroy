@@ -52,8 +52,11 @@ de réimporter la configuration : `tofu apply -replace=module.opnsense.proxmox_v
 
 - Domaine public : `example.net` (le vôtre, dans le contrat). Les enregistrements sont créés par la
   stack `70-dns` et external-dns.
-- Domaine interne : `pad.internal` (non publié). Résolu par Unbound sur OPNsense (`10.20.10.1`), par exemple
-  `registry.pad.internal` pour Zot.
+- Domaine interne : `pad.internal` (non publié). Résolu par Unbound sur OPNsense (`10.20.10.1`) : l'override
+  `registry.pad.internal` vers l'ingress du cluster (`10.20.60.200`) est posé par la stack `60-opnsense-rules`. Il sert
+  aussi aux nœuds de la zone CHALLENGES, sans egress Internet, qui tirent leurs images système par le cache
+  pull-through de Zot ([Zot](../composants/zot.md#miroir-pull-through-zone-challenges)). Son certificat vient de la CA
+  interne `pad-internal-ca` (cert-manager).
 - Les certificats viennent d'ACME en DNS-01 (cert-manager, webhook OVH pour le cluster ; Traefik de `edge` pour le
   public).
 

@@ -1,5 +1,7 @@
 # Zot 0.1.128 (registre OCI interne) : search + scan Trivy (CVE), scrub, métriques, UI ; auth htpasswd.
-# Hôte interne : registry.pad.internal (contracts: internal_domain), Ingress Traefik.
+# Hôte interne : registry.pad.internal (contracts: apps.registry), Ingress Traefik, certificat de la CA interne.
+# Aussi cache pull-through (extension sync, onDemand) des registres publics pour les nœuds de la zone CHALLENGES, qui
+# n'ont aucun egress Internet : préfixe mirror/<registre>/ (docs/composants/zot.md, « Miroir pull-through »).
 image:
   repository: ghcr.io/project-zot/zot
   tag: v2.1.22@sha256:96cda11459ce6f8c60da3b03f03e9f67fd11b3ae2d82c4c04c92b3c608996080
@@ -27,11 +29,18 @@ ingress:
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
+    # Certificat émis par la CA interne (pad.internal n'est pas un domaine public : pas d'ACME). Indispensable :
+    # l'entrypoint websecure est en sniStrict, sans certificat pour ce nom Traefik refuse la poignée de main TLS.
+    cert-manager.io/cluster-issuer: pad-internal-ca
   hosts:
-    - host: registry.pad.internal # contracts: internal_domain
+    - host: registry.pad.internal # contracts: apps.registry
       paths:
         - path: /
   pathtype: Prefix
+  tls:
+    - secretName: zot-tls
+      hosts:
+        - registry.pad.internal # contracts: apps.registry
 
 # Fichier de configuration monté depuis un ConfigMap ; htpasswd depuis un Secret externe (zot-htpasswd).
 mountConfig: true
@@ -40,6 +49,21 @@ secretFiles: {}
 externalSecrets:
   - secretName: zot-htpasswd
     mountPath: /secrets/htpasswd # contient le fichier /secrets/htpasswd/htpasswd
+# Notes sur config.json (le JSON n'accepte pas de commentaires) :
+# - extensions.sync : cache pull-through à la demande (onDemand, pas de synchronisation périodique). Une requête sur
+#   registry.pad.internal/mirror/<registre>/<dépôt> (dépôt sous `destination`) tire l'image du registre amont puis la
+#   sert depuis le stockage local. Les nœuds challenges y sont renvoyés par machine.registries.mirrors (overridePath)
+#   de gitops/clusters/prod/pool-challenges.yaml. `content` est une liste blanche : seuls les dépôts des images qui
+#   tournent sur TOUS les nœuds (kubelet et installeur Talos, pause, Cilium, CSI Proxmox, Alloy, node-exporter, busybox
+#   du smoke test scripts/verify.sh) sont synchronisables ; tout autre dépôt sous mirror/ répond 404. Ajouter un
+#   DaemonSet qui tourne sur le pool challenges = ajouter ici le préfixe de son image.
+# - http.compat docker2s2 : conserve les manifestes Docker tels quels ; sans lui, zot les convertit en OCI, l'empreinte
+#   change et un pull par @sha256 (Cilium, Alloy, node-exporter) échoue.
+# - accessControl mirror/** : lecture anonyme (images publiques ; aucun identifiant à poser sur les nœuds), écriture
+#   réservée à zot lui-même (la synchronisation ne passe pas par le contrôle d'accès) et à l'admin.
+# - storage.retention : les images tirées par empreinte sont stockées sans tag ; sans règle, le GC les supprimerait
+#   après gcDelay (1 h) et chaque nouveau nœud retirerait de l'amont. Gardées 30 jours après le dernier pull ; la
+#   politique `**` reproduit le comportement précédent pour les autres dépôts (tous les tags gardés).
 configFiles:
   config.json: |-
     {
@@ -49,12 +73,31 @@ configFiles:
         "dedupe": true,
         "gc": true,
         "gcDelay": "1h",
-        "gcInterval": "6h"
+        "gcInterval": "6h",
+        "retention": {
+          "delay": "24h",
+          "policies": [
+            {
+              "repositories": ["mirror/**"],
+              "deleteReferrers": false,
+              "deleteUntagged": true,
+              "keepTags": [{ "patterns": [".*"] }],
+              "keepUntagged": { "pulledWithin": "720h", "pushedWithin": "720h" }
+            },
+            {
+              "repositories": ["**"],
+              "deleteReferrers": false,
+              "deleteUntagged": true,
+              "keepTags": [{ "patterns": [".*"] }]
+            }
+          ]
+        }
       },
       "http": {
         "address": "0.0.0.0",
         "port": "5000",
         "realm": "zot",
+        "compat": ["docker2s2"],
         "auth": {
           "htpasswd": { "path": "/secrets/htpasswd/htpasswd" }
         },
@@ -78,6 +121,10 @@ configFiles:
             "public/**": {
               "anonymousPolicy": ["read"],
               "defaultPolicy": ["read"]
+            },
+            "mirror/**": {
+              "anonymousPolicy": ["read"],
+              "defaultPolicy": ["read"]
             }
           },
           "adminPolicy": {
@@ -88,6 +135,71 @@ configFiles:
       },
       "log": { "level": "info" },
       "extensions": {
+        "sync": {
+          "enable": true,
+          "registries": [
+            {
+              "urls": ["https://registry-1.docker.io"],
+              "onDemand": true,
+              "tlsVerify": true,
+              "manifestCheckInterval": "1h",
+              "maxRetries": 3,
+              "retryDelay": "10s",
+              "content": [
+                { "prefix": "grafana/**", "destination": "/mirror/docker.io" },
+                { "prefix": "library/busybox", "destination": "/mirror/docker.io" }
+              ]
+            },
+            {
+              "urls": ["https://ghcr.io"],
+              "onDemand": true,
+              "tlsVerify": true,
+              "manifestCheckInterval": "1h",
+              "maxRetries": 3,
+              "retryDelay": "10s",
+              "content": [
+                { "prefix": "siderolabs/**", "destination": "/mirror/ghcr.io" },
+                { "prefix": "sergelogvinov/**", "destination": "/mirror/ghcr.io" }
+              ]
+            },
+            {
+              "urls": ["https://quay.io"],
+              "onDemand": true,
+              "tlsVerify": true,
+              "manifestCheckInterval": "1h",
+              "maxRetries": 3,
+              "retryDelay": "10s",
+              "content": [
+                { "prefix": "cilium/**", "destination": "/mirror/quay.io" },
+                { "prefix": "prometheus/**", "destination": "/mirror/quay.io" },
+                { "prefix": "prometheus-operator/**", "destination": "/mirror/quay.io" }
+              ]
+            },
+            {
+              "urls": ["https://registry.k8s.io"],
+              "onDemand": true,
+              "tlsVerify": true,
+              "manifestCheckInterval": "1h",
+              "maxRetries": 3,
+              "retryDelay": "10s",
+              "content": [
+                { "prefix": "pause", "destination": "/mirror/registry.k8s.io" },
+                { "prefix": "sig-storage/**", "destination": "/mirror/registry.k8s.io" }
+              ]
+            },
+            {
+              "urls": ["https://factory.talos.dev"],
+              "onDemand": true,
+              "tlsVerify": true,
+              "manifestCheckInterval": "1h",
+              "maxRetries": 3,
+              "retryDelay": "10s",
+              "content": [
+                { "prefix": "nocloud-installer/**", "destination": "/mirror/factory.talos.dev" }
+              ]
+            }
+          ]
+        },
         "search": {
           "enable": true,
           "cve": {

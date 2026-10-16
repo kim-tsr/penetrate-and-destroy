@@ -60,6 +60,12 @@ sequenceDiagram
   Le noyau reste partagé avec le worker : une évasion reste la menace résiduelle principale.
 - **Aucune exposition Internet** : l'IP d'instance est dans la zone CHALLENGES, qui n'a aucune règle entrante depuis
   Internet. Seul NetBird, via le routing peer, y accède, et seulement pour le groupe de l'équipe.
+- **Aucun egress Internet, nœuds compris** : la zone CHALLENGES ne sort pas (allowlist OPNsense vide). Les workers
+  tirent donc toutes leurs images de Zot : `registry.pad.internal/ctf/` pour les instances, et le **cache
+  pull-through** `registry.pad.internal/mirror/<registre>/` pour les images système (kubelet, pause, Cilium, CSI,
+  Alloy, node-exporter), limité à une liste blanche de dépôts. Seuls les nœuds (pas les IP d'instances ni le routing
+  peer) joignent l'ingress du cluster en 443 (règle `m10-chall-registry`). Conséquence : le pool `challenges` n'est
+  créé qu'après Zot (phase 10). Détails : [Zot, miroir pull-through](../composants/zot.md#miroir-pull-through-zone-challenges).
 - **Pas de flag dans l'API** : les flags d'instance (mode `per_instance_flag`) ne sont jamais renvoyés au front.
 - **Nettoyage** : le finalizer `pad.io/netbird-sync` garantit que la policy NetBird est retirée *avant* la
   disparition du Service. Une réconciliation complète a lieu toutes les 10 minutes.

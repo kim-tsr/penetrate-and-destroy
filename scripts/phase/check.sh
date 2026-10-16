@@ -605,7 +605,8 @@ c_9_cluster() {
   local total notready want
   total=$(kprod get nodes --no-headers 2>/dev/null | grep -c . || true)
   notready=$(kprod get nodes --no-headers 2>/dev/null | grep -vc ' Ready' || true)
-  want=$(yq '.kubernetes.control_plane.replicas + .kubernetes.pools.platform.replicas + .kubernetes.pools.challenges.min' "$CONTRACTS")
+  # Sans le pool challenges : créé par ArgoCD après la phase 10 (miroir Zot), contrôlé par check:10-gitops.
+  want=$(yq '.kubernetes.control_plane.replicas + .kubernetes.pools.platform.replicas' "$CONTRACTS")
   ((notready == 0 && total >= want)) && pass "${total} nœud(s) Ready (minimum attendu : ${want})" || fail "${total} nœud(s) dont ${notready} non Ready (minimum attendu : ${want})" "kubectl get nodes -o wide ; kubectl describe node <nœud> ; talosctl -n <ip> dmesg"
   # Kubelets en cloud-provider=external : le CCM Proxmox pose le providerID (format CAPMOX) et retire le taint uninitialized.
   local uninit
@@ -660,6 +661,14 @@ c_10_gitops() {
   local sc
   sc=$(kprod get storageclass -o name 2>/dev/null | grep -c . || true)
   ((sc > 0)) && pass "StorageClass présente (Proxmox CSI)" || warn "aucune StorageClass pour l'instant" "l'Application proxmox-csi est-elle Synced ? secret du CSI renseigné ?"
+  # Pool challenges : créé par ArgoCD (cluster-prod) après la phase 10 ; ses nœuds n'ont pas d'egress Internet et tirent
+  # leurs images du miroir Zot (registry.pad.internal/mirror/...).
+  local cw cr cmin
+  cmin=$(c '.kubernetes.pools.challenges.min')
+  cw=$(kprod get nodes -l pad.io/pool=challenges --no-headers 2>/dev/null | grep -c . || true)
+  cr=$(kprod get nodes -l pad.io/pool=challenges --no-headers 2>/dev/null | grep -c ' Ready' || true)
+  ((cr >= cmin)) && pass "${cr} nœud(s) challenges Ready (minimum : ${cmin})" \
+    || warn "${cr}/${cw} nœud(s) challenges Ready (minimum : ${cmin}) ; compter 10 à 15 min après Zot" "guide §9 « nœud challenges NotReady / ImagePullBackOff » : Application zot Healthy ? nslookup registry.pad.internal ; règle m10-chall-registry ; kubectl -n pad-cluster get machines"
 }
 
 # netbird_api <jeton> <chemin> : GET sur l'API NetBird (jeton via --config, jamais dans la ligne de commande).

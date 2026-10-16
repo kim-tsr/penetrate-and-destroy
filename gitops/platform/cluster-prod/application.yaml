@@ -1,6 +1,8 @@
 # Objets Cluster API du cluster pad-prod (Cluster, ProxmoxCluster, TalosControlPlane, MachineDeployments, templates, pools IPAM).
 # Appliqués une première fois par `task bootstrap:cluster` (kubectl apply --server-side -k gitops/clusters/prod dans kind),
 # puis déplacés dans pad-prod par `clusterctl move` : ArgoCD (dans pad-prod) prend le relais sur les mêmes manifests.
+# Exception : le pool `challenges` (objets annotés pad.io/bootstrap=gitops) est créé par CETTE Application, après Zot
+# (vague -2) : sans egress Internet, ses workers tirent leurs images du miroir Zot (gitops/clusters/prod/pool-challenges.yaml).
 # Server-Side Apply des deux côtés : pas de conflit, ArgoCD devient co-propriétaire des champs identiques.
 #
 # Garde-fous (la suppression ou la mutation brutale de ces objets détruit les VMs, dont celle qui héberge ArgoCD) :

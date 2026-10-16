@@ -23,7 +23,8 @@
 #   M8  MONITORING -> toutes zones : scrape uniquement
 #   M9  PROD -> API Proxmox (CAPMOX, CSI, CCM)
 #   M10 CHALLENGES -> API kube (depuis les NOEUDS challenges uniquement, ni le routing peer NetBird ni les IP
-#       d'instances) + DNS interne ; egress Internet uniquement vers l'allowlist
+#       d'instances) + DNS interne + NTP + ingress du cluster en 443 (cache pull-through Zot, NOEUDS uniquement) ;
+#       egress Internet uniquement vers l'allowlist
 #   I*  DNS des zones, egress Internet, OIDC back-channel, inter-nœuds Kubernetes, status page
 #       I3 (inter-nœuds) est asymétrique : un worker challenges compromis n'atteint ni kubelet ni apid du control plane.
 #         PROD -> CHALLENGES : kubelet 10250 (control plane seul), Cilium health/Hubble, VXLAN/WireGuard
@@ -136,6 +137,10 @@ locals {
     # Heure : la zone CHALLENGES n'a pas d'egress Internet ; ses nœuds Talos se synchronisent sur OPNsense (ntpd), sans quoi
     # Talos ne démarre pas le kubelet (« Waiting for time sync »).
     { id = "m10-chall-ntp", seq = 711, ifaces = [local.iface["challenges"]], proto = "UDP", src = "net_challenges", dst = "(self)", port = tostring(local.p.ntp), desc = "M10 CHALLENGES -> NTP OPNsense" },
+    # Images : sans egress Internet, les nœuds challenges tirent toutes leurs images (kubelet, pause, Cilium, CSI...) du
+    # cache pull-through de Zot (registry.pad.internal, servi par l'ingress du cluster). NOEUDS uniquement : ni le routing
+    # peer NetBird ni les IP d'instances (les pods d'instance n'ont de toute façon aucun egress, NetworkPolicy).
+    { id = "m10-chall-registry", seq = 712, ifaces = [local.iface["challenges"]], proto = "TCP", src = "host_k8s_challenges", dst = "host_k8s_ingress", port = tostring(local.p.https), desc = "M10 workers CHALLENGES -> ingress 443 (miroir Zot)" },
   ]
 
   # M1 - Internet -> DMZ : une règle par entrée de wan.public_ports. La redirection WAN (DNAT) vient du config.xml de

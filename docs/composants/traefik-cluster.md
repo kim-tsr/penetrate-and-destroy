@@ -29,6 +29,8 @@ Reçoit de l'[edge](traefik-edge.md) ; certificats par [cert-manager](cert-manag
 
 Seul l'edge est un proxy de confiance pour les en-têtes `X-Forwarded-*` ; pas de dashboard Traefik exposé ; Services `ExternalName` interdits.
 
+CiliumNetworkPolicy `traefik` (`gitops/platform/namespaces/resources/traefik.yaml`) : entrée sur les entrypoints (8000, 8443) depuis `world` (l'edge, règle M2 ; les nœuds challenges avant que Cilium y tourne, règle M10) et depuis les nœuds du cluster (`remote-node`, `host` : containerd des nœuds challenges qui tire par le [miroir Zot](zot.md#miroir-pull-through-zone-challenges)) ; sortie vers les pods du cluster, chaque backend filtrant son entrée. Le filtrage des sources inter-zones est fait par OPNsense.
+
 ## Supervision
 
 Métriques de l'entrypoint ; alertes `IngressHigh5xxRatio`, `IngressHighLatency` : [Ingress](../runbooks/ingress.md). Dashboard `pad-platform`.

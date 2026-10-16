@@ -1,10 +1,22 @@
 # Pool "challenges" : workers de la zone CHALLENGES (VLAN 70), autoscalés par cluster-autoscaler
 # (provider clusterapi). Pas de `replicas` : l'autoscaler le pilote (ignoré par ArgoCD, cf. Application cluster-prod).
+#
+# Créé par ArgoCD (Application cluster-prod, phase 10), PAS par `task bootstrap:cluster` (annotation pad.io/bootstrap:
+# gitops, filtrée par bootstrap/scripts/cluster.sh) : la zone n'a aucun egress Internet, ses nœuds tirent toutes leurs
+# images (kubelet compris) du cache pull-through de Zot, qui n'existe qu'après la phase 10. Créé avant le pivot, le
+# worker ne rejoindrait jamais le cluster et `clusterctl move` refuserait de pivoter (Machine sans nodeRef).
+#
+# Les templates sont IMMUABLES (webhooks CAPMOX/CABPT : « Spec is immutable ») : toute modification de leur spec passe
+# par un NOUVEAU nom (suffixe -vN incrémenté) et la mise à jour de la référence dans le MachineDeployment, qui
+# remplace alors les workers un par un (rolling update). L'ancien template reste (Prune=false) : le supprimer à la
+# main une fois plus aucune Machine ne le référence (`kubectl -n pad-cluster get machines -o wide`).
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha2
 kind: ProxmoxMachineTemplate
 metadata:
   name: pad-prod-challenges
+  annotations:
+    pad.io/bootstrap: gitops # créé par ArgoCD après la phase 10 (voir en tête de fichier)
 spec:
   template:
     spec:
@@ -40,7 +52,10 @@ spec:
 apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
 kind: TalosConfigTemplate
 metadata:
-  name: pad-prod-challenges
+  # v2 : miroirs de registres vers Zot (v1, sans miroir, ne pouvait tirer aucune image).
+  name: pad-prod-challenges-v2
+  annotations:
+    pad.io/bootstrap: gitops # créé par ArgoCD après la phase 10 (voir en tête de fichier)
 spec:
   template:
     spec:
@@ -69,8 +84,45 @@ spec:
                 validSubnets: [10.20.70.0/24] # contracts: zones.challenges.cidr
             sysctls:
               user.max_user_namespaces: "11255" # nombre de user namespaces (pods hostUsers: false), cf. docs Talos
-            # Identifiants de pull de Zot (compte pad-pull) : volontairement ABSENTS de ce template (le dépôt est public et
-            # Cluster API ne déchiffre pas SOPS). Posés sur chaque nœud par `talosctl patch machineconfig`
+            # Pas d'egress Internet : TOUTES les images des nœuds (kubelet, pause, Cilium, CSI, Alloy, node-exporter...) passent
+            # par le cache pull-through de Zot (extension sync, préfixe mirror/<registre>, liste blanche de dépôts dans
+            # gitops/platform/zot/values.yaml). overridePath : l'endpoint est utilisé tel quel (pas de /v2 ajouté) ;
+            # skipFallback : pas de tentative vers le registre public (injoignable, chaque essai attendrait un timeout).
+            # Résolution : override Unbound registry.pad.internal -> ingress du cluster (stack 60-opnsense-rules) ;
+            # flux : règle M10 « workers CHALLENGES -> ingress 443 ».
+            registries:
+              mirrors:
+                docker.io:
+                  endpoints: [https://registry.pad.internal/v2/mirror/docker.io] # contracts: apps.registry
+                  overridePath: true
+                  skipFallback: true
+                ghcr.io:
+                  endpoints: [https://registry.pad.internal/v2/mirror/ghcr.io] # contracts: apps.registry
+                  overridePath: true
+                  skipFallback: true
+                quay.io:
+                  endpoints: [https://registry.pad.internal/v2/mirror/quay.io] # contracts: apps.registry
+                  overridePath: true
+                  skipFallback: true
+                registry.k8s.io:
+                  endpoints: [https://registry.pad.internal/v2/mirror/registry.k8s.io] # contracts: apps.registry
+                  overridePath: true
+                  skipFallback: true
+                factory.talos.dev: # installeur Talos (talosctl upgrade)
+                  endpoints: [https://registry.pad.internal/v2/mirror/factory.talos.dev] # contracts: apps.registry
+                  overridePath: true
+                  skipFallback: true
+              config:
+                registry.pad.internal: # contracts: apps.registry
+                  # Certificat émis par la CA interne pad-internal-ca, générée DANS le cluster en phase 10 : elle n'existe
+                  # pas quand ce template (public, immuable) est écrit, d'où l'absence de `tls.ca`. Risque accepté : un
+                  # attaquant placé sur le chemin VLAN 70 -> OPNsense -> VLAN 60 pourrait servir une image ; les miroirs sont
+                  # anonymes (aucun identifiant exposé) et les images des DaemonSets sont épinglées par @sha256 (vérifié par
+                  # containerd). Voir docs/composants/zot.md (« Miroir pull-through »).
+                  tls:
+                    insecureSkipVerify: true
+            # Identifiants de pull de Zot pour ctf/** (compte pad-pull) : volontairement ABSENTS de ce template (le dépôt est
+            # public et Cluster API ne déchiffre pas SOPS). Posés sur chaque nœud par `talosctl patch machineconfig`
             # (docs/operations/actions-post-deploiement.md, action 8).
             nodeLabels:
               pad.io/pool: challenges
@@ -86,6 +138,7 @@ kind: MachineDeployment
 metadata:
   name: pad-prod-challenges
   annotations:
+    pad.io/bootstrap: gitops # créé par ArgoCD après la phase 10 (voir en tête de fichier)
     # contracts: kubernetes.pools.challenges.min / max
     cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size: "1"
     cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size: "3"
@@ -113,7 +166,7 @@ spec:
         configRef:
           apiGroup: bootstrap.cluster.x-k8s.io
           kind: TalosConfigTemplate
-          name: pad-prod-challenges
+          name: pad-prod-challenges-v2
       infrastructureRef:
         apiGroup: infrastructure.cluster.x-k8s.io
         kind: ProxmoxMachineTemplate
