@@ -1,0 +1,9 @@
+---
+# Déploiement complet de la configuration : hôte Proxmox, puis services des LXC.
+# `task up` lance les deux phases séparément (la création des LXC par tofu s'intercale) ; ce playbook sert
+# à rejouer l'ensemble une fois l'infrastructure en place : ansible-playbook -i <inventaire> playbooks/site.yml
+- name: Régler l'hôte Proxmox
+  ansible.builtin.import_playbook: host.yml
+
+- name: Déployer les services des LXC
+  ansible.builtin.import_playbook: services.yml

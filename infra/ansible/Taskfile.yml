@@ -9,7 +9,7 @@ version: "3"
 vars:
   INVENTORY: '{{.INVENTORY | default "inventories/prod/hosts.generated.yml"}}'
   EXAMPLE_INVENTORY: inventories/prod/hosts.example.yml
-  PLAYBOOKS: playbooks/host.yml playbooks/services.yml
+  PLAYBOOKS: playbooks/host.yml playbooks/services.yml playbooks/site.yml
   ANSIBLE_LINT:
     sh: command -v ansible-lint >/dev/null 2>&1 && echo ansible-lint || echo "nix shell nixpkgs#ansible-lint -c ansible-lint"
 
