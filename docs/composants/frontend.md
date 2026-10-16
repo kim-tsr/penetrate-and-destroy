@@ -48,6 +48,8 @@ pnpm e2e                      # Playwright en mode mock
 task apps:build:frontend
 ```
 
+Le `Dockerfile` a une cible `e2e` (`docker build --target e2e`) réservée à `tests/e2e/docker-compose.yml` : `next dev` avec `PAD_MOCK=1`. Elle n'est jamais publiée ; la cible par défaut (dernière étape, `runtime`) reste l'image de production, qui refuse `PAD_MOCK=1`.
+
 ## Pièges connus
 
 - Le front demande le scope `offline_access` : Authentik émet un refresh token (12 h) avec lequel il revalide les groupes ; sans lui la session tomberait à l'expiration de l'access token (10 min).

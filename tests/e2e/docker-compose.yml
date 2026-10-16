@@ -3,7 +3,7 @@
 # jamais réutilisables ailleurs ; les ports ne sont publiés que sur 127.0.0.1.
 name: pad-e2e
 
-x-e2e-secrets: &e2e-sso-secret e2e-only-sso-shared-secret
+x-e2e-secrets: &e2e-sso-secret e2e-only-sso-shared-secret-0000000
 
 services:
   mariadb:
@@ -83,12 +83,15 @@ services:
 
   # Le front est développé à part (apps/frontend/Dockerfile). Profil `front` : activé automatiquement par
   # run.sh dès que ce Dockerfile existe (sinon : COMPOSE_PROFILES=front docker compose up --build).
-  # PAD_MOCK=1 est refusé par le front avec NODE_ENV=production (src/lib/env.ts) : on force development à l'exécution.
+  # PAD_MOCK=1 est refusé par le front avec NODE_ENV=production (src/lib/env.ts, garde-fou à ne jamais contourner) :
+  # on construit donc la cible dédiée `e2e` du Dockerfile (`next dev`, jamais publiée), pas l'image de production.
+  # Le front tourne en mode mock (CTFd simulé en interne) : le mode réel exige un OIDC Authentik absent de cette pile.
   front:
     profiles: [front]
     build:
       context: ../../apps/frontend
       dockerfile: Dockerfile
+      target: e2e
     depends_on:
       ctfd: { condition: service_healthy }
       valkey: { condition: service_healthy }
@@ -96,11 +99,12 @@ services:
       NODE_ENV: development
       PAD_MOCK: "1"
       AUTH_SECRET: e2e-only-auth-secret-not-for-production
+      NEXT_TELEMETRY_DISABLED: "1"
       AUTH_URL: http://localhost:${E2E_FRONT_PORT:-3000}
       AUTH_TRUST_HOST: "true"
       CTFD_URL: http://ctfd:8000
       VALKEY_URL: redis://valkey:6379
-      PAD_SSO_SECRET: *e2e-sso-secret
+      PAD_SSO_SHARED_SECRET: *e2e-sso-secret
       PAD_EVENT_NAME: PAD e2e
       LOG_LEVEL: info
     ports: ["127.0.0.1:${E2E_FRONT_PORT:-3000}:3000"]
@@ -109,7 +113,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 30
-      start_period: 20s
+      start_period: 60s # next dev compile la route à la première requête
     networks: [e2e]
 
 volumes:
