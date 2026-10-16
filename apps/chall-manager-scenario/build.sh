@@ -6,7 +6,7 @@
 set -euo pipefail
 
 TAG="${1:?usage: build.sh <tag> [--push]}"
-REF="${REF:-registry.CHANGEME.example.net/pad/scenarios/k8s-instance}" # contracts: apps.chall_manager.generic_scenario
+REF="${REF:-registry.pad.internal/pad/scenarios/k8s-instance}" # contracts: apps.chall_manager.generic_scenario
 cd "$(dirname "$0")"
 
 rm -rf dist && mkdir dist

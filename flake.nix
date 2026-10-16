@@ -77,6 +77,8 @@
             go-task go nodejs_22 pnpm yq-go jq git gh
             # Qualité / sécu / tests
             trivy checkov cosign syft k6 shellcheck actionlint
+            # Registres OCI (task apps:pin-digests, apps:zot:publish)
+            crane oras
           ]);
           # Le shellHook s'exécute aussi dans `nix develop -c ...` : tout ce qu'il écrit sur stdout polluerait les
           # substitutions de commande ($(nix develop -c ...)). Il ne parle donc que sur stderr, et seulement en

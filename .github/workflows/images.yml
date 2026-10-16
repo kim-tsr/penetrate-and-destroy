@@ -25,7 +25,6 @@ jobs:
           - { name: ctfd, context: apps/ctfd, dockerfile: apps/ctfd/Dockerfile, build_contexts: 'schema=challenges/schema' }
           - { name: frontend, context: apps/frontend, dockerfile: apps/frontend/Dockerfile }
           - { name: netbird-sync, context: apps/netbird-sync, dockerfile: apps/netbird-sync/Dockerfile }
-          - { name: chall-manager-scenario, context: apps/chall-manager-scenario, dockerfile: apps/chall-manager-scenario/Dockerfile }
           - { name: chal-pwn-ret2win-instanced, context: challenges/pwn-ret2win-instanced, dockerfile: challenges/pwn-ret2win-instanced/Dockerfile }
           - { name: chal-web-sqli-instanced, context: challenges/web-sqli-instanced, dockerfile: challenges/web-sqli-instanced/Dockerfile }
     steps:
