@@ -141,6 +141,51 @@ def test_quota_and_cooldown(app):
         assert client.post(f"/api/v1/instances/{c2}", headers=h).status_code == 429
 
 
+def test_global_instance_limit(app):
+    app.config["PAD_INSTANCES_MAX_PER_SOURCE"] = "5"
+    app.config["PAD_INSTANCES_COOLDOWN_SECONDS"] = "0"
+    app.config["PAD_INSTANCES_MAX_TOTAL"] = "2"
+    fake = FakeChallManager()
+    with app.app_context(), install(fake):
+        client = app.test_client()
+        admin = _admin_token(client)
+        c1 = _create_challenge(client, admin).get_json()["data"]["id"]
+        c2 = _create_challenge(client, admin, name="b").get_json()["data"]["id"]
+        c3 = _create_challenge(client, admin, name="c").get_json()["data"]["id"]
+        h1 = token_headers(_player_token(client, sub="p1", name="p1"))
+        h2 = token_headers(_player_token(client, sub="p2", name="p2"))
+        assert client.post(f"/api/v1/instances/{c1}", headers=h1).status_code == 201
+        assert client.post(f"/api/v1/instances/{c2}", headers=h2).status_code == 201
+        refused = client.post(f"/api/v1/instances/{c3}", headers=h1)
+        assert refused.status_code == 503
+        assert "maximal" in refused.get_json()["message"]
+        # Un manager n'est pas bloqué par la limite globale.
+        ha = token_headers(admin)
+        assert client.post(f"/api/v1/instances/{c3}", headers=ha).status_code == 201
+        # Libérer une place rouvre la création.
+        assert client.delete(f"/api/v1/instances/{c1}", headers=h1).status_code == 200
+        assert client.post(f"/api/v1/instances/{c3}", headers=h1).status_code == 503
+        assert client.delete(f"/api/v1/instances/{c3}", headers=ha).status_code == 200
+        assert client.post(f"/api/v1/instances/{c3}", headers=h1).status_code == 201
+
+
+def test_global_limit_counts_prewarmed_pool(app):
+    app.config["PAD_INSTANCES_COOLDOWN_SECONDS"] = "0"
+    app.config["PAD_INSTANCES_MAX_TOTAL"] = "3"
+    fake = FakeChallManager()
+    with app.app_context(), install(fake):
+        client = app.test_client()
+        admin = _admin_token(client)
+        c1 = _create_challenge(client, admin, pool_min=2, pool_max=4) \
+            .get_json()["data"]["id"]
+        h = token_headers(_player_token(client))
+        assert client.post(f"/api/v1/instances/{c1}", headers=h).status_code == 201
+        # 1 instance + 2 préchauffées = 3 : plein.
+        assert client.post(f"/api/v1/instances/{c1}", headers=h).status_code in (409, 503)
+        c2 = _create_challenge(client, admin, name="x").get_json()["data"]["id"]
+        assert client.post(f"/api/v1/instances/{c2}", headers=h).status_code == 503
+
+
 def test_per_instance_flag_and_destroy_on_solve(app):
     fake = FakeChallManager(flags=["PAD{instance-specific}"])
     with app.app_context(), install(fake):
