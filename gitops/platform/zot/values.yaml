@@ -68,6 +68,13 @@ configFiles:
               ],
               "defaultPolicy": []
             },
+            "ctf/**": {
+              "policies": [
+                { "users": ["pad-ci"], "actions": ["read", "create", "update", "delete"] },
+                { "users": ["pad-pull"], "actions": ["read"] }
+              ],
+              "defaultPolicy": []
+            },
             "public/**": {
               "anonymousPolicy": ["read"],
               "defaultPolicy": ["read"]

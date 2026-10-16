@@ -18,7 +18,7 @@ déploiement. **Les faire avant d'ouvrir la plateforme aux joueurs.**
 | 5 | Créer les PAT NetBird (`netbird-sync`, front) | après le déploiement de NetBird |
 | 6 | Règles OPNsense des routing peers | avant le premier événement |
 | 7 | Première publication des images (digests de remplacement) | après le premier push sur `main` |
-| 8 | Zot : règle d'accès `ctf/**` et identifiants de pull | avant le premier challenge instancié |
+| 8 | Zot : identifiants de pull des nœuds challenges | avant le premier challenge instancié |
 | 9 | Clé cosign et passage en `enforce` | une fois les images signées |
 | 10 | Protéger la branche `main` | avant tout merge d'un tiers |
 
@@ -134,17 +134,33 @@ pas (volontairement) et les Applications restent `Degraded`.
 3. Pour les challenges d'exemple (`challenges/*/challenge.yml`, `registry.pad.internal/ctf/...@sha256:000…`) : pousser l'image dans Zot
    (action 8), relever son empreinte et la reporter dans le `challenge.yml`. Une instance n'est créée qu'avec une empreinte réelle.
 
-## 8. Zot : règle d'accès `ctf/**` et identifiants de pull
+## 8. Zot : identifiants de pull des nœuds challenges
 
-Les instances n'acceptent que des images de `registry.pad.internal/ctf/`, mais la configuration de Zot
-(`gitops/platform/zot/values.yaml`) ne définit de règle que pour `pad/**` et `public/**`. Avant le premier challenge instancié :
+Les instances n'acceptent que des images de `registry.pad.internal/ctf/`. La règle d'accès `ctf/**` est déjà dans
+`gitops/platform/zot/values.yaml` (`pad-ci` : `read, create, update, delete` ; `pad-pull` : `read` ; `defaultPolicy: []`), et les
+comptes htpasswd (`pad-ci`, `pad-pull`) sont générés par `task secrets:init` (mots de passe en clair dans
+`secrets/credentials.sops.yaml`). Il reste à donner aux nœuds du pool `challenges` les identifiants de `pad-pull`, **hors Git**
+(un mot de passe ne peut pas figurer en clair dans le `TalosConfigTemplate`, et Cluster API ne déchiffre pas de configuration SOPS) :
 
-1. Ajouter dans `accessControl.repositories` un dépôt `ctf/**` : `pad-ci` en `read, create, update, delete`, `pad-pull` en `read`,
-   `defaultPolicy: []` (même forme que `pad/**`). Commiter ; ArgoCD redéploie Zot.
-2. Donner aux nœuds du pool `challenges` les identifiants du compte `pad-pull` (mot de passe :
-   `sops -d --extract '["zot_pad_pull_password"]' secrets/credentials.sops.yaml`) via une configuration de registre containerd
-   sur le pool (patch Talos, sans commiter la valeur) ou un `imagePullSecret` fourni par le scénario.
-3. Contrôler : un pod `inst-*` démarre (pas d'`ImagePullBackOff` ni de `401`) et `docker pull` anonyme sur `ctf/` est refusé.
+1. Pour chaque nœud du pool `challenges`, appliquer un patch de configuration machine Talos, sans écrire le mot de passe sur disque
+   (substitution de processus ; `registry.pad.internal` = hôte du registre du contrat) :
+
+    ```bash
+    pw=$(sops -d --extract '["zot_pad_pull_password"]' secrets/credentials.sops.yaml)
+    talosctl -n <ip-du-noeud> patch machineconfig --patch @<(printf '%s\n' \
+      "machine:" "  registries:" "    config:" "      registry.pad.internal:" "        auth:" \
+      "          username: pad-pull" "          password: ${pw}")
+    unset pw
+    ```
+
+   Le patch s'applique à chaud (containerd relit la configuration de registre, sans redémarrage).
+2. **Nœuds créés ensuite par l'autoscaler** : ils naissent du `TalosConfigTemplate` du dépôt, donc sans ces identifiants. Rejouer
+   l'étape 1 sur chaque nouveau nœud challenges (`kubectl get nodes -l pad.io/pool=challenges -o wide` donne les IP) ; tant que ce n'est
+   pas fait, les pods d'instance posés sur ce nœud restent en `ImagePullBackOff`.
+3. Contrôler : un pod `inst-*` démarre (pas d'`ImagePullBackOff` ni de `401`) et un `pull` anonyme sur `ctf/` est refusé.
+4. Rotation : modifier le mot de passe à la main dans `secrets/credentials.sops.yaml`, dans la ligne htpasswd (bcrypt) de
+   `gitops/platform/zot/secret.sops.yaml` et dans `gitops/apps/chall-manager/secret.sops.yaml` (`task secrets:init` ne réécrit jamais
+   un fichier existant), puis rejouer l'étape 1 sur chaque nœud.
 
 ## 9. Clé cosign et passage en `enforce`
 

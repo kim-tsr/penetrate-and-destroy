@@ -77,6 +77,9 @@ spec:
                 validSubnets: [10.20.70.0/24] # contracts: zones.challenges.cidr
             sysctls:
               user.max_user_namespaces: "11255" # nombre de user namespaces (pods hostUsers: false), cf. docs Talos
+            # Identifiants de pull de Zot (compte pad-pull) : volontairement ABSENTS de ce template (le dépôt est public et
+            # Cluster API ne déchiffre pas SOPS). Posés sur chaque nœud par `talosctl patch machineconfig`
+            # (docs/operations/actions-post-deploiement.md, action 8).
             nodeLabels:
               pad.io/pool: challenges
               pad.io/zone: challenges
