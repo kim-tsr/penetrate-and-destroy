@@ -1,30 +1,72 @@
 ---
-# Format attendu de hosts.generated.yml, produit par tofu (stack 20-services-lxc).
-# ansible_host = IP du contrat (infra/contracts.yaml). Les noms d'hôtes sont aussi les noms de targets Warpgate
-# (mode PAD_ACCESS_MODE=bastion) : ne pas les renommer sans aligner la stack 50-warpgate.
+# Format attendu de hosts.generated.yml, produit par tofu (stack 20-services-lxc, locals.inventory).
+# Les noms d'hôtes sont les noms de services du contrat (infra/contracts.yaml, `services`), identiques aux hostnames des LXC.
+# Groupes générés : proxmox_host, lxc (tous les LXC), svc_<service> (un par LXC), zone_<zone>.
+# Mode PAD_ACCESS_MODE=bastion : la target Warpgate d'un LXC est "lxc-<nom d'hôte>" (stack 50-warpgate), voir group_vars/all/access.yml.
+# Les ansible_host ci-dessous sont les IPs du contrat ; ansible_user est fixé par group_vars/all/access.yml (pas dans l'inventaire).
 all:
   children:
     proxmox_host:
       hosts:
         pve:                             # contracts: host.node
           ansible_host: "{{ pad_site.ssh_host }}"   # secrets/site.sops.yaml
-    edge:
+    lxc:
       hosts:
-        pad-edge:
+        edge:
           ansible_host: 10.20.20.10      # contracts: services.edge.ip
-    netbird:
-      hosts:
-        pad-netbird:
+          vmid: 210
+          zone: dmz
+          vlan: 20
+          pad_service: edge
+        netbird:
           ansible_host: 10.20.20.11      # contracts: services.netbird.ip
-    warpgate:
-      hosts:
-        pad-warpgate:
+          vmid: 211
+          zone: dmz
+          vlan: 20
+          pad_service: netbird
+        warpgate:
           ansible_host: 10.20.30.10      # contracts: services.warpgate.ip
-    authentik:
-      hosts:
-        pad-authentik:
+          vmid: 230
+          zone: bastion
+          vlan: 30
+          pad_service: warpgate
+        authentik:
           ansible_host: 10.20.40.10      # contracts: services.authentik.ip
-    monitoring:
-      hosts:
-        pad-monitoring:
+          vmid: 240
+          zone: identity
+          vlan: 40
+          pad_service: authentik
+        monitoring:
           ansible_host: 10.20.50.10      # contracts: services.monitoring.ip
+          vmid: 250
+          zone: monitoring
+          vlan: 50
+          pad_service: monitoring
+    svc_edge:
+      hosts:
+        edge:
+    svc_netbird:
+      hosts:
+        netbird:
+    svc_warpgate:
+      hosts:
+        warpgate:
+    svc_authentik:
+      hosts:
+        authentik:
+    svc_monitoring:
+      hosts:
+        monitoring:
+    zone_dmz:
+      hosts:
+        edge:
+        netbird:
+    zone_bastion:
+      hosts:
+        warpgate:
+    zone_identity:
+      hosts:
+        authentik:
+    zone_monitoring:
+      hosts:
+        monitoring:

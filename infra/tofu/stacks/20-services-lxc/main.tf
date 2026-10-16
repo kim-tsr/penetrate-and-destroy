@@ -49,7 +49,6 @@ locals {
             hosts = {
               for name, ct in local.containers : name => {
                 ansible_host = ct.ip
-                ansible_user = "root"
                 vmid         = ct.vmid
                 zone         = ct.zone
                 vlan         = ct.vlan

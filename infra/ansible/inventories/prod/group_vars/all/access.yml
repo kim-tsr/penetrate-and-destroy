@@ -3,7 +3,8 @@
 #   proxmox (défaut) : ProxyJump via l'hôte Proxmox (ssh_user@ssh_host de secrets/site.sops.yaml). Utilisé au bootstrap,
 #                      avant que Warpgate n'existe. L'hôte route vers les zones via OPNsense.
 #   bastion          : via Warpgate (staff connecté à NetBird). Warpgate n'est pas un jump host TCP : on s'y connecte
-#                      en SSH avec l'utilisateur "<user>:<target>" ; la target = inventory_hostname (stack 50-warpgate).
+#                      en SSH avec l'utilisateur "<user>:<target>" ; la target = "lxc-<inventory_hostname>" (stack 50-warpgate).
+#                      Warpgate lui-même n'a pas de target : le joindre en mode proxmox.
 #   direct           : connexion directe aux IPs du contrat (poste déjà dans une zone routée, CI interne...).
 pad_access_mode: "{{ lookup('ansible.builtin.env', 'PAD_ACCESS_MODE') | default('proxmox', true) }}"
 pad_proxmox_jump: "{{ lookup('ansible.builtin.env', 'PAD_PROXMOX_JUMP') | default(pad_site.ssh_user ~ '@' ~ pad_site.ssh_host, true) }}"
@@ -16,7 +17,7 @@ pad_lxc_user: root
 pad_is_lxc: "{{ 'proxmox_host' not in group_names }}"
 
 ansible_user: >-
-  {{ (pad_bastion_user ~ ':' ~ inventory_hostname) if (pad_is_lxc and pad_access_mode == 'bastion') else pad_lxc_user }}
+  {{ (pad_bastion_user ~ ':lxc-' ~ inventory_hostname) if (pad_is_lxc and pad_access_mode == 'bastion') else pad_lxc_user }}
 ansible_port: "{{ pad_bastion_port if (pad_is_lxc and pad_access_mode == 'bastion') else 22 }}"
 ansible_ssh_common_args: >-
   {{ '' if (not pad_is_lxc or pad_access_mode == 'direct')

@@ -1,0 +1,176 @@
+---
+# Phase 2 de `task up` : services des LXC (tofu 20-services-lxc a créé les conteneurs et l'inventaire généré).
+# Un play par LXC, ciblé sur le groupe svc_<service> de l'inventaire. Ordre :
+#   1. monitoring : reçoit la télémétrie (Alloy) des autres LXC dès leur déploiement ;
+#   2. authentik  : IdP, requis par les rôles warpgate et netbird (SSO / connecteur OIDC) ;
+#   3. warpgate   : bastion ;
+#   4. netbird    : VPN (IdP Authentik ajouté via l'API) ;
+#   5. edge       : dernier, ses backends (authentik, netbird) existent déjà quand Traefik demande les certificats ACME.
+# Chaque play : base-hardening (sans Alloy, posé ensuite avec la découverte Docker), docker, alloy, rôle du service.
+# Secrets : chaque rôle de service déchiffre lui-même secrets/<service>.sops.yaml (community.sops, sur le contrôleur) ;
+# les valeurs de site (secrets/site.sops.yaml) ne sont lues qu'à la connexion (access.yml). Un pré-contrôle échoue tôt
+# si le fichier chiffré du service est absent.
+# Tags : un par service (monitoring, authentik, warpgate, netbird, edge) + base, docker, alloy, service.
+# Exemple : task ansible:services -- --tags edge --limit edge
+- name: Vérifier l'inventaire des LXC
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [always]
+  tasks:
+    - name: Exiger un groupe svc_<service> à un seul hôte pour chaque service du contrat
+      ansible.builtin.assert:
+        that: groups['svc_' ~ item] | default([]) | length == 1
+        fail_msg: >-
+          Le groupe svc_{{ item }} est absent ou ne contient pas exactement un hôte :
+          relancer tofu (stack 20-services-lxc) pour régénérer inventories/prod/hosts.generated.yml.
+        quiet: true
+      loop: "{{ pad.services.keys() | list }}"
+
+- name: Déployer la stack de monitoring
+  hosts: svc_monitoring
+  become: true
+  gather_facts: true
+  any_errors_fatal: true
+  serial: 1
+  tags: [monitoring]
+  vars:
+    base_hardening_alloy_enabled: false   # Alloy est posé explicitement après Docker (découverte des conteneurs)
+    alloy_docker_enabled: true
+  pre_tasks:
+    - name: Rechercher le secret chiffré monitoring.sops.yaml
+      ansible.builtin.stat:
+        path: "{{ pad_secrets_dir }}/monitoring.sops.yaml"
+      delegate_to: localhost
+      become: false
+      register: services_secret_file
+
+    - name: Exiger le secret chiffré (task secrets:init, voir docs/SECRETS.md)
+      ansible.builtin.assert:
+        that: services_secret_file.stat.exists
+        fail_msg: "secrets/monitoring.sops.yaml absent (modèle : secrets/monitoring.example.yaml)."
+        quiet: true
+  roles:
+    - { role: base-hardening, tags: [base] }
+    - { role: docker, tags: [docker] }
+    - { role: alloy, tags: [alloy] }
+    - { role: monitoring-stack, tags: [service] }
+
+- name: Déployer Authentik
+  hosts: svc_authentik
+  become: true
+  gather_facts: true
+  any_errors_fatal: true
+  serial: 1
+  tags: [authentik]
+  vars:
+    base_hardening_alloy_enabled: false   # Alloy est posé explicitement après Docker (découverte des conteneurs)
+    alloy_docker_enabled: true
+  pre_tasks:
+    - name: Rechercher le secret chiffré authentik.sops.yaml
+      ansible.builtin.stat:
+        path: "{{ pad_secrets_dir }}/authentik.sops.yaml"
+      delegate_to: localhost
+      become: false
+      register: services_secret_file
+
+    - name: Exiger le secret chiffré (task secrets:init, voir docs/SECRETS.md)
+      ansible.builtin.assert:
+        that: services_secret_file.stat.exists
+        fail_msg: "secrets/authentik.sops.yaml absent (modèle : secrets/authentik.example.yaml)."
+        quiet: true
+  roles:
+    - { role: base-hardening, tags: [base] }
+    - { role: docker, tags: [docker] }
+    - { role: alloy, tags: [alloy] }
+    - { role: authentik, tags: [service] }
+
+- name: Déployer Warpgate
+  hosts: svc_warpgate
+  become: true
+  gather_facts: true
+  any_errors_fatal: true
+  serial: 1
+  tags: [warpgate]
+  vars:
+    base_hardening_alloy_enabled: false   # Alloy est posé explicitement après Docker (découverte des conteneurs)
+    alloy_docker_enabled: true
+  pre_tasks:
+    - name: Rechercher le secret chiffré warpgate.sops.yaml
+      ansible.builtin.stat:
+        path: "{{ pad_secrets_dir }}/warpgate.sops.yaml"
+      delegate_to: localhost
+      become: false
+      register: services_secret_file
+
+    - name: Exiger le secret chiffré (task secrets:init, voir docs/SECRETS.md)
+      ansible.builtin.assert:
+        that: services_secret_file.stat.exists
+        fail_msg: "secrets/warpgate.sops.yaml absent (modèle : secrets/warpgate.example.yaml)."
+        quiet: true
+  roles:
+    - { role: base-hardening, tags: [base] }
+    - { role: docker, tags: [docker] }
+    - { role: alloy, tags: [alloy] }
+    - { role: warpgate, tags: [service] }
+
+- name: Déployer NetBird
+  hosts: svc_netbird
+  become: true
+  gather_facts: true
+  any_errors_fatal: true
+  serial: 1
+  tags: [netbird]
+  vars:
+    base_hardening_alloy_enabled: false   # Alloy est posé explicitement après Docker (découverte des conteneurs)
+    alloy_docker_enabled: true
+  pre_tasks:
+    - name: Rechercher le secret chiffré netbird.sops.yaml
+      ansible.builtin.stat:
+        path: "{{ pad_secrets_dir }}/netbird.sops.yaml"
+      delegate_to: localhost
+      become: false
+      register: services_secret_file
+
+    - name: Exiger le secret chiffré (task secrets:init, voir docs/SECRETS.md)
+      ansible.builtin.assert:
+        that: services_secret_file.stat.exists
+        fail_msg: "secrets/netbird.sops.yaml absent (modèle : secrets/netbird.example.yaml)."
+        quiet: true
+  roles:
+    - { role: base-hardening, tags: [base] }
+    - { role: docker, tags: [docker] }
+    - { role: alloy, tags: [alloy] }
+    - { role: netbird-server, tags: [service] }
+
+- name: Déployer l'edge (Traefik, CrowdSec)
+  hosts: svc_edge
+  become: true
+  gather_facts: true
+  any_errors_fatal: true
+  serial: 1
+  tags: [edge]
+  vars:
+    base_hardening_alloy_enabled: false   # Alloy est posé explicitement après Docker (découverte des conteneurs)
+    alloy_docker_enabled: true
+    # Le défaut du rôle lit pad.ports.http, absent du contrat : le port HTTP de l'ingress est flow_ports.http.
+    # À retirer quand le défaut du rôle edge-traefik-crowdsec sera corrigé.
+    edge_traefik_crowdsec_ingress_url: "http://{{ pad.kubernetes.ingress_ip }}:{{ pad.flow_ports.http }}"
+  pre_tasks:
+    - name: Rechercher le secret chiffré edge.sops.yaml
+      ansible.builtin.stat:
+        path: "{{ pad_secrets_dir }}/edge.sops.yaml"
+      delegate_to: localhost
+      become: false
+      register: services_secret_file
+
+    - name: Exiger le secret chiffré (task secrets:init, voir docs/SECRETS.md)
+      ansible.builtin.assert:
+        that: services_secret_file.stat.exists
+        fail_msg: "secrets/edge.sops.yaml absent (modèle : secrets/edge.example.yaml)."
+        quiet: true
+  roles:
+    - { role: base-hardening, tags: [base] }
+    - { role: docker, tags: [docker] }
+    - { role: alloy, tags: [alloy] }
+    - { role: edge-traefik-crowdsec, tags: [service] }
