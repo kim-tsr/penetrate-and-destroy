@@ -28,7 +28,9 @@ pendant environ 7 s, puis demande `Select device to import from`. L'image nano d
 envoyées au clavier VGA par l'API `sendkey` finissent sur le `login:` sans rien importer). `import-config.sh`
 lance donc `serial-import.py` sur l'hôte : il ouvre le socket série QEMU (`/var/run/qemu-server/<vmid>.serial0`),
 redémarre la VM (`qm reset`), attend le texte de l'importer, appuie sur une touche, répond `cd0`, puis attend
-le `login:`. En cas d'échec, il affiche la fin de la console. Symptôme d'un import raté : hostname
+le `login:`. Si le prompt n'apparaît pas (une config d'usine a déjà été écrite au premier boot : l'importer est alors
+sauté), il se connecte en root avec le mot de passe d'usine, monte le CD, copie `/conf/config.xml` et redémarre.
+En cas d'échec, il affiche la fin de la console. Symptôme d'un import raté : hostname
 `OPNsense.internal` (config d'usine) et `10.20.10.1` injoignable.
 
 Pour relancer seulement l'import sur une VM existante : `tofu apply -replace='module.opnsense.null_resource.import_config[0]'`.
