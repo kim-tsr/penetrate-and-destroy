@@ -25,8 +25,8 @@ le poste de l'opérateur. Stacks concernées : 30-authentik.
 
 ## Interactions avec les autres briques
 
-Parle à l’API de la brique qu’il pilote (voir ci-dessus) ; dépend de l’ordre des stacks de `task up`.
-Orchestré par [OpenTofu](opentofu.md) ; les secrets viennent du [provider sops](tofu-sops.md).
+Parle à l'API d'[Authentik](authentik.md) ; produit les secrets des clients OIDC ensuite consommés par [NetBird](netbird.md), [Warpgate](warpgate.md), [Grafana](grafana.md), [ArgoCD](argocd.md) et le [front](frontend.md).
+Orchestré par [OpenTofu](opentofu.md) ; secrets lus par le [provider sops](tofu-sops.md).
 
 ## Sécurité
 

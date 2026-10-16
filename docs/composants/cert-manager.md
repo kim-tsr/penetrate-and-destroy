@@ -17,7 +17,7 @@ Charts `cert-manager` v1.21.2 et `cert-manager-webhook-ovh` 0.9.18 dans `gitops/
 
 ## Fichiers de configuration dans le dépôt
 
-- `gitops/platform/cert-manager/values.yaml` (résolveurs DNS-01 `1.1.1.1` et `9.9.9.9`, `enable-certificate-owner-ref`).
+- `gitops/platform/cert-manager/values.yaml` (résolveurs récursifs publics pour DNS-01, `enable-certificate-owner-ref`).
 - `values-webhook-ovh.yaml` : solver et ClusterIssuer `letsencrypt-ovh`.
 - `resources/internal-ca.yaml` : `ClusterIssuer` auto-signé, `Certificate` CA `pad-internal-ca` (ECDSA P-256), émetteur CA.
 - `resources/ovh-credentials.example.yaml` (+ générateur ksops) : identifiants OVH.

@@ -25,8 +25,8 @@ le poste de l'opérateur. Stacks concernées : 00-host-network, 10-router, 15-ta
 
 ## Interactions avec les autres briques
 
-Parle à l’API de la brique qu’il pilote (voir ci-dessus) ; dépend de l’ordre des stacks de `task up`.
-Orchestré par [OpenTofu](opentofu.md) ; les secrets viennent du [provider sops](tofu-sops.md).
+Parle à l'API [Proxmox](proxmox-ve.md) (8006) ; la stack `20-services-lxc` génère l'inventaire de [Ansible](ansible.md) ; le template Talos qu'il prépare est cloné par [CAPMOX](capmox.md).
+Orchestré par [OpenTofu](opentofu.md) ; secrets lus par le [provider sops](tofu-sops.md).
 
 ## Sécurité
 

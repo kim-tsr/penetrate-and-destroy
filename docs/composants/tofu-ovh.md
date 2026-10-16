@@ -25,8 +25,8 @@ le poste de l'opérateur. Stacks concernées : 70-dns.
 
 ## Interactions avec les autres briques
 
-Parle à l’API de la brique qu’il pilote (voir ci-dessus) ; dépend de l’ordre des stacks de `task up`.
-Orchestré par [OpenTofu](opentofu.md) ; les secrets viennent du [provider sops](tofu-sops.md).
+Parle à l'API OVH ; les enregistrements publics pointent vers l'[edge](traefik-edge.md) (via [OPNsense](opnsense.md)).
+Orchestré par [OpenTofu](opentofu.md) ; secrets lus par le [provider sops](tofu-sops.md).
 
 ## Sécurité
 

@@ -25,8 +25,8 @@ le poste de l'opérateur. Stacks concernées : 50-warpgate.
 
 ## Interactions avec les autres briques
 
-Parle à l’API de la brique qu’il pilote (voir ci-dessus) ; dépend de l’ordre des stacks de `task up`.
-Orchestré par [OpenTofu](opentofu.md) ; les secrets viennent du [provider sops](tofu-sops.md).
+Parle à l'API de [Warpgate](warpgate.md) ; ses cibles pointent vers [Proxmox](proxmox-ve.md), [OPNsense](opnsense.md) et les LXC.
+Orchestré par [OpenTofu](opentofu.md) ; secrets lus par le [provider sops](tofu-sops.md).
 
 ## Sécurité
 

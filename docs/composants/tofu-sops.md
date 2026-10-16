@@ -25,8 +25,8 @@ le poste de l'opérateur. Stacks concernées : toutes les stacks.
 
 ## Interactions avec les autres briques
 
-Voir la [chaîne des secrets](../architecture/secrets.md). Ce provider ne déchiffre jamais avec la clé du cluster.
-Orchestré par [OpenTofu](opentofu.md) ; les secrets viennent du [provider sops](tofu-sops.md).
+Fournit les secrets déchiffrés à tous les autres providers ; voir [SOPS, age et ksops](sops-age-ksops.md).
+Orchestré par [OpenTofu](opentofu.md) ; secrets lus par le [provider sops](tofu-sops.md).
 
 ## Sécurité
 

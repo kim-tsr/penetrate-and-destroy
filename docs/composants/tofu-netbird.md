@@ -25,8 +25,8 @@ le poste de l'opérateur. Stacks concernées : 40-netbird.
 
 ## Interactions avec les autres briques
 
-Parle à l’API de la brique qu’il pilote (voir ci-dessus) ; dépend de l’ordre des stacks de `task up`.
-Orchestré par [OpenTofu](opentofu.md) ; les secrets viennent du [provider sops](tofu-sops.md).
+Parle à l'API de [NetBird](netbird.md) ; crée l'utilisateur de service et les groupes consommés par [netbird-sync](netbird-sync.md).
+Orchestré par [OpenTofu](opentofu.md) ; secrets lus par le [provider sops](tofu-sops.md).
 
 ## Sécurité
 
