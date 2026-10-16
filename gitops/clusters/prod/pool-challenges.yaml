@@ -67,8 +67,16 @@ spec:
               extraArgs:
                 rotate-server-certificates: "true"
                 cloud-provider: external
+              # Pool des instances de joueurs : bornes anti-déni de service et user namespaces.
+              extraConfig:
+                podPidsLimit: 256 # contracts: instances.pod_pids_limit (fork bomb)
+                maxPods: 40 # contracts: instances.max_pods_per_node
+                featureGates:
+                  UserNamespacesSupport: true # pods hostUsers: false (K8s >= 1.33, beta activé par défaut)
               nodeIP:
                 validSubnets: [10.20.70.0/24] # contracts: zones.challenges.cidr
+            sysctls:
+              user.max_user_namespaces: "11255" # nombre de user namespaces (pods hostUsers: false), cf. docs Talos
             nodeLabels:
               pad.io/pool: challenges
               pad.io/zone: challenges
@@ -89,7 +97,7 @@ metadata:
     # Gabarit pour la simulation (utile si min passe à 0) : ressources + taint du pool.
     capacity.cluster-autoscaler.kubernetes.io/cpu: "2"
     capacity.cluster-autoscaler.kubernetes.io/memory: "2560Mi"
-    capacity.cluster-autoscaler.kubernetes.io/maxPods: "110"
+    capacity.cluster-autoscaler.kubernetes.io/maxPods: "40" # contracts: instances.max_pods_per_node
     capacity.cluster-autoscaler.kubernetes.io/labels: "pad.io/pool=challenges,pad.io/zone=challenges"
     capacity.cluster-autoscaler.kubernetes.io/taints: "pad.io/pool=challenges:NoSchedule"
 spec:
