@@ -13,7 +13,13 @@ has_prod_managing() {
 }
 
 cluster_provisioned() { [[ "$(kkind -n "$CLUSTER_NS" get cluster "$CLUSTER_NAME" -o jsonpath='{.status.phase}')" == "Provisioned" ]]; }
-control_plane_ready() { [[ "$(kkind -n "$CLUSTER_NS" get taloscontrolplane "${CLUSTER_NAME}-cp" -o jsonpath='{.status.ready}')" == "true" ]]; }
+# Contrat CAPI v1beta2 : status.ready n'est plus renseigné ; on lit la condition Ready (ancien champ gardé en repli).
+control_plane_ready() {
+  local st
+  st=$(kkind -n "$CLUSTER_NS" get taloscontrolplane "${CLUSTER_NAME}-cp" \
+    -o jsonpath='{.status.ready}{" "}{.status.conditions[?(@.type=="Ready")].status}')
+  [[ "$st" == "true "* || "$st" == *" True" ]]
+}
 cluster_phase_prod() { [[ "$(kprod -n "$CLUSTER_NS" get cluster "$CLUSTER_NAME" -o jsonpath='{.status.phase}')" == "Provisioned" ]]; }
 
 # --- 1. Cluster de gestion éphémère ---
