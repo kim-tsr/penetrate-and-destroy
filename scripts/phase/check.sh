@@ -433,10 +433,12 @@ c_2_routeur() {
   gw=$(c '.zones.mgmt.gw')
   st=$(vm_status "$vmid" qemu)
   [[ "$st" == running ]] && pass "VM ${vmid} ($(c '.router.name')) en cours d'exécution" || fail "VM ${vmid} : état « ${st:-absente} »" "qm list ; qm start ${vmid} ; console : qm terminal ${vmid}"
+  # Le ping n'est qu'indicatif : une fois les règles de 60-opnsense-rules posées, l'ICMP vers le routeur est filtré.
+  # La joignabilité réelle est jugée par la GUI (HTTPS) juste en dessous.
   if host_ssh ping -c1 -W2 "$gw" >/dev/null 2>&1; then
     pass "OPNsense répond au ping sur ${gw} depuis l'hôte"
   else
-    fail "${gw} ne répond pas depuis l'hôte" "l'import de config.xml a-t-il eu lieu ? procédure manuelle de 1 minute : infra/opnsense/README.md ; console qm terminal ${vmid}"
+    warn "${gw} ne répond pas au ping depuis l'hôte (normal si l'ICMP est filtré ; voir le contrôle HTTPS)" "si la GUI est aussi injoignable : l'import de config.xml a-t-il eu lieu ? infra/opnsense/README.md ; console qm terminal ${vmid}"
   fi
   local code
   code=$(host_ssh curl -ksS --max-time 8 -o /dev/null -w '%{http_code}' "https://${gw}/" 2>/dev/null || echo 000)
