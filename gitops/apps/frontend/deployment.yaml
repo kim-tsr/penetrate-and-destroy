@@ -65,8 +65,10 @@ spec:
               app.kubernetes.io/component: web
       containers:
         - name: frontend
-          # TODO(renovate) : remplacer le tag par `tag@sha256:<digest>` dès le premier build signé (scripts/build-image.sh).
-          image: ghcr.io/kim-tsr/pad-frontend:0.1.0
+          # Référence par empreinte obligatoire (Kyverno verify-images, CONVENTIONS.md). L'empreinte nulle ci-dessous est un
+          # PLACEHOLDER : à la 1re publication CI (images.yml, résumé du digest) Renovate (:pinDigests) la remplace par la
+          # vraie ; l'image ne démarre pas tant qu'elle est nulle (échec de pull, volontaire).
+          image: ghcr.io/kim-tsr/pad-frontend:0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000
           ports:
             - name: http
               containerPort: 3000
