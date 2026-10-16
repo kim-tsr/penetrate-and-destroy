@@ -5,10 +5,70 @@ parce que le fournisseur OpenTofu ne sait pas les faire, soit parce qu'un secret
 déploiement. **Les faire avant d'ouvrir la plateforme aux joueurs.**
 
 !!! warning "Ordre"
-    Les actions 1 à 3 conditionnent la sécurité du réseau. Sans elles, soit tout le monde atteint tout (action 1),
-    soit personne n'atteint rien (actions 2 et 3).
+    L'action 1 est un prérequis de `task up`. Les actions 4 à 6 conditionnent la sécurité du réseau : sans elles, soit
+    tout le monde atteint tout (action 4), soit personne n'atteint rien (actions 5 et 6). Les actions 7 à 9 conditionnent
+    le démarrage des applications et des instances, l'action 10 la sécurité de la chaîne de déploiement.
 
-## 1. Supprimer la policy NetBird « Default »
+| # | Action | Quand |
+|---|---|---|
+| 1 | Clés du captcha | avant `task up` |
+| 2 | `tofu apply` de `30-authentik` depuis le bastion ou le management, secret d'ArgoCD | pendant `task up` |
+| 3 | Enrôler le MFA du premier `infra-admins` | après `30-authentik` |
+| 4 | Supprimer la policy NetBird « Default » | après le déploiement de NetBird |
+| 5 | Créer les PAT NetBird (`netbird-sync`, front) | après le déploiement de NetBird |
+| 6 | Règles OPNsense des routing peers | avant le premier événement |
+| 7 | Première publication des images (digests de remplacement) | après le premier push sur `main` |
+| 8 | Zot : règle d'accès `ctf/**` et identifiants de pull | avant le premier challenge instancié |
+| 9 | Clé cosign et passage en `enforce` | une fois les images signées |
+| 10 | Protéger la branche `main` | avant tout merge d'un tiers |
+
+## 1. Fournir les clés du captcha
+
+L'inscription des joueurs est protégée par un captcha, **activé par défaut** : sans clés, `tofu plan` de `30-authentik`
+échoue et `task up` s'arrête à cette étape.
+
+1. Créer un site chez le fournisseur de captcha (Cloudflare Turnstile par défaut ; hCaptcha ou reCAPTCHA possibles).
+   Autoriser le nom d'hôte du front et celui d'Authentik.
+2. Placer la clé publique (site key) et la clé privée (secret key) dans `secrets/authentik-tofu.sops.yaml`
+   (`captcha_public_key`, `captcha_private_key`) : `sops secrets/authentik-tofu.sops.yaml`. Pour hCaptcha ou reCAPTCHA,
+   ajuster `captcha_js_url` et `captcha_api_url` ([Identité](securite-identite.md)).
+3. Désactiver le captcha est un choix explicite (`-var captcha_enabled=false`), à réserver aux essais.
+
+## 2. Appliquer `30-authentik` depuis le bastion ou le management
+
+L'edge n'expose plus la console d'administration d'Authentik à Internet : le provider OpenTofu appelle des chemins filtrés
+(`/api/v3/admin`, `rbac`, `outposts`, `providers`, `propertymappings`, `crypto`, `managed`) qui ne répondent que depuis les
+CIDR du bastion et du management (`edge_traefik_crowdsec_authentik_admin_allowed_cidrs`).
+
+1. Lancer `task tofu:apply-stack STACK=30-authentik` (donc `task up`) **depuis le bastion ou la zone management**. Depuis un autre
+   poste, ajouter temporairement son CIDR à cette variable du rôle edge et rejouer
+   `task ansible:services -- --tags edge`, puis le retirer.
+2. `task up` enchaîne ensuite `task secrets:oidc-sync`, qui recopie les secrets des clients OIDC générés par tofu dans les sops de
+   NetBird, Warpgate, Grafana et du front, avant la seconde passe d'Ansible ([Up](../runbooks/up.md)). Commiter les sops modifiés
+   (`secrets/*.sops.yaml` et `gitops/apps/frontend/secret.sops.yaml`) **avant** `bootstrap:gitops`.
+3. **ArgoCD** : son secret OIDC n'est pas recopié automatiquement. Une fois le cluster créé, créer le Secret attendu par l'Application
+   (clé `clientSecret`, label `app.kubernetes.io/part-of=argocd`), sans afficher la valeur :
+
+    ```bash
+    tofu -chdir=infra/tofu/stacks/30-authentik output -json oidc_client_secrets | jq -r .argocd \
+      | kubectl -n argocd create secret generic argocd-oidc --from-file=clientSecret=/dev/stdin
+    kubectl -n argocd label secret argocd-oidc app.kubernetes.io/part-of=argocd
+    ```
+
+   Tant qu'il n'existe pas, la connexion SSO à ArgoCD échoue ; le compte local `admin` est désactivé, utiliser
+   `argocd login --core` avec les droits `kubectl`. Le client `proxmox` (realm OpenID de Proxmox) se configure aussi à la main.
+
+## 3. Enrôler le MFA du premier administrateur d'infrastructure
+
+Les comptes `ctf-managers`, `ctf-admins` et `infra-admins` doivent valider un second facteur ; le compte du premier opérateur n'en a pas encore.
+
+1. Créer l'utilisateur (invitation staff ou console d'Authentik atteinte depuis le bastion) et l'ajouter au groupe `infra-admins`.
+2. À sa première connexion, Authentik le force à enrôler un facteur (TOTP ou WebAuthn) avant tout accès à une application.
+   Enrôler **deux** facteurs (par exemple une clé WebAuthn et un TOTP de secours).
+3. Tester l'accès à ArgoCD, Warpgate et Grafana : un compte qui n'est pas `infra-admins` ne doit voir aucune de ces applications.
+4. Perte du dernier facteur d'un `infra-admins` : voir [Identité](securite-identite.md) (suppression de l'appareil, puis `ak shell` depuis le bastion).
+
+## 4. Supprimer la policy NetBird « Default »
 
 À l'initialisation, NetBird crée une policy **Default** qui autorise tous les pairs à joindre tous les pairs
 (`All` vers `All`). Elle annule le « deny all » voulu : un joueur connecté verrait le staff et toutes les instances.
@@ -23,7 +83,7 @@ Elle est en revanche **vérifiée automatiquement** : `netbird-sync` refuse de d
 tant qu'une policy active a le groupe « All » en source ; le journal indique `refus de démarrer`, la métrique
 `netbird_sync_open_policies` reste à 1 ou plus. À refaire après toute réinstallation de NetBird.
 
-## 2. Créer le PAT de `netbird-sync`
+## 5. Créer les PAT NetBird
 
 Le provider NetBird ne sait créer un jeton que pour l'utilisateur courant. Le jeton de l'utilisateur de service
 `netbird-sync` (créé par la stack `40-netbird`) se crée à la main :
@@ -35,14 +95,13 @@ Le provider NetBird ne sait créer un jeton que pour l'utilisateur courant. Le j
 4. Commiter et pousser ; ArgoCD déploie. Contrôler : `kubectl -n netbird-sync logs deploy/netbird-sync` sans erreur
    401/403.
 
-Rôles : l'utilisateur `netbird-sync` est `network_admin` (moindre privilège) ; si le journal montre un HTTP 403 (en
+Rôles : l'utilisateur `netbird-sync` est `network_admin` (moindre privilège : groupes, networks, policies, pairs) ; si le journal montre un HTTP 403 (en
 particulier sur `GET /users`), passer `netbird_sync_role = "admin"` dans la stack `40-netbird`, en connaissance de cause.
-Créer aussi le PAT de l'utilisateur `pad-frontend-readonly` (rôle `auditor`) pour `NETBIRD_API_TOKEN` du front : ne jamais y
-mettre le jeton de `netbird-sync` ni celui d'un administrateur, un PAT hérite des droits de son propriétaire.
-`PAD_INTERNAL_TOKEN` du secret `netbird-sync` doit être **identique** à celui du secret `ctfd-secrets` (netbird-sync lit
-les membres d'équipe dans CTFd pour rattacher chaque joueur au groupe `ctf-team-<id>`) :
-`sops gitops/apps/netbird-sync/secret.sops.yaml`. Les e-mails des comptes NetBird (SSO Authentik) et CTFd doivent
-correspondre.
+Créer aussi le PAT de l'utilisateur `pad-frontend-readonly` (rôle `auditor`) pour `NETBIRD_API_TOKEN` du front
+(`sops gitops/apps/frontend/secret.sops.yaml`) : ne jamais y mettre le jeton de `netbird-sync` ni celui d'un administrateur, un PAT hérite des droits de son propriétaire.
+`PAD_INTERNAL_TOKEN` du secret `netbird-sync` est **identique** à celui de `ctfd-secrets` (netbird-sync lit
+les membres d'équipe dans CTFd pour rattacher chaque joueur au groupe `ctf-team-<id>`) : `task secrets:init` l'a déjà recopié, ne le
+changer qu'aux deux endroits à la fois. Les e-mails des comptes NetBird (SSO Authentik) et CTFd doivent correspondre.
 
 Sans ce jeton, aucune instance n'est joignable : voir [netbird-sync](../runbooks/netbird-sync.md).
 
@@ -51,7 +110,7 @@ Il faut aussi, une fois NetBird déployé, **un PAT administrateur** pour la sta
 (`secrets/netbird.sops.yaml`, `netbird_server_api_token`). Le jeton de Warpgate pour la stack `50-warpgate` suit le même
 principe (`secrets/warpgate-tofu.sops.yaml`).
 
-## 3. Règles OPNsense des routing peers
+## 6. Règles OPNsense des routing peers
 
 NetBird route le trafic des joueurs par un **routing peer** en masquerade : les cibles voient l'IP du routing peer.
 Deux routing peers existent (un par zone) et OPNsense doit les autoriser explicitement :
@@ -68,7 +127,52 @@ sont pas encore dans la stack `60-opnsense-rules` : les ajouter (de préférence
 
 Test : depuis un poste NetBird d'un joueur, une instance démarrée doit répondre ; sans NetBird, elle ne doit pas répondre.
 
-## 4. Générer les fichiers de verrouillage
+## 7. Première publication des images
+
+Les manifests `gitops/apps/ctfd`, `frontend` et `netbird-sync` référencent leur image par `tag@sha256:<empreinte>`, avec une
+empreinte de remplacement nulle (`sha256:000…`) dans le premier commit. Tant qu'elle n'est pas remplacée, les pods ne démarrent
+pas (volontairement) et les Applications restent `Degraded`.
+
+1. Pousser sur `main` : le workflow `images.yml` construit, **scanne (Trivy, bloquant)**, pousse et signe chaque image, puis affiche
+   `image@sha256:…` dans le résumé du job.
+2. Remplacer l'empreinte dans chaque `deployment.yaml` (ou fusionner la PR Renovate `:pinDigests` qui le fait), vérifier que la
+   référence correspond à l'image signée, puis fusionner. ArgoCD déploie.
+3. Pour les challenges d'exemple (`challenges/*/challenge.yml`, `registry.pad.internal/ctf/...@sha256:000…`) : pousser l'image dans Zot
+   (action 8), relever son empreinte et la reporter dans le `challenge.yml`. Une instance n'est créée qu'avec une empreinte réelle.
+
+## 8. Zot : règle d'accès `ctf/**` et identifiants de pull
+
+Les instances n'acceptent que des images de `registry.pad.internal/ctf/`, mais la configuration de Zot
+(`gitops/platform/zot/values.yaml`) ne définit de règle que pour `pad/**` et `public/**`. Avant le premier challenge instancié :
+
+1. Ajouter dans `accessControl.repositories` un dépôt `ctf/**` : `pad-ci` en `read, create, update, delete`, `pad-pull` en `read`,
+   `defaultPolicy: []` (même forme que `pad/**`). Commiter ; ArgoCD redéploie Zot.
+2. Donner aux nœuds du pool `challenges` les identifiants du compte `pad-pull` (mot de passe :
+   `sops -d --extract '["zot_pad_pull_password"]' secrets/credentials.sops.yaml`) via une configuration de registre containerd
+   sur le pool (patch Talos, sans commiter la valeur) ou un `imagePullSecret` fourni par le scénario.
+3. Contrôler : un pod `inst-*` démarre (pas d'`ImagePullBackOff` ni de `401`) et `docker pull` anonyme sur `ctf/` est refusé.
+
+## 9. Clé cosign et passage en `enforce`
+
+La vérification des signatures est en `audit` par défaut. Le passage en `enforce` est un geste explicite, une fois la clé publique
+posée et les images signées (procédure détaillée : [Images signées](images-signees.md)) :
+
+1. `cosign generate-key-pair` ; la clé privée va dans les secrets de la CI du dépôt de challenges, jamais dans ce dépôt.
+2. Remplacer `cosign.pub` dans `gitops/platform/kyverno/policies/image-policy-configmap.yaml` par la clé publique.
+3. Signer les images de challenge poussées dans Zot, lire les PolicyReports (aucune violation attendue).
+4. Dans le même commit : `mode: enforce` dans `pad-image-policy` et `instances.image_verification: enforce` dans `infra/contracts.yaml`.
+5. Retour arrière : `mode: audit`.
+
+Tant que `cosign.pub` contient `CHANGEME`, le registre interne reste en audit même en `enforce`.
+
+## 10. Protéger la branche `main`
+
+ArgoCD synchronise `main` automatiquement : tout ce qui est fusionné dans `gitops/` ou `bootstrap/` s'exécute dans le cluster.
+`.github/CODEOWNERS` ne protège rien tant que la protection de branche n'est pas activée, ce que seul le propriétaire du dépôt peut faire
+(relecture obligatoire par les Code Owners, checks `ci.yml` requis, commits signés, pas de contournement ni de force-push).
+Réglages exacts : [Protection de la branche main](protection-branche.md).
+
+## 11. Générer les fichiers de verrouillage
 
 Sur une machine qui a accès aux registries (OpenTofu, Nix), commiter :
 
@@ -79,19 +183,18 @@ nix flake lock        # flake.lock (ne pas le commiter depuis un worktree d'agen
 
 Sans eux, les versions ne sont épinglées que par la contrainte exacte des providers, pas par leur empreinte.
 
-## 5. Autres vérifications du premier déploiement
+## 12. Autres vérifications du premier déploiement
 
 | À faire | Pourquoi |
 |---|---|
-| Premier compte `ctf-admins` / `ctf-managers` dans Authentik | l'accès au portail manager exige le groupe |
+| Premier compte `ctf-admins` / `ctf-managers` dans Authentik | l'accès au portail manager exige le groupe (et le MFA du staff, action 3) |
 | Vérifier la redirection OIDC de chaque application | le redirect URI doit correspondre à l'URL réelle |
 | Renseigner `uptime_kuma_watchdog_token` | active le dead-man's switch ([Watchdog](../runbooks/watchdog.md)) |
-| Passer la vérification des images en `enforce` | `mode` du ConfigMap `pad-image-policy` + `instances.image_verification` du contrat, après clé publique cosign et signature des images ([procédure](images-signees.md)) |
-| Remplacer les empreintes nulles des images ctfd, frontend et netbird-sync | première publication CI, puis PR Renovate |
 | Vérifier `hostUsers: false` sur une instance | `kubectl -n inst-<id> get pod -o jsonpath='{.items[0].spec.hostUsers}'` puis `cat /proc/self/uid_map` dans le conteneur ; sinon `PAD_HOST_USERS=true` (échappatoire) ou RuntimeClass gVisor (`PAD_RUNTIME_CLASS`) |
+| Vérifier le quota et le LimitRange d'une instance | `kubectl -n inst-<id> get resourcequota,limitrange` (générés par Kyverno) |
+| Vérifier que les instances n'ont aucune sortie | depuis un pod d'instance, toute résolution DNS échoue (sauf `*.cluster.local` si `dns: cluster` a été demandé par un administrateur) |
 | Vérifier les limites du pool challenges | `kubectl get node <worker> -o jsonpath='{.status.capacity.pods}'` = 40 ; fork bomb d'essai bornée à 256 PIDs. Un changement du patch Talos ne remplace pas les machines existantes : créer un nouveau `TalosConfigTemplate` (nouveau nom) et l'y référencer |
-| Zot : règle d'accès `ctf/**` et identifiants de pull des nœuds challenges | prérequis des images d'instance (voir [Images signées](images-signees.md)) |
-| Garage : clé de sauvegarde dédiée | renseigner `backup_access_key_id` / `backup_secret_access_key` dans `secret-s3.sops.yaml` après avoir basculé `scripts/backup.sh` et `restore.sh` sur cette clé |
+| Garage : clé de sauvegarde dédiée (facultatif) | `task secrets:init -- --all` à la création, ou ajouter `backup_access_key_id` / `backup_secret_access_key` à `secret-s3.sops.yaml` ; `scripts/backup.sh` et `restore.sh` s'en servent pour le bucket `backups` |
 | Lancer `task backup` puis un test de restauration | disposer d'un point de reprise vérifié |
 | Tester une alerte (arrêter un exporter) | confirmer que Discord et l'e-mail reçoivent |
 | Vérifier que l'import de challenges accepte 50 Mio | corps maximal de l'ingress |

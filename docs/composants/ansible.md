@@ -15,7 +15,8 @@ Sur le poste de l'opérateur, en deux phases de `task up` :
 
 1. `task ansible:host` : play `host.yml` sur le groupe `proxmox_host` (rôle `host-tuning`) ;
 2. `task ansible:services` : play `services.yml`, **un play par LXC**, dans l'ordre monitoring, authentik, warpgate,
-   netbird, edge (l'edge est en dernier : ses backends existent quand Traefik demande les certificats ACME).
+   netbird, edge. `task up` le lance en **deux passes** par tags : `monitoring,authentik,edge` avant la stack tofu `30-authentik`,
+   puis `monitoring,warpgate,netbird` après `task secrets:oidc-sync` (les secrets OIDC de NetBird, Warpgate et Grafana sont générés par `30-authentik`).
 
 `playbooks/site.yml` enchaîne les deux pour rejouer l'ensemble. Chaque play applique `base-hardening`, `docker`, `alloy`
 puis le rôle du service.

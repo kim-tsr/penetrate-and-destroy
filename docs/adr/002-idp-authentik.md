@@ -8,7 +8,7 @@ Il faut un SSO unique pour le front, NetBird, Warpgate, Grafana et ArgoCD, une i
 
 ## Décision
 
-**Authentik** est déployé en Docker Compose dans le LXC `authentik` (zone IDENTITY). Les applications, providers OIDC, groupes (`ctf-players`, `ctf-managers`, `ctf-admins`, `infra-admins`) et flows sont déclarés par la stack OpenTofu `30-authentik` et des blueprints. Un outpost forward-auth protège les applications sans OIDC (VictoriaMetrics, Alertmanager, Hubble). Depuis la version 2025.10, Authentik n'utilise plus Redis.
+**Authentik** est déployé en Docker Compose dans le LXC `authentik` (zone IDENTITY). Les applications, providers OIDC, groupes (`ctf-players`, `ctf-managers`, `ctf-admins`, `infra-admins`) et flows sont déclarés par la stack OpenTofu `30-authentik` et des blueprints. Un outpost forward-auth protège les applications sans OIDC (VictoriaMetrics, Alertmanager, Hubble). Depuis la version 2025.10, Authentik n'utilise plus Redis. Le staff (`ctf-managers`, `ctf-admins`, `infra-admins`) doit valider un second facteur à la connexion et à l'autorisation de chaque application, le captcha protège l'inscription, une réputation par IP limite le brute-force, et seul `infra-admins` administre l'infrastructure ([Identité](../operations/securite-identite.md)).
 
 ## Alternatives écartées
 

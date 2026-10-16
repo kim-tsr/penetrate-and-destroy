@@ -13,9 +13,14 @@ MARIADB_CONTAINER="${PAD_MARIADB_CONTAINER:-mariadb}"
 MARIADB_DATABASE="${PAD_MARIADB_DATABASE:-ctfd}"
 STORAGE_NS="${PAD_STORAGE_NAMESPACE:-storage}"
 GARAGE_SVC="${PAD_GARAGE_SERVICE:-garage}"
-# Secret déchiffré par ksops depuis gitops/platform/garage/secret-s3.sops.yaml (même clé que AWS_* de CTFd).
+# Secret déchiffré par ksops depuis gitops/platform/garage/secret-s3.sops.yaml (access_key_id = même clé que AWS_* de CTFd ;
+# backup_access_key_id facultatif = clé dédiée aux sauvegardes).
 GARAGE_CREDS_SECRET="${PAD_GARAGE_CREDS_SECRET:-garage-s3-credentials}"
 GARAGE_REGION="${PAD_GARAGE_REGION:-garage}"
+# Bucket des sauvegardes planifiées (contracts: apps.ctfd.backup_bucket). Si le Secret porte la clé de sauvegarde dédiée
+# (backup_access_key_id / backup_secret_access_key, facultative), c'est la seule à y avoir accès : voir garage_remote.
+GARAGE_BACKUP_BUCKET="${PAD_GARAGE_BACKUP_BUCKET:-backups}"
+GARAGE_BACKUP_KEY=0
 BUCKETS="${PAD_BACKUP_BUCKETS:-ctfd-uploads backups}"
 BACKUP_DIR="${PAD_BACKUP_DIR:-$STATE_DIR/backups}"
 
@@ -68,7 +73,26 @@ load_external_s3() {
   fi
 }
 
-# Ouvre un port-forward vers Garage (S3) et configure le remote rclone `garage`. Fermé à la sortie du script.
+# Champ d'un Secret Kubernetes décodé (vide si le Secret ou le champ est absent : ne fait jamais échouer l'appelant).
+secret_field() {
+  local out
+  out="$(kubectl -n "$STORAGE_NS" get secret "$GARAGE_CREDS_SECRET" -o "jsonpath={.data.$1}" 2>/dev/null)" || out=""
+  if [ -n "$out" ]; then printf '%s' "$out" | base64 -d; fi
+}
+
+# Remote rclone à utiliser pour un bucket : `garagebak` (clé de sauvegarde dédiée) pour le bucket des sauvegardes si cette
+# clé existe, sinon `garage` (clé principale, repli historique). Les autres buckets (ctfd-uploads) restent sur la clé
+# principale : la clé dédiée n'y a aucun droit.
+garage_remote() {
+  if [ "$GARAGE_BACKUP_KEY" -eq 1 ] && [ "$1" = "$GARAGE_BACKUP_BUCKET" ]; then
+    printf 'garagebak'
+  else
+    printf 'garage'
+  fi
+}
+
+# Ouvre un port-forward vers Garage (S3) et configure les remotes rclone `garage` (clé principale) et, si le Secret contient
+# la clé de sauvegarde dédiée, `garagebak`. Fermé à la sortie du script.
 GARAGE_PF_PID=""
 close_garage() {
   if [ -n "$GARAGE_PF_PID" ]; then
@@ -78,12 +102,14 @@ close_garage() {
 }
 open_garage() {
   need kubectl
-  local ak sk port i
+  local ak sk bak bsk port i
   ak="$(kubectl -n "$STORAGE_NS" get secret "$GARAGE_CREDS_SECRET" -o jsonpath='{.data.access_key_id}' | base64 -d)"
   sk="$(kubectl -n "$STORAGE_NS" get secret "$GARAGE_CREDS_SECRET" -o jsonpath='{.data.secret_access_key}' | base64 -d)"
   if [ -z "$ak" ] || [ -z "$sk" ]; then
     die "secret $STORAGE_NS/$GARAGE_CREDS_SECRET vide ou absent (sync ArgoCD de Garage et secret-s3.sops.yaml présent ?)"
   fi
+  bak="$(secret_field backup_access_key_id)"
+  bsk="$(secret_field backup_secret_access_key)"
   port="${PAD_GARAGE_LOCAL_PORT:-$((20000 + RANDOM % 20000))}"
   kubectl -n "$STORAGE_NS" port-forward "svc/$GARAGE_SVC" "$port:3900" >/dev/null 2>&1 &
   GARAGE_PF_PID=$!
@@ -101,4 +127,15 @@ open_garage() {
   export RCLONE_CONFIG_GARAGE_REGION="$GARAGE_REGION"
   export RCLONE_CONFIG_GARAGE_ENDPOINT="http://127.0.0.1:$port"
   export RCLONE_CONFIG_GARAGE_FORCE_PATH_STYLE=true
+  if [ -n "$bak" ] && [ -n "$bsk" ]; then
+    GARAGE_BACKUP_KEY=1
+    log "Garage : clé de sauvegarde dédiée détectée, utilisée pour le bucket $GARAGE_BACKUP_BUCKET"
+    export RCLONE_CONFIG_GARAGEBAK_TYPE=s3
+    export RCLONE_CONFIG_GARAGEBAK_PROVIDER=Other
+    export RCLONE_CONFIG_GARAGEBAK_ACCESS_KEY_ID="$bak"
+    export RCLONE_CONFIG_GARAGEBAK_SECRET_ACCESS_KEY="$bsk"
+    export RCLONE_CONFIG_GARAGEBAK_REGION="$GARAGE_REGION"
+    export RCLONE_CONFIG_GARAGEBAK_ENDPOINT="http://127.0.0.1:$port"
+    export RCLONE_CONFIG_GARAGEBAK_FORCE_PATH_STYLE=true
+  fi
 }

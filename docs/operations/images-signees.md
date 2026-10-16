@@ -44,7 +44,7 @@ concernés). Kyverno tourne en un seul réplica sur le pool platform : voir le [
 
 ## Images de la plateforme (ctfd, frontend, netbird-sync)
 
-Les images `ghcr.io/kim-tsr/pad-*` sont construites, poussées et signées (cosign keyless, identité du workflow
+Les images `ghcr.io/<propriétaire du dépôt>/pad-*` sont construites, poussées et signées (cosign keyless, identité du workflow
 `images.yml`) par la CI. Les manifests `gitops/apps/*/deployment.yaml` les référencent en `tag@sha256:<empreinte>`.
 
 Flux de mise à jour :
@@ -66,4 +66,4 @@ volontaire. Les Applications concernées restent `Degraded` jusqu'à la premièr
       (`gitops/platform/zot/values.yaml`) ne définit de règle d'accès que pour `pad/**` (CI et compte `pad-pull`) et
       `public/**`, aucune pour `ctf/**`. Avant le premier challenge instancié, ajouter une règle `ctf/**` (écriture pour
       la CI, lecture pour `pad-pull`) et fournir les identifiants de pull aux nœuds (imagePullSecret ou configuration
-      containerd). Hors du périmètre de ce lot.
+      containerd). Marche à suivre : [Actions manuelles](actions-post-deploiement.md) (action 8).

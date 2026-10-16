@@ -46,12 +46,12 @@ Si l'ancienne clé a fuité, changer aussi les **valeurs** des secrets de `gitop
 | Webhook Discord, SMTP | `secrets/monitoring.sops.yaml` | `sops`, `task ansible:services` |
 | PAT NetBird (tofu) | `secrets/netbird-tofu.sops.yaml` | nouveau PAT dans le dashboard, `sops` |
 | PAT NetBird de `netbird-sync` | `gitops/apps/netbird-sync` (`NETBIRD_API_TOKEN`) | nouveau PAT de l'utilisateur de service, `sops`, push |
-| Secrets clients OIDC | sorties de la stack `30-authentik` | `tofu apply`, recopier les sorties dans les fichiers SOPS concernés (front, NetBird, Warpgate, Grafana, ArgoCD) |
+| Secrets clients OIDC | sorties de la stack `30-authentik` | `tofu apply -replace='random_password.client_secret["<client>"]'` sur `30-authentik` (depuis le bastion), `task secrets:oidc-sync` (front, NetBird, Warpgate, Grafana), ArgoCD à la main, puis `task ansible:services -- --tags monitoring,warpgate,netbird` et push du front |
 | Mots de passe admin (Authentik, Warpgate, Zot) | `secrets/*.sops.yaml`, `secrets/credentials.sops.yaml` | `sops`, redéployer le service |
 
 ## Valeurs partagées en plusieurs endroits
 
-`task secrets:init` génère une seule fois et recopie : mot de passe Valkey (Valkey, `REDIS_PASSWORD` de CTFd,
+`task secrets:init` génère une seule fois et recopie : `PAD_INTERNAL_TOKEN` (`ctfd-secrets` = secret `netbird-sync`), clé S3 de Garage (`garage-s3-credentials` = `AWS_*` de CTFd), mot de passe Valkey (Valkey, `REDIS_PASSWORD` de CTFd,
 `VALKEY_URL` du front), secret `metrics` de Zot, compte `pad-pull` de Zot (= `chall-manager-oci`), `bootstrap_token`
 d'Authentik (= `authentik-tofu`). Pour les changer, modifier **tous** les fichiers concernés dans le même commit, puis
 redémarrer les consommateurs.

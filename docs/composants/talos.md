@@ -42,7 +42,9 @@ cloud-init (datasource `nocloud`). Le control plane expose une **VIP** (`10.20.6
 - Pas de SSH ni de shell ; API Talos accessible uniquement depuis le bastion.
 - `allowSchedulingOnControlPlanes: false` : le control plane ne porte aucune charge.
 - Certificats serveur du kubelet signés (`rotate-server-certificates`) avec l'approbateur `kubelet-serving-cert-approver` v0.12.1.
-- Le pool `challenges` porte le taint `pad.io/pool=challenges:NoSchedule`.
+- Le pool `challenges` porte le taint `pad.io/pool=challenges:NoSchedule`, héberge les instances de joueurs et son kubelet est borné : `podPidsLimit: 256` (fork bomb), `maxPods: 40` (remplissage du disque), feature gate `UserNamespacesSupport` et sysctl `user.max_user_namespaces`
+  pour les pods `hostUsers: false` (valeurs du contrat `instances.*`). Un changement du patch ne remplace pas les machines existantes : créer un nouveau `TalosConfigTemplate`.
+- Les namespaces Cluster API (`pad-cluster`, fournisseurs CAPI, `csi-proxmox`) sont en PSS et en NetworkPolicy default-deny.
 
 ## Supervision
 

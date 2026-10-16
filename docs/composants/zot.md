@@ -28,6 +28,8 @@ Alimenté par la [CI](github-actions.md) (`pad-ci`) ; lu par [chall-manager](cha
 
 - Authentification htpasswd obligatoire (hash bcrypt, mots de passe en clair dans `secrets/credentials.sops.yaml`).
 - Contrôle d'accès : `pad/**` réservé à `pad-ci` (écriture) et `pad-pull` (lecture) ; `public/**` en lecture anonyme ; métriques pour l'utilisateur `metrics`.
+- **Images de challenges (`ctf/**`)** : le préfixe `registry.pad.internal/ctf/` est imposé aux instances ([scénario](chall-manager-scenario.md), [Kyverno](kyverno.md)), mais `values.yaml` ne définit **aucune règle d'accès** pour `ctf/**` : à ajouter avant le premier challenge instancié
+  (écriture pour `pad-ci`, lecture pour `pad-pull`), avec les identifiants de pull côté nœuds challenges ([Actions manuelles](../operations/actions-post-deploiement.md)).
 - Interface interne uniquement.
 
 ## Supervision
@@ -45,6 +47,7 @@ cosign sign registry.pad.internal/pad/<image>@sha256:<digest>
 ## Pièges connus
 
 - Le registry n'est joignable que depuis un poste staff NetBird ou la CI : pas depuis Internet.
+- Les images d'instance doivent être référencées par empreinte (`@sha256:`) : pousser, relever le digest (`crane digest` ou la sortie de la CI), le reporter dans le `challenge.yml`, puis signer ce digest.
 - Un seul réplica sur un PVC : à sauvegarder si les images ne sont pas reconstructibles.
 
 ## Documentation officielle

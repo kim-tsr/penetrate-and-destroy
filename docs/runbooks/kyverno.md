@@ -1,6 +1,6 @@
 # Kyverno
 
-Kyverno applique les politiques d'admission : PSS `restricted` sur `inst-*` et `chall-manager` (Enforce), signature des images (Audit), pas de tag `latest`, requests/limits obligatoires, NetworkPolicy par défaut.
+Kyverno applique les politiques d'admission : PSS `restricted` sur `inst-*` et `chall-manager` (Enforce), images d'instance du registre interne par empreinte (Enforce), signature des images (Audit ou Enforce selon `pad-image-policy`), pas de tag `latest`, requests/limits obligatoires, NetworkPolicy par défaut, et génération d'une `ResourceQuota` et d'un `LimitRange` par namespace `inst-*`.
 
 ## Symptômes
 
@@ -45,7 +45,7 @@ kubectl get policyreport -A -o json \
 3. **Webhook indisponible** : `verify-images` (Enforce) est en `failurePolicy: Fail` sur `inst-*`, `ctfd`, `frontend` et `netbird-sync`, comme `restrict-instance-images` et `pss-restricted` : un Kyverno down y bloque la création de pods. Relancer `kyverno-admission-controller`. En urgence, repasser `mode: audit` dans `pad-image-policy` (la politique Fail ne s'applique plus ; le webhook reste enregistré).
 4. **Pod d'instance refusé pour son image** (`restrict-instance-images`) : l'image doit être sous `registry.pad.internal/ctf/` et épinglée par `@sha256`. Corriger le `challenge.yml`, pas la politique.
 5. **Quota ou LimitRange manquant dans un `inst-*`** : générés par `instance-guardrails` à la création du namespace. `kubectl -n inst-<id> get resourcequota,limitrange` ; si absents, vérifier le background controller (`kubectl -n kyverno logs deploy/kyverno-background-controller`).
-4. **Métriques absentes** : vérifier le ServiceMonitor du namespace `kyverno`.
+6. **Métriques absentes** : vérifier le ServiceMonitor du namespace `kyverno`.
 
 ## Escalade
 

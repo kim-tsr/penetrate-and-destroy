@@ -25,6 +25,7 @@
 #
 # Cas d'un cluster neuf (après `task rebuild`) : laisser ArgoCD finir la synchro (MariaDB et Garage Ready, buckets
 # créés par garage-init), puis `task restore`.
+# Clés S3 : comme backup.sh (clé de sauvegarde dédiée pour le bucket `backups` si le Secret la contient, sinon clé principale).
 set -euo pipefail
 # shellcheck source=scripts/lib/backup-common.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib/backup-common.sh"
@@ -113,7 +114,7 @@ restore_garage() {
       continue
     fi
     log "Garage : restauration du bucket $b"
-    rclone_bin copy "$BACKUP_DIR/garage/$b" "garage:$b" --checksum --transfers 8
+    rclone_bin copy "$BACKUP_DIR/garage/$b" "$(garage_remote "$b"):$b" --checksum --transfers 8
   done
   close_garage
 }

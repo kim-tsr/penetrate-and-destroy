@@ -12,6 +12,8 @@ Commandes (appelées par `task secrets:*`) :
   pending              liste les valeurs encore à renseigner (CHANGEME, ou vides dans secrets/site.sops.yaml), sans jamais
                        afficher de valeur
   update-keys          applique les recipients de .sops.yaml à tous les *.sops.yaml (sops updatekeys)
+  oidc-sync [--from-json F]  recopie les secrets des clients OIDC (sortie `oidc_client_secrets` de la stack tofu 30-authentik, générés
+                       par tofu) dans les sops de NetBird, Warpgate, Grafana et du front ; F = JSON (ou - pour stdin)
   rotate-cluster-key   nouvelle clé age du cluster : remplace le recipient, updatekeys + rotation des clés de données
 
 Aucune valeur secrète n'est écrite sur disque en clair : tout passe par des pipes vers sops. Seule exception, la
@@ -250,11 +252,13 @@ class Ctx:
         "ctfd.PAD_SSO_SHARED_SECRET": ("gitops/apps/ctfd/secret.sops.yaml", "stringData.PAD_SSO_SHARED_SECRET"),
         "garage.access_key_id": ("gitops/platform/garage/secret-s3.sops.yaml", "stringData.access_key_id"),
         "garage.secret_access_key": ("gitops/platform/garage/secret-s3.sops.yaml", "stringData.secret_access_key"),
+        "ctfd.PAD_INTERNAL_TOKEN": ("gitops/apps/ctfd/secret.sops.yaml", "stringData.PAD_INTERNAL_TOKEN"),
         "authentik.bootstrap_token": ("secrets/authentik.sops.yaml", "bootstrap_token"),
         "zot.pad_pull_password": (CREDENTIALS, "zot_pad_pull_password"),
     }
 
-    def __init__(self) -> None:
+    def __init__(self, with_optional: bool = False) -> None:
+        self.with_optional = with_optional
         self.vals: dict[str, str] = {}
         self.creds: dict[str, str] = {}
         self.notes: list[str] = []
@@ -351,6 +355,17 @@ def h_garage_s3(ctx: Ctx, t: str) -> str:
     """Clé S3 au format Garage (GK + 24 hex, secret 64 hex), générée une fois puis recopiée dans le sops de CTFd."""
     t = setv(t, "access_key_id", ctx.put("garage.access_key_id", "GK" + hexs(12)))
     t = setv(t, "secret_access_key", ctx.put("garage.secret_access_key", hexs(32)))
+    if ctx.with_optional:
+        # Clé de sauvegarde dédiée (facultative) : lignes commentées dans l'exemple, activées par --all. scripts/backup.sh et
+        # scripts/restore.sh l'utilisent pour le bucket `backups` quand elle est présente.
+        pat = re.compile(r'^([ \t]*)#[ \t]*(backup_(?:access_key_id|secret_access_key): CHANGEME.*)$', re.M)
+        if len(pat.findall(t)) != 2:
+            raise SpecDrift("lignes backup_access_key_id / backup_secret_access_key (commentées) introuvables")
+        t = pat.sub(lambda m: m.group(1) + m.group(2), t)
+        t = setv(t, "backup_access_key_id", "GK" + hexs(12))
+        t = setv(t, "backup_secret_access_key", hexs(32))
+        ctx.notes.append("clé S3 de sauvegarde dédiée créée : seule elle accède au bucket backups (Job garage-init) ;"
+                         " scripts/backup.sh et restore.sh l'utilisent automatiquement")
     if (ROOT / "gitops/apps/ctfd/secret.sops.yaml").exists():
         ctx.notes.append("clé S3 Garage générée alors que gitops/apps/ctfd/secret.sops.yaml existe déjà : y recopier"
                          " AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY (sops) pour qu'ils soient identiques")
@@ -392,8 +407,14 @@ def h_ctfd(ctx: Ctx, t: str) -> str:
     # Clé S3 Garage : mêmes valeurs que gitops/platform/garage/secret-s3 (importées par le Job garage-init).
     t = fill_ref(ctx, t, "AWS_ACCESS_KEY_ID", "garage.access_key_id")
     t = fill_ref(ctx, t, "AWS_SECRET_ACCESS_KEY", "garage.secret_access_key")
-    t = setv(t, "PAD_INTERNAL_TOKEN", alnum(48))
+    # Jeton interne partagé avec netbird-sync (lecture des membres d'équipe) : généré ici, recopié dans son sops.
+    t = setv(t, "PAD_INTERNAL_TOKEN", ctx.put("ctfd.PAD_INTERNAL_TOKEN", alnum(48)))
     return setv(t, "PAD_METRICS_TOKEN", alnum(48))
+
+
+def h_netbird_sync(ctx: Ctx, t: str) -> str:
+    # NETBIRD_API_URL et NETBIRD_API_TOKEN (PAT du service user) restent à renseigner à la main.
+    return fill_ref(ctx, t, "PAD_INTERNAL_TOKEN", "ctfd.PAD_INTERNAL_TOKEN")
 
 
 def h_chall_manager(ctx: Ctx, t: str) -> str:
@@ -433,6 +454,7 @@ HANDLERS = {
     "gitops/apps/ctfd/secret.example.yaml": h_ctfd,
     "gitops/apps/chall-manager/secret.example.yaml": h_chall_manager,
     "gitops/apps/frontend/secret.example.yaml": h_frontend,
+    "gitops/apps/netbird-sync/secret.example.yaml": h_netbird_sync,
 }
 # Exemples sans valeur générable (jeton Proxmox, OVH, Discord, SMTP, PAT NetBird...) : chiffrés tels quels, CHANGEME à
 # renseigner à la main (liste affichée par `task secrets:pending`).
@@ -440,7 +462,7 @@ EXTERNAL_ONLY = {
     "secrets/ovh.example.yaml", "secrets/proxmox.example.yaml", "secrets/site.example.yaml", "secrets/netbird-tofu.example.yaml",
     "secrets/warpgate-tofu.example.yaml", "secrets/backup-s3.example.yaml",
     "gitops/platform/external-dns/secret.example.yaml", "gitops/platform/proxmox-csi/secret.example.yaml",
-    "gitops/platform/cert-manager/resources/ovh-credentials.example.yaml", "gitops/apps/netbird-sync/secret.example.yaml",
+    "gitops/platform/cert-manager/resources/ovh-credentials.example.yaml",
 }
 
 
@@ -468,7 +490,7 @@ def sort_key(rel: str) -> tuple[int, int, str]:
 def cmd_init(args: argparse.Namespace) -> None:
     need("sops", "age-keygen", "openssl")
     require_recipients()
-    ctx = Ctx()
+    ctx = Ctx(with_optional=args.all)
     created: list[str] = []
     for ex in sorted(find_examples(), key=sort_key):
         target = sops_of(ex)
@@ -646,6 +668,57 @@ def cmd_rotate_cluster_key(_: argparse.Namespace) -> None:
     log("Si l'ancienne clé a fuité, changer aussi les VALEURS des secrets (l'historique Git contient l'ancien chiffrement).")
 
 
+# ---------------------------------------------------------------- secrets des clients OIDC (générés par tofu 30-authentik)
+
+OIDC_STACK = "infra/tofu/stacks/30-authentik"
+# client du contrat -> (fichier sops, clé). Les autres clients (argocd, proxmox) restent manuels (docs/operations).
+OIDC_TARGETS = {
+    "netbird": ("secrets/netbird.sops.yaml", "netbird_server_authentik_client_secret"),
+    "warpgate": ("secrets/warpgate.sops.yaml", "warpgate_sso_client_secret"),
+    "grafana": ("secrets/monitoring.sops.yaml", "grafana_oidc_client_secret"),
+    "frontend": ("gitops/apps/frontend/secret.sops.yaml", "AUTH_AUTHENTIK_SECRET"),
+}
+
+
+def sops_set_value(rel: str, key: str, value: str) -> bool:
+    """Remplace la valeur de `key` dans un sops (déchiffre en mémoire, ré-chiffre par pipe). Retourne True si modifié."""
+    plain = run(sops_cmd("--decrypt", "--output-type", "yaml", rel)).stdout
+    pat = re.compile(r'^(?P<pre>[ \t]*' + re.escape(key) + r':[ \t]*)(?P<val>[^\n#]*?)(?P<post>[ \t]*(?:#.*)?)$', re.M)
+    m = pat.search(plain)
+    if not m:
+        die(f"{rel} : clé '{key}' introuvable")
+    if m.group("val").strip().strip("\"'") == value:
+        return False
+    plain = plain[: m.start()] + m.group("pre") + json.dumps(value) + m.group("post") + plain[m.end():]
+    write_new(rel, sops_encrypt(plain, rel), replace=True)
+    return True
+
+
+def cmd_oidc_sync(args: argparse.Namespace) -> None:
+    need("sops")
+    require_recipients()
+    if args.from_json:
+        raw = sys.stdin.read() if args.from_json == "-" else Path(args.from_json).read_text()
+    else:
+        need("tofu")
+        raw = run(["tofu", f"-chdir={ROOT / OIDC_STACK}", "output", "-json", "oidc_client_secrets"]).stdout
+    try:
+        by_client = json.loads(raw)
+    except json.JSONDecodeError:
+        die("sortie oidc_client_secrets illisible (stack 30-authentik appliquée ?)")
+    done = 0
+    for client, (rel, key) in OIDC_TARGETS.items():
+        value = by_client.get(client) if isinstance(by_client, dict) else None
+        if not isinstance(value, str) or not value:
+            die(f"secret du client OIDC '{client}' absent de la sortie tofu")
+        if not (ROOT / rel).exists():
+            die(f"{rel} absent (task secrets:init)")
+        changed = sops_set_value(rel, key, value)
+        done += 1
+        log(f"{'+' if changed else '='} {rel} : {key} {'mis à jour' if changed else 'inchangé'}")
+    log(f"{done} secret(s) de client OIDC synchronisé(s). Restent manuels : argocd (argocd-oidc) et proxmox (realm OpenID).")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -658,6 +731,9 @@ def main() -> None:
     p.set_defaults(fn=cmd_check)
     sub.add_parser("pending").set_defaults(fn=cmd_pending)
     sub.add_parser("update-keys").set_defaults(fn=cmd_update_keys)
+    p = sub.add_parser("oidc-sync")
+    p.add_argument("--from-json", metavar="FICHIER", help="JSON {client: secret} au lieu de `tofu output` (- = stdin)")
+    p.set_defaults(fn=cmd_oidc_sync)
     sub.add_parser("rotate-cluster-key").set_defaults(fn=cmd_rotate_cluster_key)
     args = ap.parse_args()
     args.fn(args)

@@ -42,9 +42,9 @@ kubectl get svc -A --field-selector spec.type=LoadBalancer -o json \
 2. **`namespace ... sans label pad.io/team`** : l'instance a été créée hors du scénario standard. Le namespace doit porter `pad.io/team` (et `pad.io/challenge`).
 3. **NetBird injoignable** : le LXC `netbird` ou l'`edge` est en cause ; vérifier `https://vpn.example.net`.
 4. **Joueur sans accès malgré une policy** : vérifier qu'il est bien dans le groupe `ctf-team-<id>`. netbird-sync l'y rattache lui-même (membres CTFd de l'équipe, rapprochés des utilisateurs NetBird par e-mail, toutes les minutes) : contrôler que le joueur a bien enrôlé un pair NetBird avec le même e-mail que son compte CTFd, puis les journaux (`membres du groupe d'équipe synchronisés`). Vérifier ensuite que les règles OPNsense autorisent le routing peer vers l'IP d'instance (action manuelle).
-6. **`policy NetBird ouverte à tous` / refus de démarrer** : une policy active a le groupe `All` en source (typiquement `Default`). Aucune écriture NetBird n'est faite tant qu'elle existe. La supprimer dans le dashboard (Access Control > Policies) ; le contrôleur reprend seul. La métrique `netbird_sync_open_policies` doit retomber à 0.
-7. **`ctfd: ... HTTP 401/503`** : `PAD_INTERNAL_TOKEN` du secret netbird-sync diffère de celui de `ctfd-secrets`, ou n'est pas configuré côté CTFd.
-5. **Service bloqué en `Terminating`** : le finalizer `pad.io/netbird-sync` attend le nettoyage NetBird. Corriger l'erreur d'API ; en dernier recours, supprimer la policy et la resource à la main dans NetBird, puis `kubectl patch svc -n inst-<id> <nom> --type=merge -p '{"metadata":{"finalizers":null}}'`.
+5. **`policy NetBird ouverte à tous` / refus de démarrer** : une policy active a le groupe `All` en source (typiquement `Default`). Aucune écriture NetBird n'est faite tant qu'elle existe. La supprimer dans le dashboard (Access Control > Policies) ; le contrôleur reprend seul. La métrique `netbird_sync_open_policies` doit retomber à 0.
+6. **`ctfd: ... HTTP 401/503`** : `PAD_INTERNAL_TOKEN` du secret netbird-sync diffère de celui de `ctfd-secrets`, ou n'est pas configuré côté CTFd.
+7. **Service bloqué en `Terminating`** : le finalizer `pad.io/netbird-sync` attend le nettoyage NetBird. Corriger l'erreur d'API ; en dernier recours, supprimer la policy et la resource à la main dans NetBird, puis `kubectl patch svc -n inst-<id> <nom> --type=merge -p '{"metadata":{"finalizers":null}}'`.
 
 ## Escalade
 

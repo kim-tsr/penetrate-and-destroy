@@ -22,14 +22,21 @@ détaille chaque phase, ses vérifications et sa reprise. Pour la première fois
 | 4 | Image Talos | `task tofu:apply-stack STACK=15-talos-image` | template de VM créé | rejouable |
 | 5 | Règles de pare-feu | `task tofu:apply-stack STACK=60-opnsense-rules` | règles préfixées `pad` dans OPNsense | rejouable |
 | 6 | LXC de services | `task tofu:apply-stack STACK=20-services-lxc` | `pct list` : 5 LXC | rejouable |
-| 7 | Services (Docker Compose) | `task ansible:services` | `docker compose ps` sain dans chaque LXC | rejouable |
-| 8 | Authentik | `task tofu:apply-stack STACK=30-authentik` | les applications OIDC existent | rejouable |
+| 7 | Services, passe 1 (Docker Compose) | `task ansible:services -- --tags monitoring,authentik,edge` | `docker compose ps` sain dans chaque LXC ; Authentik répond sur son URL publique | rejouable |
+| 8 | Authentik | `task tofu:apply-stack STACK=30-authentik` | les applications OIDC existent | rejouable ; **depuis le bastion ou la zone management** si la console d'Authentik est filtrée à l'edge |
+| 8b | Secrets OIDC, puis services, passe 2 | `task secrets:oidc-sync`, puis `task ansible:services -- --tags monitoring,warpgate,netbird` | NetBird et Warpgate démarrent avec leur connecteur OIDC ; Grafana se connecte en SSO | rejouable |
 | 9 | Cluster | `task bootstrap:cluster` | `kubectl get nodes` : tous Ready | reprenable, voir [Bootstrap](../architecture/bootstrap.md) |
 | 10 | ArgoCD | `task bootstrap:gitops` | Applications Synced/Healthy | idempotent |
 | 11 | NetBird | `task tofu:apply-stack STACK=40-netbird` | groupes et networks créés | nécessite le PAT (voir ci-dessous) |
 | 12 | Warpgate | `task tofu:apply-stack STACK=50-warpgate` | rôles et targets créés | nécessite le jeton Warpgate |
 | 13 | DNS | `task tofu:apply-stack STACK=70-dns` | enregistrements publiés | rejouable |
 | 14 | Smoke tests | `task verify` | tout `OK` | rejouable |
+
+!!! info "Pourquoi les services sont déployés en deux passes"
+    Les secrets des clients OIDC de NetBird, Warpgate et Grafana sont **générés par la stack `30-authentik`** (ressources `random_password`), qui exige elle-même Authentik et l'edge en ligne (URL publique d'Authentik).
+    Les rôles NetBird et Warpgate refusent de s'exécuter sans ces secrets. `task up` déploie donc d'abord monitoring, Authentik et l'edge, applique `30-authentik`, recopie les secrets dans les sops
+    (`scripts/sopsctl.py oidc-sync`, sans jamais les afficher), puis déploie Warpgate, NetBird et rejoue monitoring (Grafana). Les rôles sont idempotents : la passe 2 ne change que ce qui dépend des secrets.
+    Le secret OIDC du front (`AUTH_AUTHENTIK_SECRET`) est recopié dans `gitops/apps/frontend/secret.sops.yaml` : le commiter et le pousser avant `bootstrap:gitops`. Celui d'ArgoCD (`argocd-oidc`) reste à poser à la main.
 
 !!! note "Amorçage de NetBird et Warpgate"
     Les stacks 40 et 50 exigent un jeton créé *après* le premier déploiement du service correspondant. Le premier
