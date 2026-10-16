@@ -75,7 +75,7 @@ func runBuild(t *testing.T, add map[string]string) (*mocks, string) {
 
 func TestBuildResources(t *testing.T) {
 	m, info := runBuild(t, map[string]string{
-		"image":            "registry.example/pad/web@sha256:abc",
+		"image":            testImage,
 		"ports":            "8080/tcp",
 		"flag":             "PAD{test}",
 		"pad_source_id":    "7",
@@ -133,16 +133,87 @@ func TestBuildResources(t *testing.T) {
 		t.Errorf("policyTypes: %v", types)
 	}
 	from := nps["ingress"].ArrayValue()[0].ObjectValue()["from"].ArrayValue()
-	if len(from) != 2 || from[0].ObjectValue()["ipBlock"].ObjectValue()["cidr"].StringValue() != "10.20.70.10/32" {
-		t.Errorf("ingress from: %v", from)
+	if len(from) != 1 || from[0].ObjectValue()["ipBlock"].ObjectValue()["cidr"].StringValue() != "10.20.70.10/32" {
+		t.Errorf("ingress from (routing peer seul): %v", from)
 	}
-	egress := nps["egress"].ArrayValue()
-	if len(egress) != 1 {
-		t.Fatalf("egress: %v", egress)
+	if name := np["metadata"].ObjectValue()["name"].StringValue(); name != NetworkPolicyName || name == "default-deny" {
+		t.Errorf("nom de NetworkPolicy en conflit avec celle de Kyverno: %q", name)
 	}
-	for _, p := range egress[0].ObjectValue()["ports"].ArrayValue() {
-		if p.ObjectValue()["port"].NumberValue() != 53 {
-			t.Errorf("egress hors DNS: %v", p)
+	// Aucune règle d'egress (pas de DNS : pas de tunnel DNS vers Internet).
+	if eg, ok := nps["egress"]; ok && eg.IsArray() && len(eg.ArrayValue()) != 0 {
+		t.Errorf("egress doit être vide: %v", eg)
+	}
+}
+
+func TestBuildHardening(t *testing.T) {
+	m, _ := runBuild(t, map[string]string{"image": testImage})
+	dep := m.find(t, "kubernetes:apps/v1:Deployment")
+	pod := dep["spec"].ObjectValue()["template"].ObjectValue()["spec"].ObjectValue()
+	if hu, ok := pod["hostUsers"]; !ok || hu.BoolValue() {
+		t.Errorf("hostUsers doit valoir false: %v", pod["hostUsers"])
+	}
+	if pod["automountServiceAccountToken"].BoolValue() {
+		t.Error("automountServiceAccountToken doit valoir false")
+	}
+	if _, ok := pod["runtimeClassName"]; ok {
+		t.Errorf("pas de runtimeClassName par défaut: %v", pod["runtimeClassName"])
+	}
+	for _, k := range []resource.PropertyKey{"hostNetwork", "hostPID", "hostIPC"} {
+		if pod[k].BoolValue() {
+			t.Errorf("%s doit valoir false", k)
 		}
+	}
+	if pod["securityContext"].ObjectValue()["seccompProfile"].ObjectValue()["type"].StringValue() != "RuntimeDefault" {
+		t.Errorf("seccomp pod: %v", pod["securityContext"])
+	}
+	ctr := pod["containers"].ArrayValue()[0].ObjectValue()
+	sc := ctr["securityContext"].ObjectValue()
+	if sc["allowPrivilegeEscalation"].BoolValue() || sc["privileged"].BoolValue() {
+		t.Errorf("securityContext: %v", sc)
+	}
+	if caps := sc["capabilities"].ObjectValue()["drop"].ArrayValue(); len(caps) != 1 || caps[0].StringValue() != "ALL" {
+		t.Errorf("capabilities: %v", caps)
+	}
+	res := ctr["resources"].ObjectValue()
+	if res["limits"].ObjectValue()["ephemeral-storage"].StringValue() != "256Mi" || res["requests"].ObjectValue()["ephemeral-storage"].StringValue() != "64Mi" {
+		t.Errorf("ephemeral-storage: %v", res)
+	}
+	ns := m.find(t, "kubernetes:core/v1:Namespace")
+	if _, ok := ns["metadata"].ObjectValue()["labels"].ObjectValue()[DNSLabel]; ok {
+		t.Error("pas de label DNS par défaut")
+	}
+}
+
+func TestBuildDNSOptInAndRuntimeClass(t *testing.T) {
+	cfg, err := ParseConfig("Abc123", map[string]string{"image": testImage, "dns": "cluster"}, Policy{
+		LBPoolLabel: "pad.io/lb-pool", LBPool: "instances", FromCIDRs: []string{"10.20.70.10/32"},
+		ImagePrefix: defaultImagePrefix, RuntimeClass: "gvisor", HostUsers: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := &mocks{}
+	err = pulumi.RunErr(func(ctx *pulumi.Context) error {
+		out, err := Build(ctx, cfg)
+		if err != nil {
+			return err
+		}
+		ctx.Export("connection_info", out)
+		return nil
+	}, pulumi.WithMocks("pad-k8s-instance", "test", m))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ns := m.find(t, "kubernetes:core/v1:Namespace")
+	if ns["metadata"].ObjectValue()["labels"].ObjectValue()[DNSLabel].StringValue() != DNSLabelValue {
+		t.Errorf("label DNS absent: %v", ns["metadata"])
+	}
+	dep := m.find(t, "kubernetes:apps/v1:Deployment")
+	pod := dep["spec"].ObjectValue()["template"].ObjectValue()["spec"].ObjectValue()
+	if pod["runtimeClassName"].StringValue() != "gvisor" {
+		t.Errorf("runtimeClassName: %v", pod["runtimeClassName"])
+	}
+	if !pod["hostUsers"].BoolValue() {
+		t.Errorf("hostUsers=true attendu avec PAD_HOST_USERS: %v", pod["hostUsers"])
 	}
 }

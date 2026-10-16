@@ -191,6 +191,15 @@ apps:              # endpoints internes consommés par les apps (ClusterIP)
   ingress_class: traefik             # entrypoint websecure, TLS par défaut de Traefik
   registry: registry.pad.internal    # Zot (= hostnames.registry + internal_domain)
 
+instances:         # politique d'isolation des instances de challenges (scénario chall-manager, Kyverno, kubelet)
+  image_prefix: registry.pad.internal/ctf/   # seul registre/chemin accepté pour les images d'instance (= apps.registry + /ctf/) ; empreinte @sha256 obligatoire
+  limits_max: { cpu: "2", memory: 1Gi, ephemeral_storage: 1Gi }   # plafonds par conteneur (ParseConfig) ; ResourceQuota = 2 x ces plafonds
+  pod_pids_limit: 256                    # kubelet podPidsLimit du pool challenges (anti fork bomb)
+  max_pods_per_node: 40                  # kubelet maxPods du pool challenges
+  host_users: false                      # false = user namespace par pod (K8s >= 1.33, noyau Talos récent) ; true = désactivé (échappatoire)
+  image_verification: audit              # audit | enforce : vérification cosign (Kyverno verify-images) ; enforce seulement une fois la clé réelle fournie
+                                         # (ConfigMap kyverno/pad-image-policy : mode + clé publique ; voir docs/operations/images-signees.md)
+
 monitoring:
   remote_write: http://10.20.50.10:8428/api/v1/write   # VictoriaMetrics
   loki_push: http://10.20.50.10:3100/loki/api/v1/push
