@@ -594,6 +594,7 @@ Avant d'ouvrir l'événement aux joueurs :
 
 | Symptôme | Piste |
 |---|---|
+| SYN reçu par un LXC sans réponse, `InCsumErrors` qui augmente (`grep -A1 ^Tcp: /proc/net/snmp` dans le LXC), `tcpdump -vv` : `incorrect cksum` | déchargements matériels actifs sur les NIC virtio d'OPNsense : le `config.xml` de bootstrap les désactive ; sur un routeur déjà installé, *Interfaces > Settings* (cocher les trois « Disable hardware ... offload ») puis redémarrer |
 | `tofu` : `Error acquiring the state` ou illisible | `TF_VAR_state_passphrase` différent de celui du state ; ne jamais en changer sans détruire |
 | `tofu` : authentification Proxmox | jeton (2.2), `proxmox_url`, `proxmox.insecure` ; `task check:0-prereqs` |
 | Ansible : hôte injoignable | clé dans l'agent ; `ssh_host`/`ssh_user` ; route de l'hôte vers les zones (`task host:route`, rôle `host-tuning`) |

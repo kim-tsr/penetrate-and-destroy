@@ -53,6 +53,9 @@ déjà configurée (`ignore_changes = [cdrom]`).
   (`contracts.yaml`).
 - **Unbound** est actif sur toutes les interfaces internes, avec DNSSEC. Les ACL suivent
   automatiquement les réseaux des interfaces. Il n'y a pas de forwarder (résolution récursive).
+- **Déchargements matériels désactivés** (`disablechecksumoffloading`, `disablesegmentationoffloading`,
+  `disablelargereceiveoffloading`) : avec des NIC virtio sous Proxmox, sinon les paquets routés sortent avec une somme de
+  contrôle TCP/UDP invalide et les invités les jettent (`InCsumErrors` dans `/proc/net/snmp`).
 - **DHCP** est désactivé : toutes les adresses sont statiques.
 - **SSH** : clé uniquement, root autorisé, à l'écoute sur `lan` (mgmt) et l'interface bastion
   seulement. Les clés viennent de `secrets/proxmox.sops.yaml` (`ssh.admin_public_keys`).

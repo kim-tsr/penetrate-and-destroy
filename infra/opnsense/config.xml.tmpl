@@ -11,6 +11,12 @@
   <theme>opnsense</theme>
   <system>
     <optimization>normal</optimization>
+    <!-- NIC virtio sous Proxmox : sans ces trois options, les paquets ROUTÉS (zones <-> zones, WAN) sortent avec une
+         somme de contrôle TCP/UDP invalide et sont jetés par les invités (InCsumErrors) ; seul le trafic vers
+         OPNsense lui-même fonctionne. -->
+    <disablechecksumoffloading>1</disablechecksumoffloading>
+    <disablesegmentationoffloading>1</disablesegmentationoffloading>
+    <disablelargereceiveoffloading>1</disablelargereceiveoffloading>
     <hostname>${hostname}</hostname>
     <domain>${domain}</domain>
     <dnsallowoverride>0</dnsallowoverride>
