@@ -47,7 +47,8 @@ d'Authentik. `bootstrap:gitops` refuse d'injecter la clé opérateur dans le clu
 - **En CI** : la validation de `gitops/` travaille sur une copie, avec une clé age éphémère qui chiffre les
   `*.example.yaml`. La CI n'a **jamais** accès à une vraie clé. gitleaks complète le dispositif.
 - **Valeurs partagées** : certaines valeurs doivent être identiques à deux endroits (secret HMAC entre front et CTFd,
-  mot de passe Valkey...). `task secrets:init` les génère une seule fois et les recopie.
+  jeton interne entre CTFd et netbird-sync, mot de passe Valkey, clé S3 Garage de CTFd...). `task secrets:init` les génère une seule fois et les recopie.
+  Les secrets des clients OIDC sont produits par tofu (`30-authentik`) et recopiés par `task secrets:oidc-sync`.
 
 ## Rotation
 

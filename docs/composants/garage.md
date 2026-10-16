@@ -10,7 +10,8 @@ possible, bien plus petit que MinIO. Décision : [ADR 10](../adr/010-stockage.md
 ## Où elle tourne et comment elle est déployée
 
 Application ArgoCD `gitops/platform/garage` (vague -2), un nœud (`replicationFactor: 1`, base LMDB), données 20 Gi sur `pad-zfs`. Un **Job PostSync** `garage-init` assigne le layout
-(18 Go), crée les buckets `ctfd-uploads` et `backups`, **importe** la clé S3 du Secret `garage-s3-credentials` et lui donne lecture/écriture sur ces deux buckets.
+(18 Go), crée les buckets `ctfd-uploads` et `backups`, **importe** la clé S3 du Secret `garage-s3-credentials` et lui donne lecture/écriture sur ces deux buckets. Si le Secret contient aussi la clé de sauvegarde dédiée (`backup_access_key_id`, facultative), le Job l'importe sous le nom `pad-backups`,
+lui donne seule accès au bucket `backups` et retire cet accès à la clé de CTFd ; `scripts/backup.sh` et `restore.sh` s'en servent alors pour ce bucket.
 
 ## Version épinglée
 

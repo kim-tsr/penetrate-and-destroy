@@ -37,7 +37,7 @@ Stacks : `00-host-network`, `10-router`, `15-talos-image`, `20-services-lxc`, `3
 |---|---|
 | `ansible:deps` | installe les collections épinglées |
 | `ansible:host` | configure l'hôte Proxmox (ARC ZFS, sysctl, DNAT de repli, exporters, Alloy) |
-| `ansible:services` | déploie edge, netbird, warpgate, authentik, monitoring |
+| `ansible:services` | déploie edge, netbird, warpgate, authentik, monitoring (`task up` l'appelle en deux passes par `--tags`, autour de `30-authentik`) |
 | `ansible:syntax`, `ansible:lint` | contrôles sans contact avec le serveur |
 
 ## Bootstrap (`task bootstrap:...`)

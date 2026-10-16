@@ -28,6 +28,10 @@ task backup -- --only mariadb        # un seul des deux
 Le dump est écrit en `*.partial` puis renommé (jamais de fichier tronqué), accompagné de son empreinte `.sha256`. Les
 14 derniers dumps sont gardés (`PAD_BACKUP_KEEP`). La copie Garage est incrémentale et ne supprime jamais.
 
+Clé S3 : `backup.sh` et `restore.sh` lisent le Secret `garage-s3-credentials`. S'il contient la clé de sauvegarde dédiée (`backup_access_key_id`, facultative, voir [Secrets](../SECRETS.md)), elle sert pour le bucket `backups`
+(le seul où elle a des droits) et la clé principale pour `ctfd-uploads` ; sinon la clé principale sert pour les deux. Une erreur 403 sur `backups` signifie que la clé dédiée est dans le Secret mais pas encore importée dans Garage
+(relancer la synchronisation ArgoCD, le Job `garage-init` s'en charge).
+
 ### Chiffrer le dump
 
 Un dump contient des données personnelles (e-mails des joueurs) et des empreintes de mots de passe de comptes locaux.

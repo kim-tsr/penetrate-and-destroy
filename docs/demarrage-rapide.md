@@ -74,8 +74,8 @@ task up
 
 1. réseau de l'hôte (`vmbr2`) et réglages de l'hôte (Ansible) ;
 2. routeur OPNsense, image Talos, règles du pare-feu ;
-3. LXC de services, puis leur configuration par Ansible (edge, NetBird, Warpgate, Authentik, monitoring) ;
-4. configuration d'Authentik (OIDC, groupes, flows) ;
+3. LXC de services, puis leur configuration par Ansible, première passe (monitoring, Authentik, edge) ;
+4. configuration d'Authentik (OIDC, groupes, flows, MFA du staff), recopie des secrets OIDC générés dans les sops (`secrets:oidc-sync`), puis seconde passe Ansible (Warpgate, NetBird, Grafana) ;
 5. cluster `kind` éphémère, Cluster API, cluster `pad-prod`, pivot ;
 6. ArgoCD et l'Application `root`, qui synchronise la plateforme puis les applications ;
 7. NetBird, Warpgate, DNS, puis `task verify` (smoke tests).
@@ -85,8 +85,8 @@ Voir [Tâches `task`](reference/taches.md) et le détail pas à pas dans le [run
 
 ## 4. Actions manuelles
 
-Quelques actions ne sont pas automatisables (policy NetBird par défaut, jeton de `netbird-sync`, règles OPNsense des
-routing peers, fichiers de verrouillage). Elles sont toutes dans
+Quelques actions ne sont pas automatisables (policy NetBird par défaut, jeton de `netbird-sync`, clés du captcha, enrôlement MFA du premier administrateur,
+clé cosign, règle d'accès Zot, règles OPNsense des routing peers, protection de la branche `main`, fichiers de verrouillage). Elles sont toutes dans
 [Actions manuelles après déploiement](operations/actions-post-deploiement.md). Ne pas ouvrir l'événement aux joueurs
 avant de les avoir faites.
 

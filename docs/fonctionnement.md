@@ -49,7 +49,7 @@ flowchart TB
 
 ## 2. `task up` : de l'hôte vide à la plateforme
 
-`task up` (Taskfile racine) enchaîne douze étapes idempotentes. Chacune peut être rejouée : on corrige, on relance, et seule la partie manquante bouge.
+`task up` (Taskfile racine) enchaîne treize étapes idempotentes. Chacune peut être rejouée : on corrige, on relance, et seule la partie manquante bouge.
 Prérequis : `nix develop` ([Nix](composants/nix.md)), clés age ([SOPS](composants/sops-age-ksops.md)), `secrets/proxmox.sops.yaml` et `secrets/site.sops.yaml` renseignés.
 
 ```mermaid
@@ -59,9 +59,10 @@ flowchart LR
     C --> D[15 image Talos]
     D --> E[60 règles OPNsense]
     E --> F[20 LXC]
-    F --> G[ansible:services]
+    F --> G[ansible:services<br/>passe 1]
     G --> H[30 Authentik]
-    H --> I[bootstrap:cluster]
+    H --> H2[oidc-sync, ansible:services<br/>passe 2]
+    H2 --> I[bootstrap:cluster]
     I --> J[bootstrap:gitops]
     J --> K[40 NetBird, 50 Warpgate, 70 DNS]
     K --> L[verify]
@@ -75,8 +76,9 @@ flowchart LR
 | 4 | `tofu 15-talos-image` | schematic Image Factory (qemu-guest-agent), image Talos, **VM template** clonée plus tard par Cluster API | [Talos](composants/talos.md) |
 | 5 | `tofu 60-opnsense-rules` | la matrice de flux : règles « automation » puis blocage final journalisé | [provider OPNsense](composants/tofu-opnsense.md), [Matrice de flux](architecture/flux.md) |
 | 6 | `tofu 20-services-lxc` | cinq LXC Debian 13 non privilégiés (nesting et keyctl) : edge, netbird, warpgate, authentik, monitoring ; génère l'inventaire Ansible | [bpg/proxmox](composants/tofu-bpg-proxmox.md) |
-| 7 | `ansible:services` | dans l'ordre **monitoring, authentik, warpgate, netbird, edge** : durcissement, Docker, Alloy, puis le Compose du service | [Docker](composants/docker-lxc.md), [Traefik edge](composants/traefik-edge.md), [CrowdSec](composants/crowdsec.md), [Authentik](composants/authentik.md), [NetBird](composants/netbird.md), [Warpgate](composants/warpgate.md) |
-| 8 | `tofu 30-authentik` | groupes du contrat, providers OAuth2 et applications (un client par brique), flows d'inscription, forward-auth | [provider Authentik](composants/tofu-authentik.md) |
+| 7 | `ansible:services` (passe 1) | **monitoring, authentik, edge** : durcissement, Docker, Alloy, puis le Compose du service | [Docker](composants/docker-lxc.md), [Traefik edge](composants/traefik-edge.md), [CrowdSec](composants/crowdsec.md), [Authentik](composants/authentik.md), [NetBird](composants/netbird.md), [Warpgate](composants/warpgate.md) |
+| 8 | `tofu 30-authentik` | groupes du contrat, providers OAuth2 et applications (un client par brique, secrets générés), flows d'inscription (captcha), MFA du staff, anti-brute-force, forward-auth | [provider Authentik](composants/tofu-authentik.md) |
+| 8b | `oidc-sync`, `ansible:services` (passe 2) | recopie des secrets OIDC dans les sops, puis **warpgate, netbird** et rejeu de monitoring (Grafana) | [Secrets](SECRETS.md), [NetBird](composants/netbird.md), [Warpgate](composants/warpgate.md) |
 | 9 | `bootstrap:cluster` | cluster `kind` éphémère, Cluster API, `pad-prod`, Cilium, **pivot** (`clusterctl move`), suppression de kind | [kind](composants/kind.md), [Cluster API](composants/cluster-api.md), [CAPMOX](composants/capmox.md), [Cilium](composants/cilium-hubble.md) |
 | 10 | `bootstrap:gitops` | ArgoCD (Helm), Secret `sops-age` (clé du **cluster**), Secret du dépôt, Application `root` | [ArgoCD](composants/argocd.md), [ksops](composants/sops-age-ksops.md) |
 | 11 | `tofu 40-netbird`, `50-warpgate`, `70-dns` | groupes, networks et policies NetBird ; rôles et cibles Warpgate ; enregistrements DNS publics | [NetBird](composants/tofu-netbird.md), [Warpgate](composants/tofu-warpgate.md), [OVH](composants/tofu-ovh.md) |
@@ -86,7 +88,9 @@ Quelques points à retenir :
 
 - **Pourquoi cet ordre.** Le routeur et ses règles précèdent les LXC (il faut une passerelle) ; les LXC précèdent Authentik (l'IdP est un LXC) ; le cluster vient après l'identité, car ArgoCD s'y
   raccorde en OIDC ; NetBird et Warpgate se configurent par API une fois **déployés**, donc après les LXC.
-- **L'edge passe en dernier** dans `ansible:services` : Traefik demande ses certificats ACME DNS-01 quand ses backends existent déjà.
+- **Pourquoi deux passes de services.** Les secrets des clients OIDC de NetBird, Warpgate et Grafana sont générés par `30-authentik`, qui a besoin d'Authentik et de l'edge. La passe 1 déploie monitoring, Authentik et l'edge ;
+  après `30-authentik`, `oidc-sync` recopie les secrets (chiffrés, jamais affichés) et la passe 2 déploie Warpgate et NetBird. Les certificats ACME de l'edge sont en DNS-01 : ils ne dépendent pas de l'existence des backends.
+  `30-authentik` se joue depuis le bastion ou la zone management (la console d'Authentik n'est plus exposée à Internet).
 - **Le bootstrap est reprenable.** Si le pivot échoue, kind est **conservé** ; si le pivot a eu lieu, ses étapes sont sautées ([Bootstrap](architecture/bootstrap.md)).
 - **Après le bootstrap, plus de `kubectl apply` manuel** : ArgoCD déroule le contenu de `gitops/` par vagues (`sync-wave`).
 
@@ -186,15 +190,19 @@ sequenceDiagram
 - **Côté CTFd** ([chall_manager_bridge](composants/ctfd-plugin-chall-manager-bridge.md)) : l'identité transmise est `team-<id>` (ou `user-<id>` en mode individuel). Le plugin vérifie l'équipe, le quota, le cooldown, la pause, puis appelle
   [chall-manager](composants/chall-manager.md). Le flag d'instance n'est jamais renvoyé au front.
 - **Côté chall-manager** : il télécharge le [scénario Pulumi](composants/chall-manager-scenario.md) depuis [Zot](composants/zot.md) et l'exécute avec un ServiceAccount aux droits limités. Le scénario crée un namespace `inst-*` en PSS
-  `restricted`, un pod placé sur le pool **challenges** (taint), un Service `LoadBalancer` dont l'IP vient du pool `instances` de [Cilium](composants/cilium-hubble.md), et une `NetworkPolicy` default-deny
-  (entrée seulement depuis le routing peer et l'overlay NetBird, sortie limitée au DNS). [Kyverno](composants/kyverno.md) contrôle l'admission du pod.
+  `restricted`, un pod placé sur le pool **challenges** (taint, `hostUsers: false`), un Service `LoadBalancer` dont l'IP vient du pool `instances` de [Cilium](composants/cilium-hubble.md), et une `NetworkPolicy` default-deny
+  (entrée seulement depuis le routing peer NetBird, **aucune sortie, DNS compris** : le DNS limité à `cluster.local` est un opt-in `pad.io/dns` réservé aux administrateurs). Le scénario refuse toute image hors de
+  `registry.pad.internal/ctf/` ou sans empreinte `@sha256`. [Kyverno](composants/kyverno.md) génère à la création du namespace le `default-deny`, une `ResourceQuota` et un `LimitRange`, et contrôle l'admission du pod
+  (images du registre interne par empreinte, signatures cosign selon le mode `pad-image-policy`).
 - **Côté NetBird** : [netbird-sync](composants/netbird-sync.md) observe le Service, lit le label `pad.io/team` du namespace, s'assure du groupe `ctf-team-<id>`, de la ressource `/32` de l'instance dans le réseau `pad-instances` et
   de la policy qui relie le groupe à cette ressource. Un finalizer garantit que la policy est retirée **avant** la disparition du Service, et une réconciliation complète a lieu toutes les 10 minutes.
 - **Côté joueur** : il installe le client [NetBird](composants/netbird.md), s'authentifie par Authentik, et atteint l'IP de l'instance via le routing peer situé dans la zone CHALLENGES. Rien n'est exposé à Internet : la zone n'a aucune règle entrante depuis le WAN.
 
 !!! info "Appartenance au groupe `ctf-team-<id>`"
-    La policy part du groupe NetBird de l'équipe. L'appartenance des joueurs à ce groupe est provisionnée par le flux d'onboarding NetBird (voir le runbook [netbird-sync](runbooks/netbird-sync.md)) ; le front lit
-    en lecture seule l'état NetBird du joueur (connecté, enregistré, absent) pour le guider. Le plugin [pad_teams](composants/ctfd-plugin-pad-teams.md) expose l'endpoint interne listant les membres d'une équipe.
+    La policy part du groupe NetBird de l'équipe, et c'est [netbird-sync](composants/netbird-sync.md) qui y rattache les joueurs : il lit les membres de l'équipe dans CTFd (endpoint interne du plugin
+    [pad_teams](composants/ctfd-plugin-pad-teams.md), jeton `PAD_INTERNAL_TOKEN`), les rapproche des utilisateurs NetBird **par e-mail** et aligne les pairs du groupe, à chaque instance et toutes les minutes
+    (un joueur qui quitte l'équipe perd l'accès). Il suppose que la policy NetBird `Default` (tous vers tous) a été supprimée : sinon il **refuse de démarrer** (voir
+    [Actions manuelles](operations/actions-post-deploiement.md)). Le front lit en lecture seule l'état NetBird du joueur (connecté, enregistré, absent) pour le guider.
 
 ### 3.4 Le flag
 
@@ -312,15 +320,16 @@ flowchart TB
 | Couche | Mesures | Briques |
 |---|---|---|
 | Secrets et dépôt | secrets commités chiffrés, deux clés age (opérateur et cluster), state tofu chiffré, aucune valeur de site en clair, scan de secrets | [SOPS](composants/sops-age-ksops.md), [OpenTofu](composants/opentofu.md), [GitHub Actions](composants/github-actions.md) |
-| Chaîne d'approvisionnement | versions et digests épinglés, images signées et scannées, vérification en admission (audit), mises à jour tracées | [cosign et Trivy](composants/cosign-trivy.md), [Kyverno](composants/kyverno.md), [Renovate](composants/renovate-dependabot.md) |
+| Chaîne d'approvisionnement | versions et digests épinglés, images scannées avant push puis signées, images d'instance du registre interne imposées par empreinte, vérification des signatures en admission (audit puis enforce), mises à jour tracées | [cosign et Trivy](composants/cosign-trivy.md), [Kyverno](composants/kyverno.md), [Renovate](composants/renovate-dependabot.md) |
 | Bordure | WAF et bannissement, débit limité, HSTS, CSP minimale | [Traefik edge](composants/traefik-edge.md), [CrowdSec](composants/crowdsec.md) |
 | Réseau | sept zones, matrice « deny all », IDS, DNS interne DNSSEC | [OPNsense](composants/opnsense.md) |
-| Identité et accès | SSO unique, rôles par groupes, bastion avec audit, VPN avec policies par équipe | [Authentik](composants/authentik.md), [Warpgate](composants/warpgate.md), [NetBird](composants/netbird.md) |
+| Identité et accès | SSO unique, rôles par groupes (`infra-admins` seul sur l'infrastructure), MFA obligatoire du staff, anti-brute-force par réputation, captcha à l'inscription, console d'Authentik hors Internet, bastion avec audit, VPN avec policies par équipe | [Authentik](composants/authentik.md), [Warpgate](composants/warpgate.md), [NetBird](composants/netbird.md) |
 | Cluster | OS immuable sans SSH, CNI eBPF chiffré, politiques d'admission, PSS | [Talos](composants/talos.md), [Cilium](composants/cilium-hubble.md), [Kyverno](composants/kyverno.md) |
 | Applications | HMAC anti-rejeu, rate limit côté CTFd et côté BFF, import anti zip-bomb, audit de modération | [sso_bridge](composants/ctfd-plugin-sso-bridge.md), [pad_teams](composants/ctfd-plugin-pad-teams.md), [manager_api](composants/ctfd-plugin-manager-api.md), [front](composants/frontend.md) |
-| Instances | PSS restricted, utilisateur non-root, `drop: ALL`, sortie limitée au DNS, IP non routée depuis Internet | [scénario](composants/chall-manager-scenario.md), [chall-manager](composants/chall-manager.md) |
+| Instances | PSS restricted, utilisateur non-root dans un user namespace, `drop: ALL`, quota et LimitRange, 256 PIDs, aucune sortie (DNS en opt-in), image du registre interne par empreinte, IP non routée depuis Internet | [scénario](composants/chall-manager-scenario.md), [chall-manager](composants/chall-manager.md) |
 
-Deux choix de **disponibilité** sont assumés : la vérification des signatures est en mode audit (le webhook ignore ses pannes) et AppSec ne coupe pas le trafic s'il est injoignable. Ils sont rappelés dans les pages concernées.
+Deux choix de **disponibilité** sont assumés : la vérification des signatures démarre en mode `audit` (le webhook ignore ses pannes ; en `enforce`, un Kyverno indisponible bloque la création de pods des namespaces concernés)
+et AppSec ne coupe pas le trafic s'il est injoignable. Ils sont rappelés dans les pages concernées.
 
 ## 8. Où aller ensuite
 
