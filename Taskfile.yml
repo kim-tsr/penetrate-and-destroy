@@ -93,6 +93,7 @@ tasks:
     cmds:
       - task: tofu:apply-stack
         vars: { STACK: 20-services-lxc }
+      - task: host:lxc-features
       - "{{.CHECK}} 4-lxc"
     env: { PAD_MARK: "1" }
 
@@ -268,9 +269,16 @@ tasks:
     cmds: [{ task: tofu:plan-stack, vars: { STACK: 70-dns, CLI_ARGS: "{{.CLI_ARGS}}" } }]
 
   host:route:
-    desc: "Pose (idempotent, permanent) sur l'hôte Proxmox la route vers les zones via OPNsense ; déjà jouée par phase:2-routeur"
+    desc: "Rejoue le rôle host-tuning (tag host_route) : route de l'hôte vers les zones via OPNsense, permanente et idempotente ; déjà jouée par phase:2-routeur"
     cmds:
-      - "bash {{.PHASE}}/host-route.sh"
+      - task: ansible:host
+        vars: { CLI_ARGS: "--tags host_route" }
+
+  host:lxc-features:
+    desc: "Rejoue le rôle host-tuning (tag host_lxc_features) : keyctl sur les LXC de services (réservé à root@pam côté API) ; déjà jouée par phase:4-lxc"
+    cmds:
+      - task: ansible:host
+        vars: { CLI_ARGS: "--tags host_lxc_features" }
 
   # ===================================================================================================================
   # Destruction et reconstruction (toutes passent par scripts/confirm-destroy.sh)

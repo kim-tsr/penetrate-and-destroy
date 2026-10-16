@@ -6,7 +6,7 @@ module "talos_image" {
   node_name           = local.c.host.node
   talos_version       = local.c.kubernetes.talos_version
   extensions          = var.extensions
-  vmid                = local.c.kubernetes.talos_template_vmid
+  vmid                = local.c.kubernetes.talos_template.vmid
   name                = "talos-${replace(local.c.kubernetes.talos_version, ".", "-")}-template"
   datastore_id        = local.c.host.datastore_vm
   import_datastore_id = local.c.host.datastore_iso

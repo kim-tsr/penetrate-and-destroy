@@ -87,6 +87,9 @@
             export SOPS_AGE_KEY_FILE="''${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/keys.txt}"
             export KUBECONFIG="$PWD/.state/kubeconfig"
             export TALOSCONFIG="$PWD/.state/talosconfig"
+            # libstdc++ de nix : les roues manylinux du venv du harnais CTFd (greenlet) l'attendent et ne la trouvent
+            # pas dans l'environnement nix ; apps/ctfd/scripts/test.sh l'ajoute à LD_LIBRARY_PATH pour ce venv seul.
+            export PAD_LIBSTDCXX_DIR="${pkgs.stdenv.cc.cc.lib}/lib"
             if [ -t 1 ]; then
               echo "PenetrateAndDestroy devshell - task --list" >&2
             fi

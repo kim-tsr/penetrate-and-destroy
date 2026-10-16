@@ -12,7 +12,9 @@ vars:
   # Le play `host` ne cible que le groupe proxmox_host : avant la création des LXC (stack 20-services-lxc), l'inventaire
   # généré n'existe pas encore, on se rabat sur l'inventaire d'exemple (mêmes group_vars, même hôte).
   HOST_INVENTORY:
-    sh: if [ -f "{{.TASKFILE_DIR}}/inventories/prod/hosts.generated.yml" ]; then echo "{{.TASKFILE_DIR}}/inventories/prod/hosts.generated.yml"; else echo "{{.TASKFILE_DIR}}/{{.EXAMPLE_INVENTORY}}"; fi
+    sh: >-
+      f="{{.TASKFILE_DIR}}/inventories/prod/hosts.generated.yml";
+      if [ -f "$f" ]; then echo "$f"; else echo "{{.TASKFILE_DIR}}/{{.EXAMPLE_INVENTORY}}"; fi
   PLAYBOOKS: playbooks/host.yml playbooks/services.yml playbooks/site.yml
   ANSIBLE_LINT:
     sh: command -v ansible-lint >/dev/null 2>&1 && echo ansible-lint || echo "nix shell nixpkgs#ansible-lint -c ansible-lint"
@@ -30,7 +32,9 @@ tasks:
       - ansible-galaxy collection install -r requirements.yml -p .collections
 
   host:
-    desc: "Configure l'hôte Proxmox (ARC ZFS, sysctl, DNAT de repli, exporters, Alloy) ; utilise l'inventaire d'exemple tant que les LXC n'existent pas"
+    desc: >-
+      Configure l'hôte Proxmox (ARC ZFS, import ISO, route vers les zones, keyctl LXC, sysctl, DNAT de repli,
+      exporters, Alloy ; tags host_route, host_lxc_features) ; inventaire d'exemple tant que les LXC n'existent pas
     deps: [deps]
     vars:
       INV: '{{if ne .INVENTORY "inventories/prod/hosts.generated.yml"}}{{.INVENTORY}}{{else}}{{.HOST_INVENTORY}}{{end}}'

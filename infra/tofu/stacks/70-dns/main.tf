@@ -6,7 +6,7 @@ locals {
   wan_ip = local.site.wan.ip
 
   public_hosts = {
-    for k in ["front", "auth", "vpn", "status"] : k => local.c.hostnames[k]
+    for k in local.c.public_hostnames : k => local.c.hostnames[k]
   }
 }
 

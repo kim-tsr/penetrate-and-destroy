@@ -1,0 +1,65 @@
+---
+# Route de l'hôte vers les zones (plage privée commune des zones) via la passerelle mgmt d'OPNsense. Sans elle, les réponses de l'hôte
+# vers les zones partent par sa passerelle par défaut : rebond SSH vers les LXC, API Proxmox appelée par CAPMOX/CSI cassés.
+# Ne peut être posée qu'une fois OPNsense démarré (phase 2) : en phase 1 la tâche est ignorée, puis rejouée par `task host:route`
+# (--tags host_route). Persistance : unité systemd oneshot ; idempotence : la route n'est réécrite que si elle diffère.
+- name: Lire l'état de la VM routeur
+  ansible.builtin.command: "qm status {{ host_tuning_router_vmid }}"
+  register: host_tuning_router_state
+  changed_when: false
+  failed_when: false
+
+- name: Déterminer si la route peut être posée
+  ansible.builtin.set_fact:
+    host_tuning_route_ready: "{{ host_tuning_router_state.rc == 0 and 'running' in host_tuning_router_state.stdout }}"
+
+- name: Signaler que la route est reportée
+  ansible.builtin.debug:
+    msg: >-
+      VM routeur {{ host_tuning_router_vmid }} absente ou arrêtée : route vers {{ host_tuning_route_cidr }} reportée
+      (rejouée par la phase 2 : task host:route).
+  when: not host_tuning_route_ready
+
+- name: Déployer l'unité pad-route
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/pad-route.service
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Géré par Ansible (rôle host-tuning) - contracts: zones.mgmt, host.zones_bridge
+      [Unit]
+      Description=PenetrateAndDestroy - route vers les zones via OPNsense
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/usr/sbin/ip route replace {{ host_tuning_route_cidr }} via {{ host_tuning_route_gw }} dev {{ host_tuning_route_dev }}
+      ExecStop=-/usr/sbin/ip route del {{ host_tuning_route_cidr }} via {{ host_tuning_route_gw }} dev {{ host_tuning_route_dev }}
+
+      [Install]
+      WantedBy=multi-user.target
+  register: host_tuning_route_unit
+  when: host_tuning_route_ready
+
+- name: Activer pad-route au démarrage
+  ansible.builtin.systemd_service:
+    name: pad-route
+    enabled: true
+    daemon_reload: "{{ host_tuning_route_unit is changed }}"
+  when: host_tuning_route_ready
+
+- name: Lire la route courante
+  ansible.builtin.command: "ip route show {{ host_tuning_route_cidr }}"
+  register: host_tuning_route_current
+  changed_when: false
+  when: host_tuning_route_ready
+
+- name: Poser la route maintenant
+  ansible.builtin.command: "ip route replace {{ host_tuning_route_cidr }} via {{ host_tuning_route_gw }} dev {{ host_tuning_route_dev }}"
+  changed_when: true
+  when:
+    - host_tuning_route_ready
+    - "('via ' ~ host_tuning_route_gw) not in host_tuning_route_current.stdout"

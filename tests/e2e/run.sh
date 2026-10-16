@@ -24,7 +24,7 @@ STATE="$ROOT/.state"
 CTFD="http://127.0.0.1:${E2E_CTFD_PORT:-8000}"
 CM="http://127.0.0.1:${E2E_CM_PORT:-8080}"
 FRONT="http://127.0.0.1:${E2E_FRONT_PORT:-3000}"
-SSO_SECRET="e2e-only-sso-shared-secret" # = x-e2e-secrets dans docker-compose.yml (valeur jetable)
+SSO_SECRET="e2e-only-sso-shared-secret-0000000" # = x-e2e-secrets dans docker-compose.yml (valeur jetable)
 ADMIN_PASSWORD="${E2E_ADMIN_PASSWORD:-e2e-only-admin-pass-1}"
 FLAG="PAD{e2e-static-flag}"
 

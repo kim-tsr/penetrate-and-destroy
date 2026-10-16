@@ -85,7 +85,6 @@ kubernetes:
   kubernetes_version: v1.34.1
   control_plane_endpoint: 10.20.60.5     # VIP Talos
   vmid_range: [300, 399]
-  talos_template_vmid: 399               # template VM Talos (stack 15-talos-image), cloné par CAPMOX : exclure de l'allocation
   control_plane: { replicas: 1, cores: 2, memory_mb: 2560, disk_gb: 20, ip_pool: [10.20.60.10, 10.20.60.14] }
   pools:
     platform:   { zone: prod,       replicas: 2, cores: 2, memory_mb: 3584, disk_gb: 40, ip_pool: [10.20.60.20, 10.20.60.39] }
@@ -100,7 +99,7 @@ kubernetes:
   # chaque CiliumLoadBalancerIPPool sélectionne les Services portant ce label = nom du pool.
   lb_pool_label: pad.io/lb-pool
   ingress_ip: 10.20.60.200
-  # Template VM Talos créé par tofu (stack 15-talos-image), cloné par CAPMOX. VMID hors vmid_range (non géré par CAPI).
+  # Template VM Talos créé par tofu (stack 15-talos-image), cloné par CAPMOX. Source unique du VMID (stack 15 + templateID des manifests CAPI) ; volontairement hors vmid_range (299 < 300) pour ne jamais être alloué par CAPMOX.
   talos_template: { name: talos-v1.11.3-template, vmid: 299 }
   # Schematic Image Factory : siderolabs/qemu-guest-agent uniquement (POST https://factory.talos.dev/schematics).
   talos_schematic_id: ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515
@@ -119,6 +118,8 @@ acme:                                     # cert-manager (ClusterIssuers ACME DN
   email: CHANGEME@CHANGEME.example.net
   ovh_endpoint: ovh-eu                    # ovh-eu | ovh-ca selon le compte OVH qui porte la zone DNS
   webhook_group_name: acme.pad.io
+
+public_hostnames: [front, auth, vpn, status]   # clés de `hostnames` servies par l'edge : A publics (70-dns) ET overrides Unbound vers l'IP interne de l'edge (split-DNS, 60-opnsense-rules)
 
 hostnames:          # sous-domaines de `domain`
   front:      ctf          # public  -> edge -> 10.20.60.200

@@ -1,0 +1,25 @@
+---
+# Le contenu « import » du datastore ISO est exigé par la stack 15-talos-image (image disque Talos). `pvesm set --content`
+# REMPLACE la liste : on relit l'existant et on y ajoute « import » (idempotent).
+- name: Lire la configuration du datastore ISO
+  ansible.builtin.command: "pvesh get /storage/{{ host_tuning_iso_datastore | quote }} --output-format json"
+  register: host_tuning_iso_cfg
+  changed_when: false
+
+- name: Calculer la liste de contenus
+  ansible.builtin.set_fact:
+    host_tuning_iso_type: "{{ (host_tuning_iso_cfg.stdout | from_json).type }}"
+    host_tuning_iso_content: "{{ ((host_tuning_iso_cfg.stdout | from_json).content | default('') | split(',') | reject('equalto', '') | list) }}"
+
+- name: Refuser un stockage ISO qui ne peut pas porter « import »
+  ansible.builtin.assert:
+    that: host_tuning_iso_type in ['dir', 'nfs', 'cifs', 'cephfs', 'btrfs']
+    fail_msg: >-
+      Le datastore « {{ host_tuning_iso_datastore }} » est de type {{ host_tuning_iso_type }} : le contenu « import » exige un stockage de
+      fichiers (dir, nfs, cifs...). Choisir un autre host.datastore_iso (task site:set).
+
+- name: Ajouter « import » au contenu du datastore ISO
+  ansible.builtin.command: >-
+    pvesm set {{ host_tuning_iso_datastore | quote }} --content {{ (host_tuning_iso_content + ['import']) | join(',') | quote }}
+  changed_when: true
+  when: "'import' not in host_tuning_iso_content"

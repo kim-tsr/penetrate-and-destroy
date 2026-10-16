@@ -25,7 +25,7 @@ Pilote le [front](frontend.md) ; complète vitest + msw (tests unitaires) et la 
 
 ## Sécurité
 
-Le mode mock est refusé en production (`NODE_ENV=production`) ; aucun secret réel n'est utilisé.
+Le mode mock est refusé en production (`NODE_ENV=production`) ; aucun secret réel n'est utilisé. La pile `tests/e2e` construit le front avec la cible dédiée `e2e` du Dockerfile (`next dev`, jamais publiée) et non l'image de production, dont le garde-fou reste intact.
 
 ## Supervision
 
