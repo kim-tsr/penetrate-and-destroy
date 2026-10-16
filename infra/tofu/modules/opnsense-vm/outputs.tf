@@ -10,7 +10,7 @@ output "interface_by_zone" {
 
 output "config_sha256" {
   description = "SHA-256 du config.xml rendu (change => nouvel ISO)."
-  value       = local.config_sha
+  value       = nonsensitive(local.config_sha) # empreinte seule : le contenu (secrets) reste sensible
 }
 
 output "config_iso_file_id" {
