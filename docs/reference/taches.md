@@ -54,6 +54,7 @@ Toutes passent par `scripts/confirm-destroy.sh` (taper `destroy`, ou `PAD_CONFIR
 | Tâche | Effet |
 |---|---|
 | `site:set -- cle=valeur…` | valeurs non secrètes à mettre dans le dépôt (`node`, `datastore_vm`, `datastore_vm_type`, `datastore_iso`, `domain`, `acme_email`, `git_repo`, `git_ssh`, `dns_zone`, `zones_bridge`, `transit_bridge`, `wan_mode`) : contrat + manifests marqués (`zones_bridge`/`transit_bridge` : à changer si l'hôte utilise déjà `vmbr2`/`vmbr1`, la phase 0 refuse un pont déjà utilisé) ; `-- --show` |
+| `task site:sync` | après `git pull upstream main` : réaligne les fichiers `gitops/` sur les valeurs de votre contrat (domaine, dépôt, nœud, stockages) |
 | `site:node -- <nom>` | alias de `site:set -- node=<nom>` |
 | `backup` / `restore` | MariaDB + Garage : [runbook](../runbooks/backup-restore.md) |
 | `e2e` | pile e2e locale (docker compose) et smoke tests ; `task e2e -- down` l'arrête |

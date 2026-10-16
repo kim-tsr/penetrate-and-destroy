@@ -34,6 +34,35 @@ KEYS = {
 }
 
 
+# Valeurs du dépôt PUBLIC (infra/contracts.yaml d'origine). Un fichier gitops arrivé par `git pull upstream main` porte
+# ces valeurs : `--sync` les remplace par celles du contrat local (les lignes marquées « # contracts: ») et rattrape aussi
+# les nouveaux fichiers. Garder alignées sur le contrat public (`site-set.py --check-defaults`, dans le dépôt public).
+UPSTREAM_DEFAULTS = {
+    "node": "pve",
+    "datastore_vm": "local-zfs",
+    "datastore_iso": "local",
+    "domain": "CHANGEME.example.net",
+    "acme_email": "CHANGEME@CHANGEME.example.net",
+    "git_repo": "https://github.com/kim-tsr/penetrate-and-destroy.git",
+    "git_ssh": "git@github.com:kim-tsr/penetrate-and-destroy.git",
+}
+
+
+def sync_from_defaults():
+    """Réécrit dans gitops/ les valeurs par défaut du dépôt public par celles du contrat local (idempotent)."""
+    total = 0
+    for k, default in UPSTREAM_DEFAULTS.items():
+        path, marker, mode, _ = KEYS[k]
+        cur = get(path)
+        if not cur or cur == default:
+            continue
+        files = replace_domain(default, cur) if mode == "domain" else replace_marked(marker, default, cur, mode)
+        total += len(files)
+        for f in files:
+            print(f"  {k} : {f.relative_to(ROOT)}")
+    print(f"site:sync : {total} fichier(s) gitops réaligné(s) sur le contrat local.")
+
+
 def die(msg):
     print(f"ERREUR {msg}", file=sys.stderr)
     sys.exit(1)
@@ -124,6 +153,16 @@ def main():
     if not args or args in (["-h"], ["--help"]):
         print(__doc__)
         sys.exit(0 if args else 2)
+    if args == ["--sync"]:
+        sync_from_defaults()
+        subprocess.run(["git", "-C", str(ROOT), "diff", "--stat"], check=False)
+        return
+    if args == ["--check-defaults"]:
+        bad = [k for k, v in UPSTREAM_DEFAULTS.items() if get(KEYS[k][0]) != v]
+        if bad:
+            die(f"UPSTREAM_DEFAULTS désaligné du contrat pour : {', '.join(bad)} (dépôt public uniquement)")
+        print("UPSTREAM_DEFAULTS aligné sur le contrat")
+        return
     if args == ["--show"]:
         for k, spec in KEYS.items():
             print(f"{k:18} = {get(spec[0])}")
@@ -142,7 +181,7 @@ def main():
         path, marker, mode, _ = KEYS[k]
         old = get(path)
         if old == v:
-            print(f"{k} vaut déjà « {v} » : rien à faire")
+            print(f"{k} vaut déjà « {v} » dans le contrat (pour réaligner les fichiers gitops : task site:sync)")
             continue
         set_contract(path, v)
         files = []

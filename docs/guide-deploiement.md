@@ -286,6 +286,12 @@ task site:set -- git_repo=https://github.com/<vous>/<fork>.git git_ssh=git@githu
 | `zones_bridge`, `transit_bridge` | noms des ponts créés en phase 1 (`vmbr2`, `vmbr1` par défaut) ; à changer si l'hôte les utilise déjà (`ip -br link`) | `host.zones_bridge`, `host.transit_bridge` |
 | `wan_mode` | `routed_ip` (IP supplémentaire routée vers OPNsense) ou `nat` (IP de l'hôte, ports redirigés) | `wan.mode` |
 
+!!! tip "Après chaque `git pull upstream main` : `task site:sync`"
+    Un fichier `gitops/` nouveau ou modifié dans le dépôt public arrive avec les valeurs par défaut (domaine `CHANGEME.example.net`,
+    dépôt public, nœud `pve`, stockage `local-zfs`). `task site:sync` les remplace par celles de votre contrat, dans toutes les lignes
+    marquées `# contracts:` (et toutes les occurrences du domaine). Idempotent ; à commiter puis pousser avant la phase 10.
+
+
 La commande est **idempotente** : elle met à jour le contrat puis chaque ligne de `gitops/` marquée `# contracts: …`, et affiche la liste des fichiers
 modifiés. Ensuite : `git diff`, `bash scripts/validate-gitops.sh` (si vous avez les outils), puis **commit et push dans votre fork**.
 OpenTofu lit les noms de stockage directement dans le contrat : aucune valeur n'y est codée en dur.

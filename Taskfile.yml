@@ -361,6 +361,11 @@ tasks:
   # ===================================================================================================================
   # Valeurs de site, sauvegardes, tests
   # ===================================================================================================================
+  site:sync:
+    desc: "Après « git pull upstream main » : réécrit dans gitops/ les valeurs par défaut du dépôt public par celles de votre contrat (domaine, dépôt, nœud, stockages)"
+    cmds:
+      - "python3 -I {{.ROOT_DIR}}/scripts/site-set.py --sync"
+
   site:set:
     desc: "Valeurs de site non secrètes à mettre dans Git : task site:set -- node=pve datastore_vm=vmdata datastore_iso=local datastore_vm_type=zfspool wan_mode=nat domain=... (--show pour les voir)"
     cmds:
