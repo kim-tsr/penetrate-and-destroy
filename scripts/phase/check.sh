@@ -268,9 +268,26 @@ c_0_prereqs() {
       && pass "nœud Proxmox « $(node) » présent (host.node)" || fail "nœud « $(node) » introuvable" "task site:node -- <nom exact du nœud>"
     check_privileges
     check_storage
+    check_bridges_free
   else
     fail "API Proxmox injoignable ou jeton refusé" "proxmox_url (site.sops.yaml), api_token (proxmox.sops.yaml), pare-feu du port 8006 ; curl -k <url>/api2/json/version"
   fi
+}
+
+# Les ponts que la phase 1 crée ne doivent pas déjà exister sur l'hôte, sauf s'ils viennent du dépôt (commentaire « pad: »).
+check_bridges_free() {
+  local net b names
+  net=$(pve_get "/nodes/$(node)/network" 2>/dev/null) || { warn "interfaces réseau de l'hôte non lisibles" "pvesh get /nodes/$(node)/network"; return; }
+  names=$(c '.host.zones_bridge')
+  [[ "$(c '.wan.mode')" == nat ]] && names+=" $(c '.host.transit_bridge')"
+  for b in $names; do
+    if jq -e --arg b "$b" '.data[] | select(.iface==$b and ((.comments // "") | startswith("pad:") | not))' <<<"$net" >/dev/null 2>&1; then
+      fail "le pont ${b} existe déjà sur l'hôte et n'appartient pas à la plateforme" \
+        "choisir un nom libre : task site:set -- $( [[ "$b" == "$(c '.host.zones_bridge')" ]] && echo zones_bridge || echo transit_bridge )=vmbrN (vérifier avec ip -br link)"
+    else
+      pass "pont ${b} libre ou déjà créé par la plateforme"
+    fi
+  done
 }
 
 check_privileges() {

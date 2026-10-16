@@ -253,6 +253,7 @@ task site:set -- git_repo=https://github.com/<vous>/<fork>.git git_ssh=git@githu
 | `acme_email` | contact Let's Encrypt | `acme.email` |
 | `git_repo`, `git_ssh` | dépôt suivi par ArgoCD | `git.repo`, `git.ssh` |
 | `dns_zone` | zone OVH qui contient `domain` quand la plateforme vit sur un sous-domaine (ex. `domain=lab.mondomaine.fr dns_zone=mondomaine.fr` : `ctf.lab.mondomaine.fr`...) ; vide = `domain` est la zone | `dns_zone` |
+| `zones_bridge`, `transit_bridge` | noms des ponts créés en phase 1 (`vmbr2`, `vmbr1` par défaut) ; à changer si l'hôte les utilise déjà (`ip -br link`) | `host.zones_bridge`, `host.transit_bridge` |
 | `wan_mode` | `routed_ip` (IP supplémentaire routée vers OPNsense) ou `nat` (IP de l'hôte, ports redirigés) | `wan.mode` |
 
 La commande est **idempotente** : elle met à jour le contrat puis chaque ligne de `gitops/` marquée `# contracts: …`, et affiche la liste des fichiers
