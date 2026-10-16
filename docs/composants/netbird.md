@@ -32,7 +32,11 @@ dans `infra/ansible/inventories/prod/group_vars/all/versions.yml`. Provider tofu
 - Exposé par [Traefik edge](traefik-edge.md) (gRPC en h2c, `/relay`, `/api`, `/oauth2`, dashboard).
 - Authentifie via [Authentik](authentik.md) (connecteur OIDC, groupes JWT).
 - [netbird-sync](netbird-sync.md) crée par API les ressources et policies d'instance, par équipe.
-- Les routing peers donnent accès à la zone CHALLENGES et au LXC bastion.
+- Les routing peers donnent accès à la zone CHALLENGES et au LXC bastion. Ils sont enrôlés par le rôle Ansible `netbird-agent`
+  (phase 11) : LXC dédié `nbrouter` (`10.20.70.10`, zone CHALLENGES, 256 Mo) pour les joueurs, agent sur le LXC `warpgate`
+  pour le staff. Choix du LXC plutôt que d'un agent dans le cluster : IP fixe du contrat (`PAD_FROM_CIDRS`), indépendance du
+  cycle de vie de Kubernetes (le VPN survit à la reconstruction du cluster) et pas de pod privilégié sur les workers.
+  Setup keys : créées par `40-netbird`, recopiées par `task netbird:sync-keys` dans `secrets/netbird-agent.sops.yaml`.
 
 ## Sécurité
 

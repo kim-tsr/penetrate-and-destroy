@@ -43,6 +43,12 @@ Les secrets des clients OIDC (`netbird_server_authentik_client_secret`, `warpgat
 `task up` l'exécute pour vous entre `30-authentik` et la seconde passe d'Ansible (voir [Up](runbooks/up.md)) ; la commande est idempotente et sert aussi après une rotation.
 Le secret d'ArgoCD suit le même chemin : `oidc-sync` renseigne `clientSecret` dans `gitops/platform/argocd/secret-oidc.sops.yaml` (Secret `argocd-oidc`, label `app.kubernetes.io/part-of: argocd`), déchiffré par ksops et appliqué par l'Application `root` (le chart argo-cd ne le crée pas). Reste manuel : `proxmox` (realm OpenID).
 
+## Setup keys des routing peers (générées par tofu)
+
+`secrets/netbird-agent.sops.yaml` (`netbird_agent_setup_key_challenges`, `netbird_agent_setup_key_bastion`) reste à `CHANGEME` jusqu'à
+`task netbird:sync-keys` (`python3 scripts/sopsctl.py netbird-keys-sync`), qui recopie la sortie sensible `routing_peer_setup_keys` de `40-netbird`
+(déchiffrée en mémoire, jamais affichée). La phase 11 l'exécute avant d'enrôler les agents ; `task netbird:rotate-keys` recrée les clés expirées.
+
 ## CI publique : jamais d'accès à la vraie clé
 
 `kustomize build` exige les `secret.sops.yaml`, que seul l'opérateur peut produire. `scripts/validate-gitops.sh` (CI et `task lint`) travaille sur une **copie temporaire** de `gitops/` : il supprime tout `*.sops.yaml`, génère une clé age **éphémère**, chiffre chaque `*.example.yaml` avec elle, puis lance `kustomize build` (ksops) et `kubeconform`. Les vrais fichiers ne sont ni lus ni modifiés ; la clé éphémère disparaît en sortie. Seule la forme des manifestes est validée (valeurs `CHANGEME`).

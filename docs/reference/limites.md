@@ -27,7 +27,6 @@ tests unitaires, mocks). Les points suivants restent à confirmer au premier dé
 | Clés S3 de CTFd | recopiées à la main : le Job `garage-init` doit lire des clés fournies en SOPS (secret `garage-s3-credentials`) |
 | Statut de synchronisation Git | le front le lit via `PAD_GIT_SYNC_STATUS_URL`, mais la CI du dépôt privé qui le publie n'est pas fournie |
 | Blocages OPNsense | pas encore collectés dans Loki (syslog) ; consultables dans l'interface d'OPNsense |
-| Règles des routing peers | pas encore dans la stack `60-opnsense-rules` ([action manuelle](../operations/actions-post-deploiement.md)) |
 | Policy NetBird « Default » | à supprimer à la main |
 | PAT de `netbird-sync` | à créer à la main |
 | Alertmanager | pas encore derrière le forward-auth Authentik |

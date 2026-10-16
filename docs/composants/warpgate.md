@@ -28,7 +28,7 @@ Docker Compose dans le LXC `warpgate` (rôle `warpgate`), données persistantes 
 
 - Joignable par le staff **via NetBird** (policy `staff-vers-bastion`), exposé sous `bastion.<domaine>`.
 - Atteint les autres zones selon M6 de la [matrice](../architecture/flux.md) (SSH, HTTPS, API Kubernetes, API Talos).
-- Un agent NetBird tourne sur ce LXC comme routing peer du réseau `pad-bastion`.
+- Un agent NetBird tourne sur ce LXC comme routing peer du réseau `pad-bastion` (rôle `netbird-agent`, phase 11 ; `/dev/net/tun` ajouté par le rôle `lxc-tun`).
 
 ## Sécurité
 
