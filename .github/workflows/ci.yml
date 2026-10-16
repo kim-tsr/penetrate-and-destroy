@@ -378,6 +378,10 @@ jobs:
       - name: k6 inspect (valide le script et ses options)
         run: nix develop -c bash -euo pipefail -c 'k6 inspect tests/load/pad.js >/dev/null && PAD_PROFILE=load k6 inspect tests/load/pad.js >/dev/null'
       - name: smoke e2e (docker compose)
-        # Non bloquant jusqu'à la première validation sur un runner avec le front livré (apps/frontend/Dockerfile).
-        continue-on-error: true
-        run: nix develop -c tests/e2e/run.sh all
+        # Bloquant. Outils de l'hôte du runner (docker compose v2, curl, openssl, python3), sans nix develop : moins
+        # de pièces mobiles. En cas d'échec, run.sh affiche l'état et les journaux de chaque service (groupes repliables).
+        timeout-minutes: 40
+        run: tests/e2e/run.sh all
+      - name: nettoyage de la pile e2e
+        if: always()
+        run: tests/e2e/run.sh down || true
