@@ -159,7 +159,7 @@ route_ok() {
     pass "l'hôte route 10.20.0.0/16 vers les zones via ${gw}"
   else
     fail "l'hôte n'a pas de route vers les zones via ${gw} (réponses de CAPMOX/CSI, rebond SSH vers les LXC)" \
-      "task host:route (pose la route et la rend permanente) ; à la main sur l'hôte : ip route replace $(c '.zones.mgmt.cidr' | cut -d. -f1-2).0.0/16 via ${gw} dev $(c '.host.zones_bridge').$(c '.zones.mgmt.vlan')"
+      "task host:route (rôle host-tuning, tag host_route : pose la route et la rend permanente) ; à la main sur l'hôte : ip route replace $(c '.zones.mgmt.cidr' | cut -d. -f1-2).0.0/16 via ${gw} dev $(c '.host.zones_bridge').$(c '.zones.mgmt.vlan')"
   fi
 }
 
@@ -311,12 +311,15 @@ check_storage() {
   else
     content=$(jq -r '.content' <<<"$row")
     local missing=()
-    for t in iso vztmpl import; do [[ ",${content}," == *",${t},"* ]] || missing+=("$t"); done
+    for t in iso vztmpl; do [[ ",${content}," == *",${t},"* ]] || missing+=("$t"); done
     if ((${#missing[@]})); then
-      fail "stockage ${dsi} : types de contenu manquants : ${missing[*]} (actuel : ${content})" "sur l'hôte : pvesm set ${dsi} --content ${content},${missing[*]// /,} (« import » est exigé par la phase 3 et n'est pas posé par Ansible)"
+      fail "stockage ${dsi} : types de contenu manquants : ${missing[*]} (actuel : ${content})" "sur l'hôte : pvesm set ${dsi} --content ${content},${missing[*]// /,}"
     else
-      pass "stockage ${dsi} : contenu iso, vztmpl, import présents"
+      pass "stockage ${dsi} : contenu iso, vztmpl présents"
     fi
+    # « import » (phase 3) est posé automatiquement par le rôle host-tuning en phase 1 : simple avertissement avant.
+    [[ ",${content}," == *",import,"* ]] && pass "stockage ${dsi} : contenu import présent" \
+      || warn "stockage ${dsi} : contenu import absent (actuel : ${content})" "posé par la phase 1 (rôle host-tuning, tag host_iso_import : task ansible:host)"
   fi
   local mem need
   mem=$(pve_get "/nodes/$(node)/status" 2>/dev/null | jq -r '.data.memory.total // 0')
@@ -369,8 +372,12 @@ c_1_reseau() {
   section "Réglages de l'hôte (task ansible:host)"
   local arc want
   want=$(c '.host.zfs_arc_max_bytes')
-  arc=$(host_ssh cat /sys/module/zfs/parameters/zfs_arc_max 2>/dev/null || echo "")
-  [[ "$arc" == "$want" ]] && pass "ARC ZFS plafonné à ${want} octets" || fail "zfs_arc_max = ${arc:-illisible}, attendu ${want}" "task ansible:host (idempotent) ; un redémarrage n'est pas requis, le paramètre est appliqué à chaud"
+  if host_ssh test -e /sys/module/zfs/parameters/zfs_arc_max 2>/dev/null; then
+    arc=$(host_ssh cat /sys/module/zfs/parameters/zfs_arc_max 2>/dev/null || echo "")
+    [[ "$arc" == "$want" ]] && pass "ARC ZFS plafonné à ${want} octets" || fail "zfs_arc_max = ${arc:-illisible}, attendu ${want}" "task ansible:host (idempotent) ; un redémarrage n'est pas requis, le paramètre est appliqué à chaud"
+  else
+    info "ZFS non chargé sur l'hôte : plafond de l'ARC sans objet"
+  fi
   local port
   port=$(c '.monitoring.exporters.node')
   host_ssh "ss -ltn | grep -q ':${port} '" 2>/dev/null && pass "node-exporter écoute sur le port ${port}" || fail "rien n'écoute sur le port ${port} de l'hôte" "systemctl status prometheus-node-exporter ; task ansible:host"
@@ -443,6 +450,8 @@ c_4_lxc() {
     ip=$(svc_ip "$s")
     st=$(vm_status "$id" lxc)
     if [[ "$st" == running ]]; then
+      host_ssh "sudo -n pct config ${id}" 2>/dev/null | grep -Eq '^features:.*keyctl=1' \
+        || fail "LXC ${id} ${s} : feature keyctl absente (Docker échouera)" "task host:lxc-features (le jeton API ne peut pas poser keyctl : root@pam seulement)"
       if lxc_ssh "$ip" true 2>/dev/null; then
         pass "LXC ${id} ${s} : running, SSH root OK par rebond (${ip})"
       else
