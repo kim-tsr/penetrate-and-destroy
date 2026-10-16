@@ -15,6 +15,14 @@ vars:
     chal-web-sqli-instanced|challenges/web-sqli-instanced|challenges/web-sqli-instanced/Dockerfile
 
 tasks:
+  pin-digests:
+    desc: "Épingle dans les manifests les empreintes des images publiées sur ghcr (tag = sha court ; défaut : HEAD) : task apps:pin-digests -- [tag]"
+    cmds:
+      - |
+        owner=$(git -C {{.ROOT_DIR}} remote get-url origin | sed -E 's#.*github.com[:/]([^/]+)/.*#\1#' | tr '[:upper:]' '[:lower:]')
+        tag="{{.CLI_ARGS}}"; [ -n "$tag" ] || tag=$(git -C {{.ROOT_DIR}} rev-parse --short HEAD)
+        cd {{.ROOT_DIR}} && scripts/pin-image-digests.sh "$owner" "$tag" && git diff --stat -- gitops/apps challenges
+
   build:
     desc: Construit toutes les images présentes
     cmds:

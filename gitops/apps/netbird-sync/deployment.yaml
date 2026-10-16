@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: netbird-sync
   annotations:
-    checkov.io/skip1: CKV_K8S_38=contrôleur : lit les Pods/Namespaces via l'API Kubernetes avec le jeton de son ServiceAccount (RBAC minimal)
+    checkov.io/skip1: "CKV_K8S_38=contrôleur : lit les Pods/Namespaces via l'API Kubernetes avec le jeton de son ServiceAccount (RBAC minimal)"
   labels: &labels
     app.kubernetes.io/name: netbird-sync
     app.kubernetes.io/component: controller
@@ -31,7 +31,7 @@ spec:
       containers:
         - name: netbird-sync
           # Référence par empreinte obligatoire (Kyverno verify-images, CONVENTIONS.md). Tag et empreinte sont tenus à jour par la
-          # PR automatique `ci/pin-image-digests` (images.yml, scripts/pin-image-digests.sh) : ne pas les éditer à la main.
+          # `task apps:pin-digests` (scripts/pin-image-digests.sh) : ne pas les éditer à la main.
           image: ghcr.io/kim-tsr/pad-netbird-sync:5459b3a@sha256:4972edb7212c32a4fb8b5dbdb7c31cedaf776ac9d2d834ff2223d2cb61650f2a
           args: ["--resync=10m"]
           env:

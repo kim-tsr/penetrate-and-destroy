@@ -6,7 +6,7 @@
   "packageRules": [
     { "matchUpdateTypes": ["major"], "dependencyDashboardApproval": true },
     {
-      "description": "Images du projet : tag (sha court) et empreinte sont réécrits par images.yml (job pin-digests, PR ci/pin-image-digests).",
+      "description": "Images du projet : tag (sha court) et empreinte sont réécrits par images.yml (task apps:pin-digests).",
       "matchPackageNames": ["/^ghcr\\.io/[^/]+/pad-/", "/^registry\\.pad\\.internal/ctf//"],
       "enabled": false
     }

@@ -66,7 +66,7 @@ spec:
       containers:
         - name: frontend
           # Référence par empreinte obligatoire (Kyverno verify-images, CONVENTIONS.md). L'empreinte nulle ci-dessous est un
-          # PLACEHOLDER (image pas encore publiée) : la PR automatique `ci/pin-image-digests` (images.yml,
+          # PLACEHOLDER (image pas encore publiée) : `task apps:pin-digests` (
           # scripts/pin-image-digests.sh) la remplace dès la première publication ; l'image ne démarre pas tant qu'elle est nulle.
           image: ghcr.io/kim-tsr/pad-frontend:0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000
           ports:

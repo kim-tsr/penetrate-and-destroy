@@ -19,7 +19,3 @@ skip-path:
   # absentes d'un manager amont, automount du jeton (ce sont des controllers), RoleBindings amont sur le
   # ServiceAccount `default` du namespace.
   - gitops/platform/capi-providers/manifests/(core-cluster-api|bootstrap-talos|control-plane-talos|infrastructure-proxmox|ipam-in-cluster)\.yaml
-  # TEMPORAIRE, traité par ailleurs : un autre lot corrige le Deployment chall-manager (CKV_K8S_38 : jeton de
-  # ServiceAccount nécessaire au controller, annotation checkov.io/skip1 à poser sur la ressource). Retirer cette
-  # ligne une fois ce lot fusionné.
-  - gitops/apps/chall-manager/deployment.yaml

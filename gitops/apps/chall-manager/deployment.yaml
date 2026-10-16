@@ -24,6 +24,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: chall-manager
+  annotations:
+    checkov.io/skip1: "CKV_K8S_38=contrôleur : crée les namespaces et ressources des instances via l'API Kubernetes avec le jeton de son ServiceAccount (RBAC borné par la VAP inst-*)"
   namespace: chall-manager
   labels: &labels
     app.kubernetes.io/name: chall-manager

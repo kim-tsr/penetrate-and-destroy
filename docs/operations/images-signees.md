@@ -47,29 +47,33 @@ concernés). Le contrôleur d'admission Kyverno tourne en 2 réplicas sur le poo
 Les images `ghcr.io/<propriétaire du dépôt>/pad-*` sont construites, poussées et signées (cosign keyless, identité du workflow
 `images.yml`) par la CI. Les manifests `gitops/apps/*/deployment.yaml` les référencent en `tag@sha256:<empreinte>`.
 
-Flux de mise à jour (automatique) :
+Flux de mise à jour (épinglage par l'opérateur) :
 
 1. Sur push `main`, `images.yml` construit, scanne, pousse et signe chaque image (`ghcr.io/<propriétaire>/pad-<nom>:<sha court>`)
    et affiche son empreinte dans le résumé du job (`Résumé du digest`).
-2. Une fois toutes les images publiées, le job `pin-digests` exécute `scripts/pin-image-digests.sh <propriétaire> <sha court>`.
+2. Une fois toutes les images publiées, le job `pin-digests` calcule les empreintes (`scripts/pin-image-digests.sh <propriétaire> <sha court>`)
+   et affiche dans le résumé du run le diff à appliquer. Il ne commite rien : le dépôt n'a qu'un auteur, l'opérateur.
+3. L'opérateur épingle localement puis commite :
+
+   ```bash
+   task apps:pin-digests -- <sha court>   # défaut : HEAD
+   git diff                               # vérifier les références tag@sha256
+   git commit -am "chore(images): épingler les empreintes des images <sha court>" && git push
+   ```
+
    Le script lit l'empreinte de l'index OCI dans le registre et réécrit les références `tag@sha256` de
    `gitops/apps/{ctfd,frontend,netbird-sync}/deployment.yaml` et l'empreinte de `challenges/*/challenge.yml`
    (`registry.pad.internal/ctf/<nom>` : l'empreinte est la même dans Zot si l'image y est copiée à l'identique, par exemple
    `crane copy ghcr.io/<propriétaire>/pad-chal-<nom>:<sha> registry.pad.internal/ctf/<nom>:<version>`).
-3. Si quelque chose change, le job ouvre (ou met à jour) la PR `ci/pin-image-digests`, titre `chore(images): épingler les
-   empreintes des images`. Après relecture, le merge déclenche le déploiement par ArgoCD. Un push dont le message commence
-   par `chore(images)` ne relance pas le job (pas de boucle).
+   ArgoCD déploie ensuite la nouvelle version.
 4. Renovate ignore ces images (règle `enabled: false` dans `renovate.json`) pour ne pas entrer en conflit avec ce flux ; il
    continue de suivre les images de base et les autres dépendances.
 
-Prérequis côté dépôt : soit le secret `PAD_BOT_TOKEN` (PAT ou token d'application, droits `contents` et `pull-requests`),
-auquel cas la CI s'exécute sur la PR ; soit le réglage « Allow GitHub Actions to create and approve pull requests », la PR
-étant alors créée avec `GITHUB_TOKEN` (GitHub n'y déclenche pas la CI : la rouvrir ou y pousser un commit vide). Les commits
-du job sont signés `github-actions[bot]`. Pour une mise à jour manuelle :
-`scripts/pin-image-digests.sh <propriétaire> <sha court>` (outils : `crane` ou `docker buildx`).
+Les packages `ghcr.io/<propriétaire>/pad-*` doivent être **publics** (ou le cluster doit disposer d'un secret de pull) :
+GitHub crée un package privé par défaut. Package settings > Change visibility > Public.
 
 Tant que l'empreinte est nulle (`sha256:000…`, cas de `pad-frontend` tant qu'il n'est pas publié), l'image ne démarre pas :
-c'est volontaire. L'Application concernée reste `Degraded` jusqu'à la première publication, puis la PR l'épingle.
+c'est volontaire. L'Application concernée reste `Degraded` jusqu'à la première publication, puis `task apps:pin-digests` l'épingle.
 
 !!! note "Points à vérifier au premier déploiement"
     - L'identité keyless attendue est `.github/workflows/images.yml` sur `main` ou un tag `v*` du dépôt du contrat
