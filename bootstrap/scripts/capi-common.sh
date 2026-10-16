@@ -41,14 +41,16 @@ ensure_kind() {
 }
 
 # clusterctl init (providers et versions du contrat) sur le cluster désigné par $1 (kubeconfig).
+# $2 (facultatif) : URL de l'API Proxmox vue depuis ce cluster, si elle diffère de proxmox_url (vue du poste).
 capi_init() {
-  local kc=$1
+  local kc=$1 url=${2:-}
   if kubectl --kubeconfig "$kc" get crd clusters.cluster.x-k8s.io >/dev/null 2>&1; then
     log "Cluster API déjà initialisé sur ${kc##*/}"
     return 0
   fi
   load_proxmox_env
-  log "clusterctl init sur ${kc##*/}"
+  [[ -z "$url" ]] || PROXMOX_URL=$url
+  log "clusterctl init sur ${kc##*/} (API Proxmox : ${PROXMOX_URL})"
   clusterctl init --kubeconfig "$kc" --config "$CLUSTERCTL_CONFIG" \
     --core "cluster-api:$(contract '.kubernetes.capi.core')" \
     --bootstrap "talos:$(contract '.kubernetes.capi.bootstrap_talos')" \

@@ -77,7 +77,9 @@ step_pivot() {
     log "pivot déjà effectué"
     return 0
   fi
-  capi_init "$PROD_KUBECONFIG"
+  # Après le pivot, CAPMOX tourne en zone PROD : il joint l'API par l'IP mgmt de l'hôte (règle OPNsense M9 et
+  # NetworkPolicy), jamais par proxmox_url, qui est l'adresse vue du poste opérateur (VPN, IP publique...).
+  capi_init "$PROD_KUBECONFIG" "https://$(contract '.host.mgmt_ip'):$(contract '.flow_ports.proxmox_api')"
   capi_wait_controllers "$PROD_KUBECONFIG"
   log "clusterctl move : kind -> ${CLUSTER_NAME}"
   clusterctl move --kubeconfig "$KIND_KUBECONFIG" --to-kubeconfig "$PROD_KUBECONFIG" -n "$CLUSTER_NS"

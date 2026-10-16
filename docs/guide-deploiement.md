@@ -193,6 +193,17 @@ Depuis le poste : `ssh -i ~/.ssh/pad_admin pad-admin@<hôte> sudo -n true && ech
 
 ### 2.5 Réseau de l'hôte
 
+!!! warning "Pare-feu Proxmox activé (`/etc/pve/firewall/cluster.fw`, `enable: 1`)"
+    Il met l'entrée de l'hôte en DROP par défaut. Le cluster (CAPMOX après le pivot, CSI) joint l'API Proxmox par l'IP
+    mgmt de l'hôte (`host.mgmt_ip`, `10.20.10.2:8006`) depuis la zone PROD : autorisez-le, sans rien ouvrir côté Internet.
+    Les flux publics de la plateforme (80, 443, NetBird) sont redirigés vers OPNsense et ne passent pas par cette règle.
+
+    ```
+    [RULES]
+    IN ACCEPT -source 10.20.60.0/24 -dest 10.20.10.2 -p tcp -dport 8006 -log nolog # cluster -> API Proxmox
+    IN ACCEPT -source 10.20.10.0/24 -dest 10.20.10.2 -p tcp -dport 8006 -log nolog # zone mgmt -> API Proxmox
+    ```
+
 Rien à préparer pour les ponts `vmbr2` (zones) et `vmbr1` (transit), créés en phase 1. Il faut en revanche connaître votre mode WAN
 (`wan.mode` du contrat) : **`routed_ip`** = une IP publique supplémentaire routée vers la VM routeur (passerelle de l'hôte, éventuellement une MAC virtuelle
 exigée par l'hébergeur) ; **`nat`** = l'IP publique de l'hôte avec redirection des ports 80, 443 et UDP 3478/49152-49252 vers OPNsense par `nftables`.
