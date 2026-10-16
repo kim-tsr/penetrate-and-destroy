@@ -16,7 +16,7 @@ state: hidden
 version: "0.1"
 instance:
   # Registre interne et empreinte obligatoires (empreinte du build CI, tenue à jour par task apps:pin-digests).
-  image: registry.pad.internal/ctf/web-sqli-instanced:0.1.0@sha256:10ddfac9869c1343a0b61eab57233311d958b971d3a9c6db58026abf32bec3ab
+  image: registry.pad.internal/ctf/web-sqli-instanced:0.1.0@sha256:16e339c34d0a7a76af8e14e645ca183940bde7e56af25639b190df13ebf625f9
   ports:
     - port: 8080
       protocol: tcp

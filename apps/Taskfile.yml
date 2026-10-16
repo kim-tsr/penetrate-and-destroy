@@ -10,7 +10,6 @@ vars:
     ctfd|apps/ctfd|apps/ctfd/Dockerfile
     frontend|apps/frontend|apps/frontend/Dockerfile
     netbird-sync|apps/netbird-sync|apps/netbird-sync/Dockerfile
-    chall-manager-scenario|apps/chall-manager-scenario|apps/chall-manager-scenario/Dockerfile
     chal-pwn-ret2win-instanced|challenges/pwn-ret2win-instanced|challenges/pwn-ret2win-instanced/Dockerfile
     chal-web-sqli-instanced|challenges/web-sqli-instanced|challenges/web-sqli-instanced/Dockerfile
 
@@ -22,6 +21,27 @@ tasks:
         owner=$(git -C {{.ROOT_DIR}} remote get-url origin | sed -E 's#.*github.com[:/]([^/]+)/.*#\1#' | tr '[:upper:]' '[:lower:]')
         tag="{{.CLI_ARGS}}"; [ -n "$tag" ] || tag=$(git -C {{.ROOT_DIR}} rev-parse --short HEAD)
         cd {{.ROOT_DIR}} && scripts/pin-image-digests.sh "$owner" "$tag" && git diff --stat -- gitops/apps challenges
+
+  zot:publish:
+    desc: "Publie dans Zot le scénario chall-manager (OCI) et les images de challenge (copie ghcr → Zot, même empreinte) : task apps:zot:publish -- [sha ghcr]"
+    summary: |
+      Prérequis : Zot déployé (phase 10), poste opérateur qui joint registry.pad.internal (NetBird staff ou bastion),
+      `oras login` et `crane auth login` sur registry.pad.internal avec le compte pad-ci (mot de passe : secrets/credentials.sops.yaml).
+    cmds:
+      - |
+        set -euo pipefail
+        reg=registry.pad.internal   # contracts: apps.registry
+        owner=$(git -C {{.ROOT_DIR}} remote get-url origin | sed -E 's#.*github.com[:/]([^/]+)/.*#\1#' | tr '[:upper:]' '[:lower:]')
+        tag="{{.CLI_ARGS}}"; [ -n "$tag" ] || tag=$(git -C {{.ROOT_DIR}} rev-parse --short HEAD)
+        # Scénario générique : version = tag de PAD_GENERIC_SCENARIO (gitops/apps/ctfd/deployment.yaml)
+        ver=$(sed -nE 's#.*PAD_GENERIC_SCENARIO, value: "[^"]*:([^"]+)".*#\1#p' {{.ROOT_DIR}}/gitops/apps/ctfd/deployment.yaml)
+        REF="$reg/pad/scenarios/k8s-instance" {{.ROOT_DIR}}/apps/chall-manager-scenario/build.sh "$ver" --push
+        # Images de challenge : copie à l'identique (l'empreinte épinglée dans challenge.yml reste valable)
+        for d in {{.ROOT_DIR}}/challenges/*/; do
+          [ -f "$d/Dockerfile" ] || continue
+          n=$(basename "$d"); v=$(sed -nE 's#^ *image: [^:]+/ctf/[^:]+:([^@]+)@.*#\1#p' "$d/challenge.yml")
+          crane copy "ghcr.io/$owner/pad-chal-$n:$tag" "$reg/ctf/$n:$v"
+        done
 
   build:
     desc: Construit toutes les images présentes
@@ -66,9 +86,6 @@ tasks:
   build:netbird-sync:
     desc: Image pad-netbird-sync
     cmds: [{ task: build-one, vars: { SPEC: "netbird-sync|apps/netbird-sync|apps/netbird-sync/Dockerfile" } }]
-  build:chall-manager-scenario:
-    desc: Image pad-chall-manager-scenario
-    cmds: [{ task: build-one, vars: { SPEC: "chall-manager-scenario|apps/chall-manager-scenario|apps/chall-manager-scenario/Dockerfile" } }]
   build:chal-pwn-ret2win-instanced:
     desc: Image pad-chal-pwn-ret2win-instanced
     cmds: [{ task: build-one, vars: { SPEC: "chal-pwn-ret2win-instanced|challenges/pwn-ret2win-instanced|challenges/pwn-ret2win-instanced/Dockerfile" } }]

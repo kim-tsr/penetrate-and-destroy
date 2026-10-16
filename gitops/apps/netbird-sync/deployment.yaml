@@ -32,7 +32,7 @@ spec:
         - name: netbird-sync
           # Référence par empreinte obligatoire (Kyverno verify-images, CONVENTIONS.md). Tag et empreinte sont tenus à jour par la
           # `task apps:pin-digests` (scripts/pin-image-digests.sh) : ne pas les éditer à la main.
-          image: ghcr.io/kim-tsr/pad-netbird-sync:5459b3a@sha256:4972edb7212c32a4fb8b5dbdb7c31cedaf776ac9d2d834ff2223d2cb61650f2a
+          image: ghcr.io/kim-tsr/pad-netbird-sync:b9039cf@sha256:5c7d52b6c867bcd24e206fa0474244ddc3098e130a86a042175deb472c5dabd9
           args: ["--resync=10m"]
           env:
             - name: NETBIRD_API_URL

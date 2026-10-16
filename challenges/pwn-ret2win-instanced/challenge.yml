@@ -16,7 +16,7 @@ state: hidden
 version: "0.1"
 instance:
   # Registre interne et empreinte obligatoires (empreinte du build CI, tenue à jour par task apps:pin-digests).
-  image: registry.pad.internal/ctf/pwn-ret2win-instanced:0.1.0@sha256:ba7a85b82d3e75fa3f7e50a277486bc7a914e602fe7744c0e3ac2e9f129d4538
+  image: registry.pad.internal/ctf/pwn-ret2win-instanced:0.1.0@sha256:95a4608606d49aee55cc6c001a38826a176c85c47705b2158a5d16747d8eff4d
   ports:
     - port: 1337
       protocol: tcp
