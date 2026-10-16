@@ -33,7 +33,7 @@ scrape_configs:
     static_configs:
 {% for item in lxcs %}
       - targets: ["{{ item.value.ip }}:{{ exporters.node }}"]
-        labels: { host: pad-{{ item.key }}, zone: {{ item.value.zone }}, role: lxc }
+        labels: { host: {{ item.key }}, zone: {{ item.value.zone }}, role: lxc }
 {% endfor %}
       - targets: ["{{ pad.monitoring.host_target }}:{{ exporters.node }}"]
         labels: { host: {{ pad.host.node }}, zone: mgmt, role: proxmox }
@@ -45,7 +45,7 @@ scrape_configs:
     static_configs:
 {% for item in lxcs %}
       - targets: ["{{ item.value.ip }}:{{ exporters.alloy }}"]
-        labels: { host: pad-{{ item.key }}, zone: {{ item.value.zone }}, role: lxc }
+        labels: { host: {{ item.key }}, zone: {{ item.value.zone }}, role: lxc }
 {% endfor %}
       - targets: ["{{ pad.monitoring.host_target }}:{{ exporters.alloy }}"]
         labels: { host: {{ pad.host.node }}, zone: mgmt, role: proxmox }
@@ -55,7 +55,7 @@ scrape_configs:
     static_configs:
 {% for item in lxcs %}
       - targets: ["{{ item.value.ip }}:{{ exporters.docker }}"]
-        labels: { host: pad-{{ item.key }}, zone: {{ item.value.zone }}, role: lxc }
+        labels: { host: {{ item.key }}, zone: {{ item.value.zone }}, role: lxc }
 {% endfor %}
 
   # --- prometheus-pve-exporter : hôte uniquement (le paramètre target est l'hôte PVE interrogé) ---
@@ -80,16 +80,16 @@ scrape_configs:
   - job_name: traefik
     static_configs:
       - targets: ["{{ pad.services.edge.ip }}:{{ pad.ports.edge.metrics }}"]
-        labels: { host: pad-edge, zone: {{ pad.services.edge.zone }} }
+        labels: { host: edge, zone: {{ pad.services.edge.zone }} }
   - job_name: crowdsec
     static_configs:
       - targets: ["{{ pad.services.edge.ip }}:{{ pad.ports.edge.crowdsec_metrics }}"]
-        labels: { host: pad-edge, zone: {{ pad.services.edge.zone }} }
+        labels: { host: edge, zone: {{ pad.services.edge.zone }} }
   - job_name: netbird
     static_configs:
       - targets: ["{{ pad.services.netbird.ip }}:{{ pad.ports.netbird.metrics }}"]
-        labels: { host: pad-netbird, zone: {{ pad.services.netbird.zone }} }
+        labels: { host: netbird, zone: {{ pad.services.netbird.zone }} }
   - job_name: authentik
     static_configs:
       - targets: ["{{ pad.services.authentik.ip }}:{{ pad.ports.authentik.metrics }}"]
-        labels: { host: pad-authentik, zone: {{ pad.services.authentik.zone }} }
+        labels: { host: authentik, zone: {{ pad.services.authentik.zone }} }
