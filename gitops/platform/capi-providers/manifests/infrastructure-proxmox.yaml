@@ -6014,6 +6014,12 @@ spec:
               drop:
                 - ALL
             readOnlyRootFilesystem: true
+            privileged: false
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            seccompProfile:
+              type: RuntimeDefault
           volumeMounts:
             - mountPath: /tmp/k8s-webhook-server/serving-certs
               name: cert
@@ -6024,6 +6030,8 @@ spec:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
+        runAsUser: 65532
+        runAsGroup: 65532
       serviceAccountName: capmox-controller-manager
       terminationGracePeriodSeconds: 10
       volumes:
