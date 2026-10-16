@@ -101,7 +101,22 @@ Surcharges personnelles éventuelles : `.envrc.local` (ignoré par Git). Plus ra
 | API Kubernetes (`10.20.60.5:6443`) et API Talos (`:50000`) | phases 9 à 12 | il faut **une route de votre poste vers `10.20.60.0/24`** (voir ci-dessous) |
 | Console d'administration d'Authentik (phase 7) | pour `30-authentik` | l'edge la filtre : lancer depuis la zone bastion/mgmt, ou ajouter temporairement votre CIDR à `edge_traefik_crowdsec_authentik_admin_allowed_cidrs` (rôle `edge-traefik-crowdsec`) puis `task ansible:services -- --tags edge` |
 
-**Joindre les zones depuis le poste.** `kind` tourne dans Docker sur votre poste et doit parler à l'API du futur cluster (`10.20.60.5`). Le plus simple
+**Joindre les zones depuis le poste (méthode recommandée : VPN maillé WireGuard à routes annoncées).** Pour les phases 2 à 12, la solution la plus simple et la plus
+robuste est de faire annoncer `10.20.0.0/16` par l'hôte Proxmox comme sous-réseau d'un VPN maillé. Elle est **indispensable pour `kind` en phases 9 et 10**, car
+le trafic sort alors d'un conteneur Docker que ni `sshuttle` ni un tunnel SSH ne couvrent.
+
+1. Sur l'hôte Proxmox : activer le routage (`sysctl -w net.ipv4.ip_forward=1`, rendu persistant dans `/etc/sysctl.d/`), puis
+   `<cli-vpn> set --advertise-routes=10.20.0.0/16` (`<cli-vpn>` : la commande de votre VPN maillé). Attention : `--advertise-routes` **remplace** la liste ; si l'hôte annonce déjà d'autres routes, les répéter
+   toutes, séparées par des virgules.
+2. Dans la console d'administration du VPN : approuver la route annoncée par l'hôte.
+3. Sur le poste : `<cli-vpn> set --accept-routes`.
+4. Vérifier : `ping 10.20.10.2` (IP mgmt de l'hôte), puis `route -n get 10.20.10.1` (macOS) ou `ip route get 10.20.10.1` (Linux) ; la route doit passer par l'interface du VPN.
+
+Cet accès reste l'**accès d'administration de secours**, indépendant de la plateforme : il fonctionne même si celle-ci est cassée. Il ne remplace pas les accès
+de la plateforme elle-même (NetBird pour les joueurs et le staff vers les challenges et le bastion, Warpgate pour le SSH tracé du staff). Les autres
+options ci-dessous restent valables comme alternatives.
+
+**Alternatives.** `kind` tourne dans Docker sur votre poste et doit parler à l'API du futur cluster (`10.20.60.5`). Le plus simple
 est d'exécuter les phases 9 et 10 depuis une machine **déjà dans la zone mgmt** (par exemple un portable branché sur le VLAN de gestion, ou une VM Linux
 posée sur `vmbr2` avec une IP de `10.20.10.0/24` et `10.20.10.1` pour passerelle). À défaut, une route statique `10.20.0.0/16` vers l'hôte avec
 translation d'adresse (masquerade) sur l'hôte fonctionne si votre poste est sur le même réseau que lui ; un tunnel `sshuttle -r <utilisateur>@<hôte> 10.20.0.0/16`
@@ -205,7 +220,7 @@ Depuis le poste : `ssh -i ~/.ssh/pad_admin pad-admin@<hôte> sudo -n true && ech
     IN ACCEPT -source 10.20.10.0/24 -dest 10.20.10.2 -p tcp -dport 8006 -log nolog # zone mgmt -> API Proxmox
     ```
 
-Rien à préparer pour les ponts `vmbr2` (zones) et `vmbr1` (transit), créés en phase 1. Il faut en revanche connaître votre mode WAN
+Rien à préparer pour les ponts `vmbr2` (zones) et `vmbr1` (transit), créés en phase 1, **sauf s'ils existent déjà sur l'hôte** : la phase 0 refuse un pont `vmbrN` déjà utilisé et non créé par la plateforme (ses ponts portent le commentaire `pad:`). Choisissez alors d'autres noms : `task site:set -- zones_bridge=vmbrN transit_bridge=vmbrN` (voir 4.1). Il faut en revanche connaître votre mode WAN
 (`wan.mode` du contrat) : **`routed_ip`** = une IP publique supplémentaire routée vers la VM routeur (passerelle de l'hôte, éventuellement une MAC virtuelle
 exigée par l'hébergeur) ; **`nat`** = l'IP publique de l'hôte avec redirection des ports 80, 443 et UDP 3478/49152-49252 vers OPNsense par `nftables`.
 Voir [Réseau et zones](architecture/reseau.md).
@@ -252,7 +267,7 @@ task site:set -- git_repo=https://github.com/<vous>/<fork>.git git_ssh=git@githu
 | `domain` | domaine public racine (et `netbird.api_url`, `acme.email` s'ils le suivaient) | `domain` |
 | `acme_email` | contact Let's Encrypt | `acme.email` |
 | `git_repo`, `git_ssh` | dépôt suivi par ArgoCD | `git.repo`, `git.ssh` |
-| `dns_zone` | zone OVH qui contient `domain` quand la plateforme vit sur un sous-domaine (ex. `domain=lab.mondomaine.fr dns_zone=mondomaine.fr` : `ctf.lab.mondomaine.fr`...) ; vide = `domain` est la zone | `dns_zone` |
+| `dns_zone` | zone OVH qui contient `domain` quand la plateforme vit sur un sous-domaine (ex. `domain=lab.example.net dns_zone=example.net` : `ctf.lab.example.net`... ; le jeton OVH porte sur cette zone) ; vide = `domain` est la zone | `dns_zone` |
 | `zones_bridge`, `transit_bridge` | noms des ponts créés en phase 1 (`vmbr2`, `vmbr1` par défaut) ; à changer si l'hôte les utilise déjà (`ip -br link`) | `host.zones_bridge`, `host.transit_bridge` |
 | `wan_mode` | `routed_ip` (IP supplémentaire routée vers OPNsense) ou `nat` (IP de l'hôte, ports redirigés) | `wan.mode` |
 
@@ -267,7 +282,7 @@ Créé vide par `task secrets:init`, rempli avec `sops secrets/site.sops.yaml` :
 | Clé | Valeur |
 |---|---|
 | `proxmox_url` | `https://<hôte>:8006` (sans chemin) |
-| `ssh_host`, `ssh_user` | adresse de l'hôte pour SSH ; utilisateur de la section 2.4 |
+| `ssh_host`, `ssh_user` | adresse par laquelle le poste joint réellement l'hôte (de préférence une IP, ex. l'IP du VPN) ; utilisateur de la section 2.4 |
 | `wan.ip` | IP publique de la plateforme |
 | `wan.gateway` | passerelle (obligatoire en `routed_ip`) |
 | `wan.mac` | MAC dédiée de la NIC WAN du routeur, seulement si votre hébergeur l'exige |
@@ -317,6 +332,7 @@ Toutes les commandes se lancent depuis la racine du dépôt, dans `nix develop`,
 - **Pourquoi** : échouer tôt, avec un message utile, plutôt qu'au milieu de la phase 6.
 - **Commande** : `task phase:0-prereqs` (ou `task check:0-prereqs`).
 - **Vérifie** : outils et versions (OpenTofu ≥ 1.10, `kind` du contrat, Docker), clés age, `TF_VAR_state_passphrase`, agent SSH, domaine et e-mail ACME changés, un `*.sops.yaml` par exemple,
+  ponts de l'hôte (refus d'un `vmbrN` déjà utilisé et non créé par la plateforme ; sinon `task site:set -- zones_bridge=vmbrN transit_bridge=vmbrN`),
   valeurs `CHANGEME` *requises maintenant* (les valeurs d'une phase ultérieure sont signalées comme normales), SSH + `sudo`, API Proxmox, version 9.x, présence du nœud, **privilèges réels du jeton**,
   contenus des stockages (dont `import`), type du stockage, espace disque et RAM suffisants.
 - **Erreurs probables** : « privilèges manquants » (revoir 2.2) ; « types de contenu manquants : import » (voir 2.1) ; « API Proxmox injoignable » (URL, pare-feu du port 8006).
@@ -571,6 +587,7 @@ Avant d'ouvrir l'événement aux joueurs :
 | `tofu` : `Error acquiring the state` ou illisible | `TF_VAR_state_passphrase` différent de celui du state ; ne jamais en changer sans détruire |
 | `tofu` : authentification Proxmox | jeton (2.2), `proxmox_url`, `proxmox.insecure` ; `task check:0-prereqs` |
 | Ansible : hôte injoignable | clé dans l'agent ; `ssh_host`/`ssh_user` ; route de l'hôte vers les zones (`task host:route`, rôle `host-tuning`) |
+| `tofu` (phase 2) : `unable to authenticate user ... over SSH to "<IP>:22" ... i/o timeout` | le provider se connecte à `ssh_host` (et non à l'adresse annoncée par l'API Proxmox) : vérifier `ssh_host` dans `secrets/site.sops.yaml` (adresse joignable depuis le poste, ex. IP VPN) et que le dépôt est à jour |
 | `kubectl` : `connection refused` / délai | route de votre poste vers `10.20.60.0/24` ; VIP `10.20.60.5` ; VM allumées |
 | Une phase échoue à mi-chemin | la corriger puis relancer **la même phase** ; elle reprend là où elle s'est arrêtée |
 | Savoir où l'on en est | `task status` (rapide) ou `task status -- --live` (contacte l'hôte) |

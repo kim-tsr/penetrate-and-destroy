@@ -22,7 +22,7 @@ task secrets:pending   # liste les clés de site encore vides
 | Clé | Rôle | Requis |
 |---|---|---|
 | `proxmox_url` | URL de l'API Proxmox, sans chemin (schéma, hôte, port) | oui |
-| `ssh_host` | adresse SSH de l'hôte Proxmox (nom ou IP) | oui |
+| `ssh_host` | adresse par laquelle le poste joint réellement l'hôte Proxmox : de préférence une IP (ex. l'IP du VPN maillé) plutôt qu'un nom. Utilisée par Ansible et par le provider `bpg/proxmox` d'OpenTofu (SSH de la phase 2, stack `10-router`), qui ne prend **pas** l'adresse annoncée par l'API | oui |
 | `ssh_user` | utilisateur SSH de l'hôte (sudo pour le rôle `host-tuning`) | oui |
 | `wan.ip` | IPv4 publique de la plateforme (DNS publics, WAN d'OPNsense) | oui |
 | `wan.gateway` | passerelle IPv4 du WAN | en mode `routed_ip` |

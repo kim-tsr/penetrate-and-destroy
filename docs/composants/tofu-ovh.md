@@ -30,7 +30,7 @@ Orchestré par [OpenTofu](opentofu.md) ; secrets lus par le [provider sops](tofu
 
 ## Sécurité
 
-Identifiants OVH dans `secrets/ovh.sops.yaml` (jeton à créer avec GET/POST/PUT/DELETE limités à `/domain/zone/<domaine>/*`). L'IP WAN vient de `secrets/site.sops.yaml`.
+Identifiants OVH dans `secrets/ovh.sops.yaml` (jeton à créer avec GET/POST/PUT/DELETE limités à `/domain/zone/<zone>/*`, où `<zone>` est la zone OVH, c'est-à-dire `dns_zone` si la plateforme vit sur un sous-domaine, pas le sous-domaine lui-même). L'IP WAN vient de `secrets/site.sops.yaml`.
 
 ## Supervision
 

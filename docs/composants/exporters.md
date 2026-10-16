@@ -1,6 +1,6 @@
 # Exporters (node, pve, kube-state-metrics, Docker)
 
-**Couche** : Observabilité · **Où** : hôte, LXC et cluster · **Version** : node-exporter v1.12.1 (cluster), kube-state-metrics v2.20.0, pve-exporter (paquet Debian)
+**Couche** : Observabilité · **Où** : hôte, LXC et cluster · **Version** : node-exporter v1.12.1 (cluster), kube-state-metrics v2.20.0, pve-exporter (PyPI, épinglé)
 
 ## À quoi elle sert ici et pourquoi ce choix
 
@@ -10,7 +10,7 @@ Ces petits exporters donnent les métriques de base : **node-exporter** (CPU, m�
 
 ## Où elle tourne et comment elle est déployée
 
-- LXC et hôte : paquet apt `prometheus-node-exporter` (rôle `base-hardening`), `prometheus-pve-exporter` + utilisateur `pve-exporter@pve` en lecture seule (`PVEAuditor`) (rôle `host-tuning`).
+- LXC et hôte : paquet apt `prometheus-node-exporter` (rôle `base-hardening`), `prometheus-pve-exporter` installé depuis PyPI (pas de paquet Debian sur Proxmox 9) dans un virtualenv `/opt/prometheus-pve-exporter`, version épinglée par `host_tuning_pve_exporter_version`, lancé par un service systemd `prometheus-pve-exporter`, + utilisateur `pve-exporter@pve` en lecture seule (`PVEAuditor`) (rôle `host-tuning`).
 - Cluster : Applications ArgoCD `kube-state-metrics`, `node-exporter`, `prometheus-crds`.
 
 ## Version épinglée
@@ -20,7 +20,7 @@ Ces petits exporters donnent les métriques de base : **node-exporter** (CPU, m�
 | chart `kube-state-metrics` | 8.6.0, image v2.20.0 | `gitops/platform/kube-state-metrics/application.yaml`, `values.yaml` |
 | chart `prometheus-node-exporter` | 4.60.0, image v1.12.1@sha256 | `gitops/platform/node-exporter/` |
 | chart `prometheus-operator-crds` | 32.0.1 | `gitops/platform/prometheus-crds/application.yaml` |
-| node-exporter et pve-exporter des hôtes | paquets Debian | `infra/ansible/roles/base-hardening`, `host-tuning` |
+| node-exporter des hôtes ; pve-exporter de l'hôte | paquet Debian ; PyPI (virtualenv) | `infra/ansible/roles/base-hardening`, `host-tuning` |
 
 ## Fichiers de configuration dans le dépôt
 

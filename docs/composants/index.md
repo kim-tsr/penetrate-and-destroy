@@ -54,7 +54,7 @@ Renovate les maintient à jour ([page](renovate-dependabot.md)).
 | [Alertmanager](alertmanager.md) | Routage, regroupement et inhibition des alertes | LXC `monitoring` (zone MONITORING, 10.20.50.10), Docker Compose | v0.34.1 (image épinglée par digest) |
 | [Uptime Kuma](uptime-kuma.md) | Sondes externes, page de statut publique, dead-man's switch | LXC `monitoring` (zone MONITORING, 10.20.50.10), Docker Compose | 2.5.6 (image épinglée par digest) |
 | [Grafana Alloy](alloy.md) | Agent de collecte : métriques, logs, traces | hôte Proxmox et chaque LXC (paquet apt), DaemonSet dans le cluster | 1.20.1 (paquet `1.20.1-1`, image `v1.20.1`, chart 1.13.1) |
-| [Exporters (node, pve, kube-state-metrics, Docker)](exporters.md) | Sources de métriques de l'infrastructure | hôte, LXC et cluster | node-exporter v1.12.1 (cluster), kube-state-metrics v2.20.0, pve-exporter (paquet Debian) |
+| [Exporters (node, pve, kube-state-metrics, Docker)](exporters.md) | Sources de métriques de l'infrastructure | hôte, LXC et cluster | node-exporter v1.12.1 (cluster), kube-state-metrics v2.20.0, pve-exporter (PyPI, épinglé) |
 
 ## Cluster Kubernetes
 
