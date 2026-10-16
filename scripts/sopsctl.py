@@ -14,6 +14,8 @@ Commandes (appelées par `task secrets:*`) :
   update-keys          applique les recipients de .sops.yaml à tous les *.sops.yaml (sops updatekeys)
   oidc-sync [--from-json F]  recopie les secrets des clients OIDC (sortie `oidc_client_secrets` de la stack tofu 30-authentik, générés
                        par tofu) dans les sops de NetBird, Warpgate, Grafana, du front et d'ArgoCD ; F = JSON (ou - pour stdin)
+  netbird-keys-sync [--from-json F]  recopie les setup keys des routing peers (sortie `routing_peer_setup_keys` de la stack tofu
+                       40-netbird) dans secrets/netbird-agent.sops.yaml, lu par le rôle ansible netbird-agent
   rotate-cluster-key   nouvelle clé age du cluster : remplace le recipient, updatekeys + rotation des clés de données
 
 Aucune valeur secrète n'est écrite sur disque en clair : tout passe par des pipes vers sops. Seule exception, la
@@ -460,6 +462,7 @@ HANDLERS = {
 # renseigner à la main (liste affichée par `task secrets:pending`).
 EXTERNAL_ONLY = {
     "secrets/ovh.example.yaml", "secrets/proxmox.example.yaml", "secrets/site.example.yaml", "secrets/netbird-tofu.example.yaml",
+    "secrets/netbird-agent.example.yaml",  # setup keys alimentées par `netbird-keys-sync`
     "secrets/warpgate-tofu.example.yaml", "secrets/backup-s3.example.yaml",
     "gitops/platform/argocd/secret-oidc.example.yaml",  # clientSecret alimenté par `oidc-sync`
     "gitops/platform/external-dns/secret.example.yaml", "gitops/platform/proxmox-csi/secret.example.yaml",
@@ -721,6 +724,40 @@ def cmd_oidc_sync(args: argparse.Namespace) -> None:
     log(f"{done} secret(s) de client OIDC synchronisé(s). Reste manuel : proxmox (realm OpenID).")
 
 
+# ---------------------------------------------------------------- setup keys des routing peers (générées par tofu 40-netbird)
+
+NETBIRD_STACK = "infra/tofu/stacks/40-netbird"
+NETBIRD_AGENT_SOPS = "secrets/netbird-agent.sops.yaml"
+# clé de la sortie tofu `routing_peer_setup_keys` -> clé du sops
+NETBIRD_KEY_TARGETS = {
+    "challenges": "netbird_agent_setup_key_challenges",
+    "bastion": "netbird_agent_setup_key_bastion",
+}
+
+
+def cmd_netbird_keys_sync(args: argparse.Namespace) -> None:
+    need("sops")
+    require_recipients()
+    if args.from_json:
+        raw = sys.stdin.read() if args.from_json == "-" else Path(args.from_json).read_text()
+    else:
+        need("tofu")
+        raw = run(["tofu", f"-chdir={ROOT / NETBIRD_STACK}", "output", "-json", "routing_peer_setup_keys"]).stdout
+    try:
+        keys = json.loads(raw)
+    except json.JSONDecodeError:
+        die("sortie routing_peer_setup_keys illisible (stack 40-netbird appliquée ?)")
+    if not (ROOT / NETBIRD_AGENT_SOPS).exists():
+        die(f"{NETBIRD_AGENT_SOPS} absent (task secrets:init)")
+    for name, sops_key in NETBIRD_KEY_TARGETS.items():
+        value = keys.get(name) if isinstance(keys, dict) else None
+        if not isinstance(value, str) or not value:
+            die(f"setup key '{name}' absente de la sortie tofu")
+        changed = sops_set_value(NETBIRD_AGENT_SOPS, sops_key, value)
+        log(f"{'+' if changed else '='} {NETBIRD_AGENT_SOPS} : {sops_key} {'mis à jour' if changed else 'inchangé'}")
+    log(f"{len(NETBIRD_KEY_TARGETS)} setup key(s) de routing peer synchronisée(s).")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -736,6 +773,9 @@ def main() -> None:
     p = sub.add_parser("oidc-sync")
     p.add_argument("--from-json", metavar="FICHIER", help="JSON {client: secret} au lieu de `tofu output` (- = stdin)")
     p.set_defaults(fn=cmd_oidc_sync)
+    p = sub.add_parser("netbird-keys-sync")
+    p.add_argument("--from-json", metavar="FICHIER", help="JSON {challenges, bastion} au lieu de `tofu output` (- = stdin)")
+    p.set_defaults(fn=cmd_netbird_keys_sync)
     sub.add_parser("rotate-cluster-key").set_defaults(fn=cmd_rotate_cluster_key)
     args = ap.parse_args()
     args.fn(args)
