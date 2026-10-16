@@ -12,7 +12,7 @@ environnement, créé à la demande, borné par un TTL et détruit à l'expirati
 | chall-manager | exécute le **scénario** (Pulumi, `apps/chall-manager-scenario`) : crée et détruit les ressources Kubernetes |
 | Kubernetes + Cilium | namespace `inst-*`, pod, Service `LoadBalancer`, NetworkPolicy ; IP allouée par LB-IPAM |
 | netbird-sync | pour chaque Service d'instance, crée la resource et la policy NetBird de l'équipe |
-| NetBird + routing peer | route `100.64.0.0/10` (overlay) vers l'IP d'instance, pour l'équipe seulement |
+| NetBird + routing peer | route le trafic de l'overlay vers l'IP d'instance, pour l'équipe seulement (groupe `ctf-team-<id>`, alimenté par netbird-sync depuis les membres CTFd) ; le routeur est en masquerade : l'instance ne voit que l'IP du routing peer |
 
 ## Séquence
 
@@ -47,8 +47,17 @@ sequenceDiagram
 
 ## Garanties
 
-- **Isolement entre instances** : une `NetworkPolicy` par instance (Cilium), pods en PSS `restricted` appliqué par
-  Kyverno, `ResourceQuota` et `LimitRange` bornant CPU et mémoire.
+- **Isolement entre instances** : un namespace et une `NetworkPolicy` par instance (ingress depuis le routing peer
+  NetBird uniquement, **aucun egress, DNS compris** : pas de tunnel DNS vers Internet), pods en PSS `restricted`
+  appliqué par Kyverno. Le DNS limité à `cluster.local` est un opt-in réservé aux admins (`dns=cluster`).
+- **Ressources bornées** : Kyverno génère par instance une `ResourceQuota` et un `LimitRange` (CPU, mémoire,
+  disque éphémère 256Mi par défaut et 1Gi au plus, 2 pods, 1 Service LoadBalancer) ; le kubelet du pool challenges
+  limite à 256 PIDs par pod et 40 pods par nœud (fork bomb, remplissage du disque du worker).
+- **Images maîtrisées** : registre `registry.pad.internal/ctf/` et empreinte `@sha256` obligatoires (schéma, scénario
+  et Kyverno), signatures cosign vérifiées ([Images signées](../operations/images-signees.md)).
+- **Noyau** : `hostUsers: false` (user namespace) par défaut, seccomp `RuntimeDefault`, `drop ALL`, jeton de
+  ServiceAccount non monté ; une RuntimeClass gVisor est possible via `PAD_RUNTIME_CLASS` (option, non activée).
+  Le noyau reste partagé avec le worker : une évasion reste la menace résiduelle principale.
 - **Aucune exposition Internet** : l'IP d'instance est dans la zone CHALLENGES, qui n'a aucune règle entrante depuis
   Internet. Seul NetBird, via le routing peer, y accède, et seulement pour le groupe de l'équipe.
 - **Pas de flag dans l'API** : les flags d'instance (mode `per_instance_flag`) ne sont jamais renvoyés au front.

@@ -87,6 +87,7 @@ nav:
       - "14. Kyverno": adr/014-kyverno.md
   - Opérations:
       - operations/actions-post-deploiement.md
+      - operations/images-signees.md
       - Secrets (SOPS + age): SECRETS.md
   - Runbooks:
       - runbooks/index.md
