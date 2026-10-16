@@ -11,7 +11,7 @@ flowchart TD
     C --> D[kubectl apply gitops/clusters/prod<br/>Cluster, TalosControlPlane, MachineDeployments]
     D --> E[CAPMOX clone le template Talos<br/>et démarre les VM via l'API Proxmox]
     E --> F[Cluster Provisioned, kubeconfig et talosconfig extraits]
-    F --> G[cert-manager et Cilium installés<br/>nœuds Ready]
+    F --> G[CRD Prometheus, cert-manager et Cilium installés<br/>nœuds Ready]
     G --> H[clusterctl move : kind vers pad-prod]
     H --> I[Vérification : Cluster et Machines présents dans pad-prod]
     I --> J[kind supprimé]
@@ -30,7 +30,7 @@ flowchart TD
 | 2. manifests | idem | `kubectl apply --server-side -k gitops/clusters/prod` | rejouable |
 | 3. attente | idem | `Cluster` Provisioned, control plane prêt (30 min max) | rejouable |
 | 4. accès | idem | extraction du kubeconfig et du talosconfig dans `.state/` | |
-| 5. CNI | idem | cert-manager puis Cilium (sans kube-proxy), installés par Helm avec les mêmes versions que les Applications ArgoCD ; attente des nœuds Ready | rejouable |
+| 5. CNI | idem | CRD Prometheus (`prometheus-operator-crds` : les values des charts déclarent des `ServiceMonitor`), puis cert-manager et Cilium (sans kube-proxy), installés par Helm avec les mêmes versions que les Applications ArgoCD ; attente des nœuds Ready | rejouable |
 | 6. pivot | idem | `clusterctl move` vers `pad-prod`, puis contrôle que le `Cluster` et les `Machine` y sont | **kind conservé** si le contrôle échoue |
 | 7. ArgoCD | `bootstrap/scripts/gitops.sh` | `helm upgrade --install argo-cd`, Secret `sops-age` (clé du **cluster**), Secret du dépôt, Application `root` | idempotent |
 

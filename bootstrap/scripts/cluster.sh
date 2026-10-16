@@ -70,6 +70,9 @@ step_cni() {
   has_prod_managing && return 0
   # Sans CNI les nœuds sont NotReady : cert-manager ne peut pas démarrer avant Cilium,
   # donc --wait=false ici (surcharge le --wait du helper) et attente explicite après Cilium.
+  # CRDs Prometheus (ServiceMonitor, PodMonitor...) d'abord : les values de cert-manager et de Cilium en déclarent ;
+  # sans elles, helm échoue (« no matches for kind ServiceMonitor »). Chart sans pod : pas besoin de CNI.
+  helm_from_app prometheus-crds prometheus-operator-crds prometheus-crds "$(contract '.namespaces.monitoring_agents')"
   helm_from_app cert-manager cert-manager cert-manager cert-manager --wait=false
   helm_from_app cilium cilium cilium kube-system
   wait_for 1200 "nœuds Ready" kprod wait --for=condition=Ready nodes --all --timeout=10s

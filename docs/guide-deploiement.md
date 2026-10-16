@@ -445,7 +445,7 @@ Toutes les commandes se lancent depuis la racine du dépôt, dans `nix develop`,
 
 ### Phase 9 : le cluster Kubernetes
 
-- **Fait** (`bootstrap/scripts/cluster.sh`, reprenable à chaque étape) : un cluster `kind` éphémère sur votre poste reçoit Cluster API (`clusterctl init`), applique `gitops/clusters/prod`, CAPMOX clone le template et démarre les VM Talos, les `kubeconfig`/`talosconfig` sont extraits dans `.state/`, cert-manager et Cilium sont installés, puis `clusterctl move` transfère la gestion au cluster lui-même (**pivot**) et `kind` est supprimé. Voir [Bootstrap](architecture/bootstrap.md), [Cluster API](composants/cluster-api.md), [kind](composants/kind.md).
+- **Fait** (`bootstrap/scripts/cluster.sh`, reprenable à chaque étape) : un cluster `kind` éphémère sur votre poste reçoit Cluster API (`clusterctl init`), applique `gitops/clusters/prod`, CAPMOX clone le template et démarre les VM Talos, les `kubeconfig`/`talosconfig` sont extraits dans `.state/`, les CRD Prometheus (`ServiceMonitor`, requises par les values des charts suivants), cert-manager et Cilium sont installés, puis `clusterctl move` transfère la gestion au cluster lui-même (**pivot**) et `kind` est supprimé. Voir [Bootstrap](architecture/bootstrap.md), [Cluster API](composants/cluster-api.md), [kind](composants/kind.md).
 - **Commande** : `task phase:9-cluster` (30 à 45 min ; docker doit tourner, la route vers `10.20.60.0/24` doit exister).
 - **Créé** : VM Talos dans la plage VMID `300-399` : 1 control plane (`10.20.60.10-14`), 2 workers `platform` (`10.20.60.20-39`), 1 worker `challenges` (`10.20.70.20-39`) ; VIP de l'API `10.20.60.5`.
 - **Vérifier** :
