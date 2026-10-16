@@ -5,9 +5,9 @@ variable "state_passphrase" {
 }
 
 variable "setup_key_type" {
-  description = "Type des setup keys des routing peers : one-off (usage unique, recommandé) ou reusable."
+  description = "Type des setup keys des routing peers : reusable (défaut, bornée par setup_key_usage_limit : rejouable après reconstruction d'un LXC) ou one-off (usage unique : toute reconstruction exige une nouvelle clé, task netbird:rotate-keys)."
   type        = string
-  default     = "one-off"
+  default     = "reusable"
 
   validation {
     condition     = contains(["one-off", "reusable"], var.setup_key_type)
@@ -16,9 +16,20 @@ variable "setup_key_type" {
 }
 
 variable "setup_key_expiry_seconds" {
-  description = "Durée de validité des setup keys, en secondes (0 = sans expiration)."
+  description = "Durée de validité des setup keys, en secondes (0 = sans expiration). Une clé expirée n'enrôle plus de nouveau pair (les pairs déjà enrôlés ne sont pas affectés) : task netbird:rotate-keys."
   type        = number
-  default     = 604800
+  default     = 2592000
+}
+
+variable "setup_key_usage_limit" {
+  description = "Nombre maximal d'enrôlements par setup key réutilisable (0 = illimité). Ignoré pour one-off. Laisse de la marge pour reconstruire les LXC routeurs."
+  type        = number
+  default     = 5
+
+  validation {
+    condition     = var.setup_key_usage_limit >= 0
+    error_message = "setup_key_usage_limit doit être >= 0."
+  }
 }
 
 variable "routing_peer_metric" {

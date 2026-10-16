@@ -1,7 +1,8 @@
 # Copier en terraform.tfvars. Aucun secret ici : la passphrase du state passe par TF_VAR_state_passphrase.
 
-# setup_key_type           = "one-off"
-# setup_key_expiry_seconds = 604800
+# setup_key_type           = "reusable"   # ou "one-off" (voir README, Routing peers)
+# setup_key_expiry_seconds = 2592000
+# setup_key_usage_limit    = 5
 # routing_peer_metric      = 100
 
 # Ports TCP ouverts au staff vers BASTION ; vide = flow_ports.warpgate du contrat (2222, 8888).
