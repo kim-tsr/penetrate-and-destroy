@@ -36,3 +36,33 @@ subjects:
   - kind: ServiceAccount
     name: netbird-sync
     namespace: netbird-sync
+---
+# Garde-fou : le patch est cluster-wide côté RBAC (un Role ne peut pas filtrer par préfixe de namespace) ;
+# l'admission le limite aux Services des namespaces d'instance (inst-*). Une compromission de netbird-sync ne peut
+# plus poser de finalizer bloquant sur les Services de la plateforme.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: pad-netbird-sync-inst-only
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: [CREATE, UPDATE, DELETE]
+        resources: [services]
+  matchConditions:
+    - name: from-netbird-sync
+      expression: "request.userInfo.username == 'system:serviceaccount:netbird-sync:netbird-sync'"
+  validations:
+    - expression: "request.namespace.startsWith('inst-')" # contracts: namespaces.instances_prefix
+      message: "netbird-sync ne peut modifier que les Services des namespaces inst-*"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: pad-netbird-sync-inst-only
+spec:
+  policyName: pad-netbird-sync-inst-only
+  validationActions: [Deny, Audit]
