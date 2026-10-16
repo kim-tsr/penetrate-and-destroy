@@ -22,8 +22,8 @@ PHASES=(0-prereqs 1-reseau 2-routeur 3-image-talos 4-lxc 5-dns 6-services-1 7-id
 PVE_PRIVS_REQUIRED=(Datastore.Allocate Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit SDN.Use Sys.Audit Sys.Modify
   VM.Allocate VM.Audit VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Cloudinit VM.Config.Disk VM.Config.HWType VM.Config.Memory
   VM.Config.Network VM.Config.Options VM.Console VM.PowerMgmt)
-# Selon la version de Proxmox : absents sans gravité (avertissement seulement).
-PVE_PRIVS_OPTIONAL=(VM.Monitor VM.GuestAgent.Audit)
+# Absents sans gravité (avertissement seulement). VM.Monitor n'existe plus depuis Proxmox 9.
+PVE_PRIVS_OPTIONAL=(VM.GuestAgent.Audit)
 
 # Valeurs qui restent légitimement à CHANGEME tant que la phase indiquée n'a pas eu lieu (fichier|clé|phase).
 LATER=(

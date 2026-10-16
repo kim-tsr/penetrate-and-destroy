@@ -146,12 +146,12 @@ ressources que les stacks créent et de ce que CAPMOX exige :
 | `VM.Config.CDROM`, `.CPU`, `.Cloudinit`, `.Disk`, `.HWType`, `.Memory`, `.Network`, `.Options` | configuration complète des VM et LXC (étiquettes, démarrage, réseau, disques) |
 | `VM.PowerMgmt` | démarrer, arrêter, redémarrer |
 | `VM.Console` | frappes clavier envoyées pour l'import de configuration d'OPNsense (`sendkey`), console |
-| `VM.Monitor`, `VM.GuestAgent.Audit` | agent invité (adresses IP) ; selon la version de Proxmox l'un des deux n'existe pas : retirez-le de la commande s'il est refusé |
+| `VM.GuestAgent.Audit` | agent invité (adresses IP des VM). Proxmox 9 a supprimé `VM.Monitor` : ne pas l'ajouter (`invalid privilege 'VM.Monitor'`) |
 
 ```bash
-pveum role add PADInfra -privs "Sys.Modify Sys.Audit Datastore.Allocate Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit SDN.Use VM.Allocate VM.Clone VM.Audit VM.Config.CDROM VM.Config.CPU VM.Config.Cloudinit VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Network VM.Config.Options VM.PowerMgmt VM.Console VM.Monitor VM.GuestAgent.Audit"
+pveum role add PADInfra -privs "Sys.Modify Sys.Audit Datastore.Allocate Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit SDN.Use VM.Allocate VM.Clone VM.Audit VM.Config.CDROM VM.Config.CPU VM.Config.Cloudinit VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Network VM.Config.Options VM.PowerMgmt VM.Console VM.GuestAgent.Audit"
 pveum user add pad@pve
-pveum aclmod / -user pad@pve -role PADInfra
+pveum acl modify / --users pad@pve --roles PADInfra
 pveum user token add pad@pve tofu --privsep 0     # affiche le secret UNE FOIS : le noter
 ```
 
@@ -171,7 +171,7 @@ Le CSI a son propre utilisateur, à privilèges réduits (détails : [Proxmox CS
 ```bash
 pveum role add CSI -privs "VM.Audit VM.Config.Disk Datastore.Allocate Datastore.AllocateSpace Datastore.Audit Sys.Audit"
 pveum user add csi@pve
-pveum aclmod / -user csi@pve -role CSI
+pveum acl modify / --users csi@pve --roles CSI
 pveum user token add csi@pve csi --privsep 0    # le secret va dans gitops/platform/proxmox-csi/secret.sops.yaml (token_secret)
 ```
 
