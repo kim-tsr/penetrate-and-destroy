@@ -6,6 +6,8 @@
 # - `clusterctl generate provider` produit exactement ce que `clusterctl init` applique ;
 # - les variables sont fixées ici (pas de feature gates expérimentales) ;
 # - le Secret d'identifiants CAPMOX est retiré (il vient de gitops/platform/secrets via ksops) ;
+# - les managers sont durcis (readOnlyRootFilesystem + emptyDir /tmp) par harden-providers.yq, car trivy config
+#   lit les YAML tels quels et ne voit pas les patches kustomize ;
 # - l'inventaire clusterctl (objets Provider) est généré pour rester cohérent avec
 #   `clusterctl move` / `clusterctl upgrade plan`.
 # Mise à jour : modifier kubernetes.capi.* dans le contrat, relancer `task bootstrap:render-providers`, committer.
@@ -31,7 +33,8 @@ ipam=$(contract '.kubernetes.capi.ipam_in_cluster')
 render() { # render <fichier> <flag> <provider:version>
   log "clusterctl generate provider $2 $3"
   clusterctl generate provider "$2" "$3" --config "${ROOT_DIR}/bootstrap/clusterctl.yaml" \
-    | yq 'select(.kind != "Secret" or .metadata.name != "capmox-manager-credentials")' >"${OUT}/$1.tmp"
+    | yq 'select(.kind != "Secret" or .metadata.name != "capmox-manager-credentials")' \
+    | yq --from-file "$(dirname "$0")/harden-providers.yq" >"${OUT}/$1.tmp"
   {
     printf '# Généré par bootstrap/scripts/render-providers.sh (%s) - ne pas éditer à la main.\n' "$3"
     cat "${OUT}/$1.tmp"

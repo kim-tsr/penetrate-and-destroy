@@ -1,0 +1,7 @@
+# Filtre yq appliqué par render-providers.sh : durcit les managers des providers Cluster API (trivy KSV014).
+# Système de fichiers racine en lecture seule ; /tmp reste inscriptible via un emptyDir (les certificats webhook
+# viennent d'un Secret monté en lecture seule).
+with(select(.kind == "Deployment");
+  .spec.template.spec.containers[] |= (select(.name == "manager") | .securityContext.readOnlyRootFilesystem = true | .volumeMounts += [{"name": "tmp", "mountPath": "/tmp"}])
+  | .spec.template.spec.volumes += [{"name": "tmp", "emptyDir": {}}]
+)

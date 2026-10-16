@@ -1,0 +1,3 @@
+# Configuration trivy lue automatiquement depuis la racine du repo (CI et local).
+# Le fichier d'exceptions est au format YAML pour pouvoir limiter chaque constat accepté à un fichier et à une raison.
+ignorefile: .trivyignore.yaml

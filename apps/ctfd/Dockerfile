@@ -20,7 +20,17 @@ FROM docker.io/ctfd/ctfd:3.8.8@sha256:07cc9788d58b2a18ea4dc2103ff385c053ffc506f5
 ARG SOURCE_DATE_EPOCH
 ARG CTFD_VERSION
 
-# L'image officielle tourne déjà en UID 1001 avec /opt/venv lui appartenant.
+# Correctifs de sécurité de la base Debian (perl-base, libpcre2) et du Python système, appliqués en root.
+USER 0
+COPY requirements-system.txt /tmp/pad-requirements-system.txt
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends --only-upgrade perl-base libpcre2-8-0 \
+    && rm -rf /var/lib/apt/lists/* \
+    && /usr/local/bin/python -m pip install --no-cache-dir --no-compile --no-deps --require-hashes \
+         -r /tmp/pad-requirements-system.txt \
+    && rm -f /tmp/pad-requirements-system.txt
+
+# L'image officielle tourne en UID 1001 avec /opt/venv lui appartenant.
 USER 1001
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -29,7 +39,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # Dépendances des plugins : versions exactes + hashes obligatoires.
 COPY --chown=1001:1001 requirements.txt /tmp/pad-requirements.txt
-RUN pip install --no-compile --require-hashes -r /tmp/pad-requirements.txt \
+RUN pip install --no-compile --no-deps --require-hashes -r /tmp/pad-requirements.txt \
     && rm -f /tmp/pad-requirements.txt
 
 # Plugins en lecture seule pour l'utilisateur d'exécution (propriétaire root).
