@@ -89,6 +89,7 @@ nav:
       - operations/actions-post-deploiement.md
       - operations/securite-identite.md
       - operations/protection-branche.md
+      - operations/images-signees.md
       - Secrets (SOPS + age): SECRETS.md
   - Runbooks:
       - runbooks/index.md

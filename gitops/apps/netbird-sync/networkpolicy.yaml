@@ -42,6 +42,17 @@ spec:
             cidr: 10.20.60.0/24 # contracts: zones.prod.cidr
       ports:
         - { port: 6443, protocol: TCP } # contracts: ports.kube_api
+    # Membres d'équipe : API interne de CTFd (ClusterIP)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ctfd # contracts: namespaces.ctfd
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ctfd
+              app.kubernetes.io/component: web
+      ports:
+        - { port: 8000, protocol: TCP }
     # API NetBird via l'edge (Traefik, DMZ) : 443 uniquement
     - to:
         - ipBlock:

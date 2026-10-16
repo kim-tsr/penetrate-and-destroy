@@ -18,7 +18,10 @@ déploiement. **Les faire avant d'ouvrir la plateforme aux joueurs.**
 3. Vérifier qu'il ne reste que : `staff-vers-bastion` (stack `40-netbird`) et les policies `pad-inst-*` créées par
    `netbird-sync`.
 
-Le provider OpenTofu ne modélise pas le groupe « All » : cette action n'est pas automatisable aujourd'hui.
+Le provider OpenTofu ne modélise pas le groupe « All » : la suppression elle-même n'est pas automatisable aujourd'hui.
+Elle est en revanche **vérifiée automatiquement** : `netbird-sync` refuse de démarrer (et n'écrit plus rien dans NetBird)
+tant qu'une policy active a le groupe « All » en source ; le journal indique `refus de démarrer`, la métrique
+`netbird_sync_open_policies` reste à 1 ou plus. À refaire après toute réinstallation de NetBird.
 
 ## 2. Créer le PAT de `netbird-sync`
 
@@ -31,6 +34,15 @@ Le provider NetBird ne sait créer un jeton que pour l'utilisateur courant. Le j
 3. `NETBIRD_API_URL` correspond à la sortie `management_url` de la stack `40-netbird`.
 4. Commiter et pousser ; ArgoCD déploie. Contrôler : `kubectl -n netbird-sync logs deploy/netbird-sync` sans erreur
    401/403.
+
+Rôles : l'utilisateur `netbird-sync` est `network_admin` (moindre privilège) ; si le journal montre un HTTP 403 (en
+particulier sur `GET /users`), passer `netbird_sync_role = "admin"` dans la stack `40-netbird`, en connaissance de cause.
+Créer aussi le PAT de l'utilisateur `pad-frontend-readonly` (rôle `auditor`) pour `NETBIRD_API_TOKEN` du front : ne jamais y
+mettre le jeton de `netbird-sync` ni celui d'un administrateur, un PAT hérite des droits de son propriétaire.
+`PAD_INTERNAL_TOKEN` du secret `netbird-sync` doit être **identique** à celui du secret `ctfd-secrets` (netbird-sync lit
+les membres d'équipe dans CTFd pour rattacher chaque joueur au groupe `ctf-team-<id>`) :
+`sops gitops/apps/netbird-sync/secret.sops.yaml`. Les e-mails des comptes NetBird (SSO Authentik) et CTFd doivent
+correspondre.
 
 Sans ce jeton, aucune instance n'est joignable : voir [netbird-sync](../runbooks/netbird-sync.md).
 
@@ -74,7 +86,12 @@ Sans eux, les versions ne sont épinglées que par la contrainte exacte des prov
 | Premier compte `ctf-admins` / `ctf-managers` dans Authentik | l'accès au portail manager exige le groupe |
 | Vérifier la redirection OIDC de chaque application | le redirect URI doit correspondre à l'URL réelle |
 | Renseigner `uptime_kuma_watchdog_token` | active le dead-man's switch ([Watchdog](../runbooks/watchdog.md)) |
-| Passer `verify-images` en `Enforce` | après renseignement de la clé publique cosign et signature des images |
+| Passer la vérification des images en `enforce` | `mode` du ConfigMap `pad-image-policy` + `instances.image_verification` du contrat, après clé publique cosign et signature des images ([procédure](images-signees.md)) |
+| Remplacer les empreintes nulles des images ctfd, frontend et netbird-sync | première publication CI, puis PR Renovate |
+| Vérifier `hostUsers: false` sur une instance | `kubectl -n inst-<id> get pod -o jsonpath='{.items[0].spec.hostUsers}'` puis `cat /proc/self/uid_map` dans le conteneur ; sinon `PAD_HOST_USERS=true` (échappatoire) ou RuntimeClass gVisor (`PAD_RUNTIME_CLASS`) |
+| Vérifier les limites du pool challenges | `kubectl get node <worker> -o jsonpath='{.status.capacity.pods}'` = 40 ; fork bomb d'essai bornée à 256 PIDs. Un changement du patch Talos ne remplace pas les machines existantes : créer un nouveau `TalosConfigTemplate` (nouveau nom) et l'y référencer |
+| Zot : règle d'accès `ctf/**` et identifiants de pull des nœuds challenges | prérequis des images d'instance (voir [Images signées](images-signees.md)) |
+| Garage : clé de sauvegarde dédiée | renseigner `backup_access_key_id` / `backup_secret_access_key` dans `secret-s3.sops.yaml` après avoir basculé `scripts/backup.sh` et `restore.sh` sur cette clé |
 | Lancer `task backup` puis un test de restauration | disposer d'un point de reprise vérifié |
 | Tester une alerte (arrêter un exporter) | confirmer que Discord et l'e-mail reçoivent |
 | Vérifier que l'import de challenges accepte 50 Mio | corps maximal de l'ingress |

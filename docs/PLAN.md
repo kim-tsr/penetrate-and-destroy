@@ -242,6 +242,15 @@ Après les vagues 0, 1 et la majeure partie de la vague 2, le lot 1 a complété
 - Mode WAN générique `routed_ip` | `nat`. Prérequis : un hôte Proxmox vierge ou sans conflit de VMID ni de bridge avec le contrat.
 - Licence MIT ; garde-fou `scripts/check-site-leaks.sh` (lint et CI), qui compare des empreintes sha256 sans republier les motifs interdits.
 
+### Lot 3 : durcissement face aux joueurs (revue de sécurité, findings 3 à 6 et 10)
+- **Déni de service** : ResourceQuota et LimitRange générés par Kyverno sur chaque `inst-*` (ephemeral-storage compris), plafonds par conteneur dans le scénario (cpu 2, mémoire 1Gi, éphémère 1Gi), kubelet du pool challenges (`podPidsLimit` 256, `maxPods` 40), plus aucun egress DNS (tunnel DNS) ; DNS limité à `cluster.local` en opt-in.
+- **Images** : registre `registry.pad.internal/ctf/` et empreinte `@sha256` obligatoires (schéma, scénario, Kyverno `restrict-instance-images`) ; `verify-images` en Enforce piloté par le ConfigMap `pad-image-policy` (Audit tant que la clé cosign est factice) ; images ctfd, frontend et netbird-sync par empreinte. Voir `docs/operations/images-signees.md`.
+- **Noyau** : `hostUsers: false` (user namespaces, feature gate kubelet), RuntimeClass gVisor optionnelle (`PAD_RUNTIME_CLASS`).
+- **Flux** : I3 asymétrique, 6443 limité aux workers challenges (stack `60-opnsense-rules`).
+- **NetBird** : entrée des instances limitée au routing peer (plus d'overlay), rattachement automatique des joueurs à `ctf-team-<id>` par netbird-sync, refus de démarrer tant que la policy Default existe, PAT `network_admin` pour netbird-sync et `auditor` pour le front.
+- **Socle** : PSS et NetworkPolicy pour les namespaces CAPI, `pad-cluster` et `csi-proxmox` ; clé S3 de sauvegarde dédiée (optionnelle) dans Garage.
+- **À faire (hors périmètre du lot)** : règle Zot `ctf/**` et identifiants de pull des nœuds ; `scripts/sopsctl.py` doit copier `PAD_INTERNAL_TOKEN` de CTFd vers le secret netbird-sync et générer la clé de sauvegarde Garage, `scripts/backup.sh`/`restore.sh` doivent l'utiliser ; pas de limite globale d'instances (pool LB-IPAM de 100 IP, finding A1-5) ; vérifier sur cluster réel `UserNamespacesSupport` sous Talos, les motifs DNS Cilium, le rôle `network_admin` NetBird et la syntaxe keyless de Kyverno.
+
 ### Prochain lot
 1. Revue de sécurité croisée.
 2. Documentation MkDocs : architecture, ADR, matrice de flux, runbooks (dont les 24 référencés par les alertes), guides joueur et manager, procédure du repo privé de challenges.

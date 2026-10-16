@@ -78,7 +78,15 @@ spec:
             # Paramètres du scénario générique (défauts = contrat ; hérités par le programme Pulumi).
             - { name: PAD_LB_POOL, value: instances } # contracts: kubernetes.lb_pools.instances
             - { name: PAD_LB_POOL_LABEL, value: pad.io/lb-pool } # contracts: kubernetes.lb_pool_label
-            - { name: PAD_FROM_CIDRS, value: "10.20.70.10/32,100.64.0.0/10" } # contracts: netbird.routing_peer_ip, netbird.overlay_cidr
+            # Source d'entrée des instances : le routing peer NetBird seul (masquerade => c'est la source vue). L'overlay
+            # 100.64.0.0/10 est refusé par le scénario ; l'accès par équipe est porté par les policies NetBird (netbird-sync).
+            - { name: PAD_FROM_CIDRS, value: "10.20.70.10/32" } # contracts: netbird.routing_peer_ip
+            # Images d'instance : registre interne et empreinte obligatoires (aussi imposé par Kyverno restrict-instance-images).
+            - { name: PAD_IMAGE_PREFIX, value: "registry.pad.internal/ctf/" } # contracts: instances.image_prefix
+            # User namespace par pod (hostUsers: false). "true" = désactivé (échappatoire si le noyau/runtime ne le supporte pas).
+            - { name: PAD_HOST_USERS, value: "false" } # contracts: instances.host_users
+            # Option sandbox noyau : nom d'une RuntimeClass gVisor/Kata présente sur le pool challenges (vide = runtime par défaut).
+            # - { name: PAD_RUNTIME_CLASS, value: gvisor }
             # Registre OCI (Zot) des scénarios : identifiants facultatifs (pull anonyme sinon).
             - name: OCI_USERNAME
               valueFrom:

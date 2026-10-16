@@ -111,7 +111,8 @@
         "image": {
           "type": "string",
           "minLength": 1,
-          "pattern": "^[a-z0-9.-]+(:\\d+)?/[a-z0-9._/-]+(:[\\w.-]+)?(@sha256:[a-f0-9]{64})?$"
+          "pattern": "^registry\\.pad\\.internal/ctf/[a-z0-9]+(?:[._/-][a-z0-9]+)*(?::[A-Za-z0-9_][A-Za-z0-9_.-]{0,127})?@sha256:[a-f0-9]{64}$",
+          "description": "Registre interne imposé (contrat instances.image_prefix) et empreinte @sha256 obligatoire."
         },
         "ports": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/port"}},
         "ttl": {"$ref": "#/$defs/ttl"},
@@ -120,8 +121,8 @@
           "additionalProperties": false,
           "default": {"cpu": "500m", "memory": "256Mi"},
           "properties": {
-            "cpu": {"type": "string", "pattern": "^(\\d+m|\\d+(\\.\\d+)?)$", "default": "500m"},
-            "memory": {"type": "string", "pattern": "^\\d+(Ki|Mi|Gi)$", "default": "256Mi"}
+            "cpu": {"type": "string", "pattern": "^(?:[1-9]\\d{0,2}m|1\\d{3}m|2000m|0\\.\\d*[1-9]\\d*|1(?:\\.\\d+)?|2(?:\\.0+)?)$", "default": "500m", "description": "Plafond 2 CPU (contrat instances.limits_max.cpu)."},
+            "memory": {"type": "string", "pattern": "^(?:1Gi|(?:[1-9]\\d{0,2}|10[01]\\d|102[0-4])Mi)$", "default": "256Mi", "description": "Plafond 1Gi (contrat instances.limits_max.memory), en Mi ou Gi."}
           }
         }
       }

@@ -1,0 +1,103 @@
+# Garde-fous des namespaces d'instances (inst-*), générés à la création du namespace :
+#  - ResourceQuota  : plafonne l'ensemble de l'instance (cpu, mémoire, disque éphémère, pods, Services LoadBalancer) ;
+#  - LimitRange     : défauts et plafonds par conteneur (ephemeral-storage compris : un joueur qui écrit en boucle dans
+#                     le rootfs est évincé au lieu de saturer le disque du worker) ;
+#  - DNS (opt-in)   : si le namespace porte pad.io/dns=cluster-local (clé `dns=cluster` du scénario), une
+#                     CiliumNetworkPolicy n'autorise vers CoreDNS que les noms *.cluster.local. CoreDNS répond
+#                     lui-même (NXDOMAIN) pour cluster.local sans interroger l'amont : aucun tunnel DNS vers Internet.
+#                     Sans le label, les instances n'ont AUCUN egress, DNS compris.
+# Les valeurs reprennent infra/contracts.yaml (instances.limits_max : cpu 2, mémoire 1Gi, éphémère 1Gi ; quota = 2 x).
+# contracts: namespaces.instances_prefix, instances.limits_max
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: instance-guardrails
+  annotations:
+    policies.kyverno.io/title: Quotas, plafonds et DNS restreint des instances
+    policies.kyverno.io/category: Multi-Tenancy
+    policies.kyverno.io/severity: high
+spec:
+  background: false
+  rules:
+    - name: resource-quota
+      match:
+        any:
+          - resources:
+              kinds: ["Namespace"]
+              names: ["inst-*"]
+      generate:
+        apiVersion: v1
+        kind: ResourceQuota
+        name: pad-instance
+        namespace: "{{request.object.metadata.name}}"
+        synchronize: true
+        data:
+          spec:
+            hard:
+              pods: "2" # 1 réplica (stratégie Recreate) + marge de remplacement
+              requests.cpu: "2"
+              limits.cpu: "4"
+              requests.memory: 2Gi
+              limits.memory: 2Gi
+              requests.ephemeral-storage: 2Gi
+              limits.ephemeral-storage: 2Gi
+              services: "2"
+              services.loadbalancers: "1"
+              services.nodeports: "0"
+              persistentvolumeclaims: "0"
+              count/deployments.apps: "2"
+    - name: limit-range
+      match:
+        any:
+          - resources:
+              kinds: ["Namespace"]
+              names: ["inst-*"]
+      generate:
+        apiVersion: v1
+        kind: LimitRange
+        name: pad-instance
+        namespace: "{{request.object.metadata.name}}"
+        synchronize: true
+        data:
+          spec:
+            limits:
+              - type: Container
+                defaultRequest: { cpu: 50m, memory: 64Mi, ephemeral-storage: 64Mi }
+                default: { cpu: 500m, memory: 256Mi, ephemeral-storage: 256Mi }
+                max: { cpu: "2", memory: 1Gi, ephemeral-storage: 1Gi }
+              - type: Pod
+                max: { cpu: "2", memory: 1Gi, ephemeral-storage: 1Gi }
+    - name: dns-cluster-local
+      match:
+        any:
+          - resources:
+              kinds: ["Namespace"]
+              names: ["inst-*"]
+              selector:
+                matchLabels:
+                  pad.io/dns: cluster-local
+      generate:
+        apiVersion: cilium.io/v2
+        kind: CiliumNetworkPolicy
+        name: pad-dns-cluster-local
+        namespace: "{{request.object.metadata.name}}"
+        synchronize: true
+        data:
+          spec:
+            endpointSelector: {}
+            egress:
+              - toEndpoints:
+                  - matchLabels:
+                      io.kubernetes.pod.namespace: kube-system
+                      k8s-app: kube-dns
+                toPorts:
+                  - ports:
+                      - { port: "53", protocol: ANY }
+                    rules:
+                      dns:
+                        # `*` ne couvre qu'un seul label : une profondeur par motif (service.ns.svc.cluster.local = 4).
+                        - matchPattern: "*.cluster.local"
+                        - matchPattern: "*.*.cluster.local"
+                        - matchPattern: "*.*.*.cluster.local"
+                        - matchPattern: "*.*.*.*.cluster.local"
+                        - matchPattern: "*.*.*.*.*.cluster.local"

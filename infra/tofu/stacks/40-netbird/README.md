@@ -21,16 +21,29 @@ Configure NetBird (self-hosted, déployé par le rôle ansible `netbird-server`)
 | `networks.tf` | Network `netbird.network_name` (instances) + routeur sur les peers du groupe `pad-routers-challenges` ; network `pad-bastion` + routeur + resource = CIDR de la zone BASTION. |
 | `policies.tf` | `staff-vers-bastion` : `netbird.groups.staff` vers la zone BASTION, TCP `flow_ports.warpgate` uniquement. |
 | `setup_keys.tf` | Une setup key par routing peer (auto-groupe du routeur). |
-| `service_users.tf` | Utilisateur de service `netbird-sync`. |
+| `service_users.tf` | Utilisateurs de service `netbird-sync` (`network_admin`) et `pad-frontend-readonly` (`auditor`). |
 | `identity_provider.tf` | Connecteur OIDC Authentik + groupes JWT, **désactivé par défaut** (`manage_identity_provider`). |
 
 ## Partage avec `apps/netbird-sync`
 
 `netbird-sync` retrouve par nom le network `pad-instances` (`netbird.network_name`) et son groupe de resources du même nom (`EnsureNetwork` / `EnsureGroup`), puis crée les resources `/32` (IP LB d'instance) et une policy par instance et par équipe (source : groupe `ctf-team-<id>`). Ce stack ne déclare **aucune** resource ni policy d'instance, pour éviter les conflits de propriété. Sans policy d'instance, un joueur n'atteint rien.
 
-Le groupe `ctf-team-<id>` est créé par netbird-sync ; le rattachement des joueurs à leur groupe d'équipe relève de l'application (hors périmètre de ce stack).
+Le groupe `ctf-team-<id>` est créé par netbird-sync, **qui y rattache aussi les joueurs** : pour chaque équipe ayant un namespace d'instance, il lit les membres dans CTFd (endpoint interne `pad_teams`, `GET /api/v1/pad/internal/sources/team/<id>`, jeton `PAD_INTERNAL_TOKEN`), retrouve les utilisateurs NetBird par **e-mail** (le même que celui du compte CTFd, issu d'Authentik) et fait en sorte que le groupe contienne exactement leurs pairs (ajouts, retraits, équipe supprimée ou bannie = groupe vidé), à chaque réconciliation de Service et toutes les minutes. Un joueur n'atteint donc que les instances de son équipe. Ne jamais ajouter de policy joueurs vers `pad-instances` ici ni à la main.
 
-PAT de netbird-sync : le provider ne sait créer un token que pour l'utilisateur courant. Créer à la main le PAT de l'utilisateur de service `netbird-sync` (Dashboard > Team > Service Users), puis le placer dans le secret SOPS de `gitops/apps/netbird-sync` (`NETBIRD_API_TOKEN`). `NETBIRD_API_URL` = output `management_url` (le client de netbird-sync accepte l'URL avec ou sans `/api`).
+Isolation côté cluster : le routeur est en masquerade, l'instance voit l'IP du routing peer ; la NetworkPolicy d'instance n'autorise donc que cette IP (`PAD_FROM_CIDRS`), jamais l'overlay `100.64.0.0/10`. L'isolation entre équipes est portée uniquement par les policies NetBird ci-dessus.
+
+### Utilisateurs de service et jetons (PAT)
+
+Un PAT hérite du rôle de son propriétaire. Le provider ne sait créer un token que pour l'utilisateur courant : créer les PAT à la main (Dashboard > Team > Service Users).
+
+| Service user (créé ici) | Rôle | Usage | Secret SOPS |
+|---|---|---|---|
+| `netbird-sync` | `network_admin` (variable `netbird_sync_role`) | groupes, networks, resources, policies, pairs des groupes d'équipe | `gitops/apps/netbird-sync` (`NETBIRD_API_TOKEN`) |
+| `pad-frontend-readonly` | `auditor` | front : état du tunnel du joueur (`/users`, `/peers`) | `gitops/apps/frontend` (`NETBIRD_API_TOKEN`) |
+
+À vérifier au premier déploiement : `network_admin` n'a pas pu être testé contre un vrai NetBird. Si netbird-sync journalise un HTTP 403 (notamment sur `GET /users`), repasser `netbird_sync_role = "admin"` en connaissance de cause (un jeton admin peut créer des utilisateurs et des jetons). Ne jamais réutiliser le PAT de netbird-sync, ni celui d'un administrateur, pour le front.
+
+`NETBIRD_API_URL` = output `management_url` (le client de netbird-sync accepte l'URL avec ou sans `/api`). `PAD_INTERNAL_TOKEN` du secret netbird-sync doit valoir exactement celui de `gitops/apps/ctfd` (`ctfd-secrets`).
 
 ## Routing peers
 
@@ -51,8 +64,8 @@ Les groupes IdP du contrat sont pré-créés ici (`netbird_group.idp`) ; la sync
 
 ## Limites et actions manuelles
 
-- **Policy « Default »** : NetBird crée à l'initialisation une policy All <-> All. Elle doit être **désactivée ou supprimée** (dashboard > Access Control) pour obtenir le deny all par défaut. Non géré ici (le groupe « All » n'est pas modélisé).
-- PAT de `netbird-sync` : manuel (voir plus haut).
+- **Policy « Default » (étape manuelle OBLIGATOIRE)** : NetBird crée à l'initialisation (et après toute réinstallation) une policy All <-> All. Tant qu'elle est active, tout joueur enrôlé joint tous les pairs et toutes les routes (routing peers, pivot vers BASTION, instances des autres équipes). Elle doit être **supprimée** (dashboard > Access Control > Default). Elle n'est pas gérée par tofu : le provider `netbirdio/netbird` 0.0.10 n'a pas pu être consulté (registry bloqué), et adopter une policy existante exige son ID. **Vérification automatique** : `netbird-sync` refuse de démarrer (journal `refus de démarrer…`), puis n'écrit plus rien dans NetBird, tant qu'une policy active a le groupe « All » en source ; la métrique `netbird_sync_open_policies` doit rester à 0 (alerte conseillée).
+- PATs des services users : manuels (voir plus haut).
 - Setup keys : la valeur n'est lisible que dans le state chiffré / l'output sensible. `expiry_seconds` ne peut pas être relu par le provider.
 
 ## Validation

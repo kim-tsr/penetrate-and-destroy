@@ -1,0 +1,25 @@
+# Réglage de la vérification des images (politiques verify-images et verify-images-audit).
+#
+#  mode      : audit (défaut, sûr) | enforce
+#              Valeur du contrat instances.image_verification : modifier les deux ensemble, dans le même commit.
+#              - audit   : les violations sont seulement rapportées (PolicyReport), rien n'est bloqué ;
+#              - enforce : une image non signée / sans empreinte est refusée à l'admission (failurePolicy Fail).
+#  cosign.pub: clé publique cosign qui signe les images du registre interne (challenges). PLACEHOLDER tant que
+#              l'opérateur n'a pas généré la sienne (`cosign generate-key-pair`; la clé privée reste dans SOPS / la CI
+#              du dépôt privé). Les images du projet sur ghcr.io sont vérifiées en keyless (identité du workflow
+#              images.yml), sans cette clé.
+#
+# Garde-fou : tant que cosign.pub contient CHANGEME, la règle « registre interne » n'est jamais appliquée en enforce
+# (elle reste en audit), pour ne pas bloquer le démarrage de toutes les instances avec une clé invalide.
+# Procédure complète : docs/operations/images-signees.md.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pad-image-policy
+  namespace: kyverno
+data:
+  mode: audit # contracts: instances.image_verification
+  cosign.pub: |
+    -----BEGIN PUBLIC KEY-----
+    CHANGEME-REMPLACER-PAR-LA-CLE-PUBLIQUE-COSIGN
+    -----END PUBLIC KEY-----

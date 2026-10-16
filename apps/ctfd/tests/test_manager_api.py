@@ -188,7 +188,7 @@ def test_import_instance_registers_scenario_in_chall_manager(app):
         spec = {
             "name": "web-sqli", "category": "web", "description": "d", "value": 200,
             "flags": ["PAD{x}"],
-            "instance": {"image": "registry.test/pad/web:1@sha256:" + "a" * 64,
+            "instance": {"image": "registry.pad.internal/ctf/web:1@sha256:" + "a" * 64,
                          "ports": [8080, {"port": 22, "protocol": "tcp"}], "ttl": 900,
                          "limits": {"cpu": "500m", "memory": "256Mi"}},
         }
@@ -222,7 +222,7 @@ def test_import_instance_chall_manager_down_leaves_nothing(app):
         token = _manager(client)
         spec = {"name": "x", "category": "web", "description": "d", "value": 1,
                 "flags": ["f"],
-                "instance": {"image": "registry.test/pad/x:1", "ports": [80]}}
+                "instance": {"image": "registry.pad.internal/ctf/x:1@sha256:" + "a" * 64, "ports": [80]}}
         assert post_zip(client, token, make_zip(spec)).status_code == 502
         assert Challenges.query.filter_by(name="x").count() == 0
 
@@ -238,9 +238,9 @@ def test_import_validation_errors(app):
         # Port invalide / champ instance inconnu.
         spec = {"name": "a", "category": "c", "description": "d", "value": 1,
                 "flags": ["f"],
-                "instance": {"image": "registry.test/pad/x:1", "ports": [70000]}}
+                "instance": {"image": "registry.pad.internal/ctf/x:1@sha256:" + "a" * 64, "ports": [70000]}}
         assert post_zip(client, token, make_zip(spec)).status_code == 422
-        spec["instance"] = {"image": "registry.test/pad/x:1", "ports": [80], "privileged": True}
+        spec["instance"] = {"image": "registry.pad.internal/ctf/x:1@sha256:" + "a" * 64, "ports": [80], "privileged": True}
         assert post_zip(client, token, make_zip(spec)).status_code == 422
         # YAML cassé, racine non-mapping, valeur statique absente.
         assert post_zip(client, token, make_zip(None, raw_yaml="a: [")).status_code == 422
@@ -474,7 +474,7 @@ def test_import_dynamic_with_instance_keeps_decay(app):
                 "type": "dynamic", "flags": ["f"],
                 "extra": {"initial": 400, "minimum": 100, "decay": 10,
                           "function": "linear"},
-                "instance": {"image": "registry.test/pad/x:1", "ports": [80],
+                "instance": {"image": "registry.pad.internal/ctf/x:1@sha256:" + "a" * 64, "ports": [80],
                              "ttl": "30m"}}
         resp = post_zip(client, token, make_zip(spec))
         assert resp.status_code == 201, resp.get_json()

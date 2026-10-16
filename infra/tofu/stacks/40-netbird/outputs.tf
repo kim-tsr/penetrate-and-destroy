@@ -39,6 +39,11 @@ output "netbird_sync_service_user_id" {
   value       = netbird_user.netbird_sync.id
 }
 
+output "frontend_readonly_service_user_id" {
+  description = "ID de l'utilisateur de service en lecture seule (auditor) du front (PAT à créer dans le dashboard, pour NETBIRD_API_TOKEN du front)."
+  value       = netbird_user.frontend_readonly.id
+}
+
 output "management_url" {
   description = "URL de l'API management NetBird utilisée par le provider (NETBIRD_API_URL de netbird-sync = cette URL + /api)."
   value       = local.vpn_url

@@ -15,7 +15,8 @@ tags: [pwn, ret2win]
 state: hidden
 version: "0.1"
 instance:
-  image: registry.changeme.example.net/ctf/pwn-ret2win-instanced:0.1.0
+  # Registre interne et empreinte obligatoires (remplacer l'empreinte nulle par celle du build CI).
+  image: registry.pad.internal/ctf/pwn-ret2win-instanced:0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000
   ports:
     - port: 1337
       protocol: tcp

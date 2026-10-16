@@ -26,20 +26,25 @@ const portSchema = z.union([
   }),
 ]);
 
-const cpuRe = /^(\d+m|\d+(\.\d+)?)$/;
-const memRe = /^\d+(Ki|Mi|Gi)$/;
+// Miroir de challenges/schema/challenge.schema.json (contrat instances.image_prefix et instances.limits_max).
+// Le scénario chall-manager refuse de toute façon une image hors de ce préfixe ou sans empreinte.
+const IMAGE_RE =
+  /^registry\.pad\.internal\/ctf\/[a-z0-9]+(?:[._/-][a-z0-9]+)*(?::[A-Za-z0-9_][A-Za-z0-9_.-]{0,127})?@sha256:[a-f0-9]{64}$/;
+// Plafonds : 2 CPU, 1Gi de mémoire.
+const cpuRe = /^(?:[1-9]\d{0,2}m|1\d{3}m|2000m|0\.\d*[1-9]\d*|1(?:\.\d+)?|2(?:\.0+)?)$/;
+const memRe = /^(?:1Gi|(?:[1-9]\d{0,2}|10[01]\d|102[0-4])Mi)$/;
 
 export const instanceSchema = z.strictObject({
   image: z
     .string()
     .min(1)
-    .regex(/^[a-z0-9.-]+(:\d+)?\/[a-z0-9._/-]+(:[\w.-]+)?(@sha256:[a-f0-9]{64})?$/, "référence d'image OCI complète attendue (registry/repo:tag)"),
+    .regex(IMAGE_RE, "image du registre interne (registry.pad.internal/ctf/…) avec empreinte obligatoire (@sha256:…)"),
   ports: z.array(portSchema).min(1, "au moins un port exposé"),
   ttl: ttlSchema.default(3600),
   limits: z
     .strictObject({
-      cpu: z.string().regex(cpuRe, "cpu : 500m ou 1").default("500m"),
-      memory: z.string().regex(memRe, "mémoire : 256Mi ou 1Gi").default("256Mi"),
+      cpu: z.string().regex(cpuRe, "cpu : 500m ou 1 (2 maximum)").default("500m"),
+      memory: z.string().regex(memRe, "mémoire : 256Mi ou 1Gi (1Gi maximum, unités Mi ou Gi)").default("256Mi"),
     })
     .default({ cpu: "500m", memory: "256Mi" }),
 });

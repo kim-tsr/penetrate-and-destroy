@@ -4,6 +4,11 @@
 #   3. clé d'accès "pad-apps" : IMPORTÉE (`garage key import`) depuis le Secret garage-s3-credentials, fourni par ksops
 #      (secret-s3.sops.yaml, généré par `task secrets:init` et identique à AWS_* du Secret CTFd). Ce Job ne crée aucun
 #      Secret. Droits minimaux : lecture + écriture sur les deux buckets uniquement (pas owner).
+#   4. (optionnel) clé "pad-backups" dédiée aux sauvegardes, si backup_access_key_id / backup_secret_access_key sont
+#      présents dans le Secret : elle seule accède au bucket backups, et "pad-apps" (celle de CTFd) perd tout droit
+#      dessus. Une compromission de CTFd ne permet alors plus de lire ni d'altérer les dumps MariaDB (hashes des mots
+#      de passe d'équipe). Sans ces champs, comportement historique (une seule clé sur les deux buckets) : tant que
+#      scripts/backup.sh et scripts/restore.sh n'utilisent pas la clé dédiée, ne pas renseigner les champs.
 # La CLI garage v2 (`/garage`, image scratch sans shell) est exécutée via `kubectl exec garage-0` : elle lit
 # /etc/garage.toml (rpc_secret + node id) dans le pod, aucun secret n'est donc exposé au Job.
 apiVersion: batch/v1
@@ -45,7 +50,9 @@ spec:
               NS=storage
               POD=garage-0
               KEY_NAME=pad-apps
-              BUCKETS="ctfd-uploads backups" # contracts: apps.ctfd.upload_bucket apps.ctfd.backup_bucket
+              UPLOADS=ctfd-uploads # contracts: apps.ctfd.upload_bucket
+              BACKUPS=backups # contracts: apps.ctfd.backup_bucket
+              BUCKETS="$UPLOADS $BACKUPS"
               g() { kubectl -n "$NS" exec "$POD" -c garage -- /garage "$@"; }
 
               kubectl -n "$NS" wait --for=condition=Ready "pod/$POD" --timeout=300s
@@ -76,6 +83,17 @@ spec:
               for b in $BUCKETS; do
                 g bucket allow --read --write --key "$AK" "$b"
               done
+
+              # 4. Clé de sauvegarde dédiée (optionnelle) : seule à accéder à backups ; pad-apps (CTFd) n'y a plus accès.
+              if [ -n "${BAK_AK:-}" ]; then
+                echo "$BAK_AK" | grep -Eq '^GK[0-9a-f]{24}$' || { echo "backup_access_key_id invalide (attendu GK + 24 hex)" >&2; exit 1; }
+                echo "${BAK_SK:-}" | grep -Eq '^[0-9a-f]{64}$' || { echo "backup_secret_access_key invalide (attendu 64 hex)" >&2; exit 1; }
+                [ "$BAK_AK" != "$AK" ] || { echo "la clé de sauvegarde doit différer de la clé CTFd" >&2; exit 1; }
+                g key info "$BAK_AK" >/dev/null 2>&1 || g key import -n pad-backups --yes "$BAK_AK" "$BAK_SK"
+                g bucket allow --read --write --key "$BAK_AK" "$BACKUPS"
+                g bucket deny --read --write --key "$BAK_AK" "$UPLOADS"
+                g bucket deny --read --write --key "$AK" "$BACKUPS"
+              fi
               echo "garage initialisé"
           env:
             - name: HOME
@@ -84,6 +102,10 @@ spec:
               valueFrom: { secretKeyRef: { name: garage-s3-credentials, key: access_key_id } }
             - name: SK
               valueFrom: { secretKeyRef: { name: garage-s3-credentials, key: secret_access_key } }
+            - name: BAK_AK
+              valueFrom: { secretKeyRef: { name: garage-s3-credentials, key: backup_access_key_id, optional: true } }
+            - name: BAK_SK
+              valueFrom: { secretKeyRef: { name: garage-s3-credentials, key: backup_secret_access_key, optional: true } }
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

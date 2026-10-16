@@ -57,6 +57,9 @@ docker push registry.pad.internal/ctf/web-sqli:0.1.0
 cosign sign registry.pad.internal/ctf/web-sqli:0.1.0@sha256:...
 ```
 
+Reportez l'empreinte (`@sha256:…`) affichée par `docker push` dans `instance.image` : la référence doit être sous
+`registry.pad.internal/ctf/` et épinglée par empreinte, sinon le challenge est refusé à l'import et à l'admission.
+
 Le registry est interne : s'y connecter depuis un poste staff NetBird ou depuis le runner de la CI. En mode Git, la CI
 s'en charge ([Mode Git](depot-prive.md)).
 

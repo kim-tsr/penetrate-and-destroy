@@ -1,0 +1,33 @@
+# Les pods d'instances (inst-*) ne peuvent utiliser que des images du registre interne, sous le préfixe des
+# challenges, épinglées par empreinte. Toujours en Enforce (indépendant du mode de vérification des signatures) :
+# aucune image arbitraire d'Internet (mineur, image à CVE noyau), aucun tag mutable repoussé après revue.
+# Complète le schéma challenge.yml et le scénario (mêmes règles), qui refusent plus tôt.
+# contracts: instances.image_prefix (registry.pad.internal/ctf/), namespaces.instances_prefix
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: restrict-instance-images
+  annotations:
+    policies.kyverno.io/title: Images d'instance du registre interne, par empreinte
+    policies.kyverno.io/category: Software Supply Chain Security
+    policies.kyverno.io/severity: high
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: registry-and-digest
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+              namespaces: ["inst-*"]
+      validate:
+        message: "Les images d'instance doivent être sous registry.pad.internal/ctf/ et épinglées par @sha256:<empreinte>."
+        pattern:
+          spec:
+            =(initContainers):
+              - image: "registry.pad.internal/ctf/*@sha256:*"
+            =(ephemeralContainers):
+              - image: "registry.pad.internal/ctf/*@sha256:*"
+            containers:
+              - image: "registry.pad.internal/ctf/*@sha256:*"
