@@ -50,6 +50,12 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0
 WORKDIR /app
 
+# npm, npx, corepack et yarn ne servent pas à l'exécution (node server.js) : on les retire, car les dépendances
+# embarquées par npm portent des CVE HIGH corrigeables uniquement par une nouvelle version de l'image de base.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+      /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg \
+      /opt/yarn-*
+
 # Fichiers appartenant à root (lecture seule pour l'utilisateur d'exécution), sauf le cache Next.
 COPY --from=build --chown=0:0 --chmod=0755 /app/.next/standalone ./
 COPY --from=build --chown=0:0 --chmod=0755 /app/.next/static ./.next/static
