@@ -26,7 +26,17 @@ locals {
   auth_url  = "https://${local.auth_host}"
 }
 
+# API d'administration : par défaut le chemin INTERNE (LXC authentik, 443 publié), joint par la route du poste vers les
+# zones (traduite vers l'IP mgmt de l'hôte, flux M0). L'URL publique passe par l'edge, qui réserve l'API d'administration
+# aux CIDR internes (403 depuis Internet). Certificat auto-signé d'Authentik en interne : vérification TLS désactivée
+# sur ce seul chemin. Surcharge : -var authentik_api_url=https://<auth>.<domaine> (depuis la zone bastion/mgmt).
+locals {
+  authentik_api_internal = "https://${local.c.services.authentik.ip}:${local.c.ports.authentik.https}"
+  authentik_api_url      = var.authentik_api_url != "" ? trimsuffix(var.authentik_api_url, "/") : local.authentik_api_internal
+}
+
 provider "authentik" {
-  url   = local.auth_url
-  token = local.ak.api_token
+  url      = local.authentik_api_url
+  token    = local.ak.api_token
+  insecure = local.authentik_api_url == local.authentik_api_internal
 }

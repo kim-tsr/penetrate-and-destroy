@@ -121,3 +121,9 @@ variable "internal_ui_hosts" {
     hubble          = "hubble"
   }
 }
+
+variable "authentik_api_url" {
+  description = "URL de l'API d'administration d'Authentik pour OpenTofu. Vide = chemin interne (https://<IP du LXC authentik>), par la route du poste vers les zones."
+  type        = string
+  default     = ""
+}

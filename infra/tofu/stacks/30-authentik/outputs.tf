@@ -17,6 +17,7 @@ output "oidc_issuers" {
 output "oidc_redirect_uris" {
   description = "Redirect URIs enregistrées par client."
   value       = { for k, v in local.oidc_clients : k => v.redirect_uris }
+  sensitive   = true # inclut l'URL de l'API Proxmox (secrets/site.sops.yaml)
 }
 
 output "client_secret_targets" {
