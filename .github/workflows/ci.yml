@@ -94,6 +94,7 @@ jobs:
               - 'infra/**'
               - 'gitops/**'
               - 'apps/**/Dockerfile'
+              - '.checkov.yaml'
               - 'flake.*'
               - '.github/workflows/ci.yml'
 
@@ -318,13 +319,13 @@ jobs:
         with:
           persist-credentials: false
       - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
-      # Non bloquant tant que les écarts existants ne sont pas triés (même réglage que scripts/lint.sh).
+      # Bloquant. Exceptions justifiées dans .checkov.yaml (globales) ou en annotations sur la ressource.
       - name: checkov (tofu, ansible)
-        run: nix develop -c checkov -d infra --framework terraform,ansible --quiet --compact --soft-fail
+        run: nix develop -c checkov -d infra --framework terraform,ansible --quiet --compact
       - name: checkov (Dockerfiles)
-        run: nix develop -c checkov -d apps --framework dockerfile --quiet --compact --soft-fail
+        run: nix develop -c checkov -d apps --framework dockerfile --quiet --compact
       - name: checkov (manifests Kubernetes)
-        run: nix develop -c checkov -d gitops --framework kubernetes --quiet --compact --soft-fail
+        run: nix develop -c checkov -d gitops --framework kubernetes --quiet --compact
 
   workflows:
     needs: changes

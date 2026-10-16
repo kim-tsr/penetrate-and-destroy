@@ -24,6 +24,8 @@ kind: Deployment
 metadata:
   name: ctfd
   namespace: ctfd
+  annotations:
+    checkov.io/skip1: CKV_K8S_40=UID 1001 imposé par l'image officielle CTFd (propriétaire de /opt/venv) ; non-root, rootfs en lecture seule, capabilities supprimées
   labels: &labels
     app.kubernetes.io/name: ctfd
     app.kubernetes.io/component: web
