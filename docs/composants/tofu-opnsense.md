@@ -53,6 +53,8 @@ Les redirections de ports WAN (`opnsense_firewall_nat_port_forward`) ne sont pas
 l'API `/api/firewall/d_nat/*`, qui n'existe qu'à partir d'OPNsense 26.1 (404 en 25.7). Elles sont donc rendues dans le
 `config.xml` de bootstrap (`wan.public_ports`) ; la stack 60 ne pose que les règles de filtre M1 qui les autorisent.
 
+La règle M0 (`m0-host-zones`, interface mgmt, source = alias `host_proxmox_api`, destination `net_all_zones`, ports SSH, HTTPS, 6443, 50000) autorise le flux de l'hôte Proxmox vers les zones : rebond SSH d'Ansible vers les LXC, et trafic du poste opérateur arrivant par la route du VPN maillé, traduit (SNAT) vers l'IP mgmt de l'hôte.
+
 ## Documentation officielle
 
 [Registry : browningluke/opnsense](https://registry.terraform.io/providers/browningluke/opnsense/latest/docs)

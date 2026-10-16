@@ -15,7 +15,7 @@ puis une ISO de configuration (`config.xml` rendu par `templatefile`) est monté
 l'importer d'OPNsense (pilotage de la console série par `import-config.sh`). Ce `config.xml` porte aussi les
 **redirections de ports WAN** (DNAT des `wan.public_ports` du contrat vers `edge` et `netbird`) : l'API `d_nat` du
 provider n'existe qu'à partir d'OPNsense 26.1. Ensuite, la stack `60-opnsense-rules` applique **toutes** les règles
-de filtrage par l'API, dont les règles M1 qui autorisent le trafic redirigé.
+de filtrage par l'API, dont les règles M1 qui autorisent le trafic redirigé et la règle M0 (hôte Proxmox, IP mgmt, vers toutes les zones : rebond SSH d'Ansible et trafic du poste opérateur traduit par SNAT).
 
 ## Version épinglée
 
@@ -27,7 +27,7 @@ de filtrage par l'API, dont les règles M1 qui autorisent le trafic redirigé.
 
 - `infra/opnsense/config.xml.tmpl`, `build-config-iso.sh`, `import-config.sh`, `README.md` (procédure de secours).
 - `infra/tofu/modules/opnsense-vm/` et `infra/tofu/stacks/10-router/`.
-- `infra/tofu/stacks/60-opnsense-rules/main.tf` : la matrice (préfixes M1 à M10 et I*).
+- `infra/tofu/stacks/60-opnsense-rules/main.tf` : la matrice (préfixes M0 à M10 et I*).
 - `secrets/opnsense.example.yaml` : mot de passe root (bcrypt), clé et secret d'API.
 
 ## Interactions avec les autres briques

@@ -5,6 +5,8 @@
 # Le trafic intra-zone (même VLAN) ne traverse pas OPNsense : il est filtré par Cilium/NetBird si besoin.
 #
 # Correspondance matrice -> règles (préfixe "M" = matrice du PLAN, "I" = infrastructure, variables allow_*/internet_*) :
+#   M0  Hôte Proxmox (IP mgmt, source du SNAT des routes VPN maillé) -> toutes zones : SSH, HTTPS, kube API 6443, Talos API 50000
+#       (rebond SSH d'Ansible vers les LXC, trafic du poste opérateur via la route annoncée)
 #   M1  Internet -> DMZ : 443/80 (edge) et ports NetBird (netbird) ; la redirection (DNAT) elle-même est dans le
 #       config.xml de bootstrap (stack 10-router), ces règles en autorisent le passage
 #   M2  DMZ (edge) -> PROD : ingress (Traefik du cluster, ingress_ip) en 80/443

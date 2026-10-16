@@ -112,6 +112,8 @@ le trafic sort alors d'un conteneur Docker que ni `sshuttle` ni un tunnel SSH ne
 3. Sur le poste : `<cli-vpn> set --accept-routes`.
 4. Vérifier : `ping 10.20.10.2` (IP mgmt de l'hôte), puis `route -n get 10.20.10.1` (macOS) ou `ip route get 10.20.10.1` (Linux) ; la route doit passer par l'interface du VPN.
 
+Côté OPNsense, ce trafic n'est pas vu comme venant du poste : l'hôte le traduit (SNAT des routes annoncées) vers son IP mgmt (`10.20.10.2`), et la règle **M0** (hôte mgmt vers toutes les zones : SSH, HTTPS, 6443, 50000) l'autorise ; elle sert aussi au rebond SSH d'Ansible vers les LXC.
+
 Cet accès reste l'**accès d'administration de secours**, indépendant de la plateforme : il fonctionne même si celle-ci est cassée. Il ne remplace pas les accès
 de la plateforme elle-même (NetBird pour les joueurs et le staff vers les challenges et le bastion, Warpgate pour le SSH tracé du staff). Les autres
 options ci-dessous restent valables comme alternatives.
@@ -596,6 +598,7 @@ Avant d'ouvrir l'événement aux joueurs :
 | `tofu` : authentification Proxmox | jeton (2.2), `proxmox_url`, `proxmox.insecure` ; `task check:0-prereqs` |
 | Ansible : hôte injoignable | clé dans l'agent ; `ssh_host`/`ssh_user` ; route de l'hôte vers les zones (`task host:route`, rôle `host-tuning`) |
 | `tofu` (phase 2) : `unable to authenticate user ... over SSH to "<IP>:22" ... i/o timeout` | le provider se connecte à `ssh_host` (et non à l'adresse annoncée par l'API Proxmox) : vérifier `ssh_host` dans `secrets/site.sops.yaml` (adresse joignable depuis le poste, ex. IP VPN) et que le dépôt est à jour |
+| Phase 4 : LXC `running` mais SSH injoignable (Ansible : « SSH injoignable ») | vérifier que la règle **M0** est appliquée : `task tofu:apply-stack STACK=60-opnsense-rules` (le rebond passe par l'IP mgmt de l'hôte). Voir le journal pf sur OPNsense : `tcpdump -n -e -i pflog0 host <IP du LXC>` |
 | Phase 4 (LXC) : `unable to create CT ... zfs error: cannot mount '...subvol-...': no mountpoint set` | le dataset ZFS du stockage des VM a `mountpoint=none` : `zfs set mountpoint=/<dataset> <dataset>` sur l'hôte (2.1), puis relancer la phase |
 | `kubectl` : `connection refused` / délai | route de votre poste vers `10.20.60.0/24` ; VIP `10.20.60.5` ; VM allumées |
 | Une phase échoue à mi-chemin | la corriger puis relancer **la même phase** ; elle reprend là où elle s'est arrêtée |
