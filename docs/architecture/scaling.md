@@ -50,7 +50,10 @@ CHALLENGES si besoin, et vérifier le budget :
 | Composant | vCPU | RAM |
 |---|---|---|
 | OPNsense | 2 | 1,5 Go |
-| edge / netbird / warpgate | 1 / 1 / 1 | 512 Mo / 1 Go / 256 Mo |
+| edge / netbird / warpgate | 1 / 1 / 1 | 512 Mo / 1 Go / 512 Mo |
+
+> 256 Mo ne suffisent pas aux LXC warpgate et nbrouter : agent NetBird + Alloy + `apt-get` y déclenchent l'OOM killer du
+> cgroup (`dmesg` : `oom_memcg=/lxc/<vmid>`, tâche Ansible en `rc: -9`). Minimum : 512 Mo.
 | authentik / monitoring | 2 / 2 | 1,5 Go / 3 Go |
 | Talos control plane | 2 | 2,5 Go |
 | Talos workers `platform` (x2) | 2 chacun | 3,5 Go chacun |

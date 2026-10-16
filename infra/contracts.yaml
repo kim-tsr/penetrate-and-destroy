@@ -75,10 +75,10 @@ router:
 services:            # LXC non privilégiés, Debian 13, Docker Compose
   edge:       { vmid: 210, zone: dmz,        ip: 10.20.20.10, cores: 1, memory_mb: 512,  disk_gb: 8 }
   netbird:    { vmid: 211, zone: dmz,        ip: 10.20.20.11, cores: 1, memory_mb: 1024, disk_gb: 8 }
-  warpgate:   { vmid: 230, zone: bastion,    ip: 10.20.30.10, cores: 1, memory_mb: 256,  disk_gb: 4, tun: true }   # tun : /dev/net/tun (agent NetBird, routing peer BASTION)
+  warpgate:   { vmid: 230, zone: bastion,    ip: 10.20.30.10, cores: 1, memory_mb: 512,  disk_gb: 4, tun: true }   # tun : /dev/net/tun (agent NetBird, routing peer BASTION)
   authentik:  { vmid: 240, zone: identity,   ip: 10.20.40.10, cores: 2, memory_mb: 1536, disk_gb: 12 }
   monitoring: { vmid: 250, zone: monitoring, ip: 10.20.50.10, cores: 2, memory_mb: 3072, disk_gb: 60 }
-  nbrouter:   { vmid: 270, zone: challenges, ip: 10.20.70.10, cores: 1, memory_mb: 256,  disk_gb: 4, tun: true }   # routing peer NetBird de la zone CHALLENGES (netbird.routing_peer_service)
+  nbrouter:   { vmid: 270, zone: challenges, ip: 10.20.70.10, cores: 1, memory_mb: 512,  disk_gb: 4, tun: true }   # routing peer NetBird de la zone CHALLENGES (netbird.routing_peer_service)
 
 kubernetes:
   cluster_name: pad-prod

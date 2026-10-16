@@ -46,7 +46,7 @@ Décisions validées par l'utilisateur :
 | OPNsense | VM | 2 | 1,5 Go |
 | edge (Traefik + CrowdSec) | LXC | 1 | 512 Mo |
 | netbird (management, signal, relay, coturn) | LXC | 1 | 1 Go |
-| warpgate | LXC | 1 | 256 Mo |
+| warpgate | LXC | 1 | 512 Mo |
 | authentik (avec PostgreSQL ; plus de Redis depuis 2025.10) | LXC | 2 | 1,5 Go |
 | monitoring (VictoriaMetrics, Loki, Tempo, Grafana, Alertmanager, Uptime Kuma) | LXC | 2 | 3 Go |
 | Talos, control plane | VM ×1 | 2 | 2,5 Go |
