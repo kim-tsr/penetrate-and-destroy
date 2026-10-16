@@ -56,6 +56,10 @@ OWN_FIELDS = (
     "pool_min",
     "pool_max",
 )
+# Défauts = contrat (instances.max_per_team, instances.max_total) ; surchargés par PAD_INSTANCES_MAX_*.
+# max_total reste sous la taille du pool LB-IPAM (100 IP) pour garder de la marge (courses, instances staff).
+DEFAULT_MAX_PER_SOURCE = 3
+DEFAULT_MAX_TOTAL = 90
 BOOL_FIELDS = ("per_instance_flag", "destroy_on_solve")
 INT_FIELDS = ("timeout", "max_renewals", "pool_min", "pool_max")
 
@@ -336,6 +340,18 @@ def _check_event_open(user):
         abort(403, description="The CTF is not running")
 
 
+def _total_instances():
+    """Instances vivantes de toute la plateforme (enregistrements non expirés + instances préchauffées)."""
+    now = datetime.datetime.utcnow()
+    live = InstanceRecord.query.filter(
+        (InstanceRecord.until.is_(None)) | (InstanceRecord.until > now)
+    ).count()
+    warm = db.session.query(
+        db.func.coalesce(db.func.sum(DynamicInstanceChallenge.pool_min), 0)
+    ).scalar()
+    return live + int(warm or 0)
+
+
 def _record(challenge_id, source):
     return InstanceRecord.query.filter_by(
         challenge_id=challenge_id, source_id=source
@@ -427,7 +443,7 @@ class InstanceItem(Resource):
                 abort(409, description="Instance already exists")
 
         # Quota d'instances simultanées par équipe/joueur.
-        limit = setting_int("PAD_INSTANCES_MAX_PER_SOURCE", 3)
+        limit = setting_int("PAD_INSTANCES_MAX_PER_SOURCE", DEFAULT_MAX_PER_SOURCE)
         now = datetime.datetime.utcnow()
         active = InstanceRecord.query.filter(
             InstanceRecord.source_id == source,
@@ -436,6 +452,18 @@ class InstanceItem(Resource):
         ).count()
         if limit and active >= limit and not _privileged(user):
             abort(429, description=f"Instance quota reached ({limit})")
+
+        # Limite globale : chaque instance consomme une IP du pool LB-IPAM et des ressources du pool
+        # challenges. Les instances préchauffées (pool_min) comptent aussi. Les managers/admins en sont exempts.
+        max_total = setting_int("PAD_INSTANCES_MAX_TOTAL", DEFAULT_MAX_TOTAL)
+        if max_total and not _privileged(user) and _total_instances() >= max_total:
+            abort(
+                503,
+                description=(
+                    "Le nombre maximal d'instances simultanées de la plateforme est atteint. "
+                    "Réessayez dans quelques minutes ou arrêtez une instance inutile."
+                ),
+            )
 
         # Cooldown anti-spam entre deux créations pour une même source.
         from CTFd.cache import cache

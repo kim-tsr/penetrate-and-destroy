@@ -48,6 +48,14 @@ kubectl get ns | grep '^inst-'
 
 - Un seul réplica (état Pulumi sur fichier) : le `ScaledObject` est borné à 1.
 - Le premier lancement télécharge les plugins Pulumi : prévoir un délai (volume de cache persistant).
+- Egress restreint : plus de `0.0.0.0/0:443`. La `CiliumNetworkPolicy` `chall-manager-egress-fqdn` n'autorise que les hôtes
+  de releases GitHub (`github.com`, `api.github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com`)
+  et `get.pulumi.com` sur le port 443 (téléchargement des plugins), et filtre le DNS (ces noms, le registre interne,
+  `*.cluster.local`). Choix : l'image officielle n'embarque pas les plugins et Zot ne les sert pas ; une image maison
+  ajouterait une chaîne de build à maintenir. Le cache des plugins vit sur le PVC : une fois chaud (premier `pulumi up`
+  réussi), retirer la règle `toFQDNs` pour couper tout egress Internet ; la remettre pour monter la version du provider
+  Kubernetes du scénario. Si une instance échoue sur un téléchargement, regarder
+  `hubble observe --namespace chall-manager --verdict DROPPED` et ajouter l'hôte manquant.
 
 ## Documentation officielle
 

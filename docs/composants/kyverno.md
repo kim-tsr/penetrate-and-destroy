@@ -11,7 +11,7 @@ Décision : [ADR 14](../adr/014-kyverno.md).
 
 ## Où elle tourne et comment elle est déployée
 
-Deux Applications ArgoCD : `kyverno` (chart, sync-wave -6) et `kyverno-policies` (politiques, vague -4). Un réplica de chaque contrôleur sur le pool platform.
+Deux Applications ArgoCD : `kyverno` (chart, sync-wave -6) et `kyverno-policies` (politiques, vague -4). Contrôleur d'admission en 2 réplicas (un par worker, anti-affinité préférée, PodDisruptionBudget `minAvailable: 1`), contrôleurs background et reports en 1 réplica, sur le pool platform. Deux et non trois réplicas : sur 2 workers un 3e ne tolère pas plus de pannes de nœud et coûte 160 Mi de requests ; à relever si le pool platform grandit.
 
 ## Version épinglée
 

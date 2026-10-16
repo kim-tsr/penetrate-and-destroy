@@ -62,6 +62,13 @@
       no_log: true
       notify: Redémarrer pve-exporter
 
+  rescue:
+    - name: Signaler l'échec de la recréation du jeton (sans afficher de secret)
+      ansible.builtin.fail:
+        msg: >-
+          Recréation du jeton API de pve-exporter impossible ; la configuration /etc/prometheus/pve.yml
+          n'a pas été écrite. Relancer le rôle après correction (le jeton orphelin est supprimé au passage suivant).
+
 - name: Configurer l'écoute de pve-exporter (IP MGMT uniquement)
   ansible.builtin.copy:
     dest: /etc/default/prometheus-pve-exporter

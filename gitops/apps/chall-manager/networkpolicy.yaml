@@ -43,17 +43,7 @@ spec:
       app.kubernetes.io/component: api
   policyTypes: [Egress]
   egress:
-    # DNS
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
-      ports:
-        - { port: 53, protocol: UDP }
-        - { port: 53, protocol: TCP }
+    # DNS : porté par la CiliumNetworkPolicy chall-manager-egress-fqdn (filtrage L7 des noms résolus).
     # API Kubernetes (VIP et control planes de la zone prod)
     - to:
         - ipBlock:
@@ -76,13 +66,53 @@ spec:
       ports:
         - { port: 443, protocol: TCP }
         - { port: 5000, protocol: TCP }
-    # Téléchargement des plugins Pulumi (GitHub releases, get.pulumi.com) : HTTPS public uniquement.
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10]
-      ports:
-        - { port: 443, protocol: TCP }
+    # Téléchargement des plugins Pulumi : plus de 0.0.0.0/0, voir la CiliumNetworkPolicy ci-dessous.
+---
+# Egress Internet restreint par FQDN (Cilium) pour les plugins Pulumi.
+# Pourquoi pas "pré-installer" : le CLI Pulumi télécharge le plugin de ressource (pulumi-resource-kubernetes) à la 1re
+# exécution depuis les releases GitHub ; l'image officielle chall-manager ne l'embarque pas et la rebuilder (image maison
+# + CI + digest) coûte plus cher que de la maintenir. Le registre interne (Zot) ne sert pas les plugins Pulumi (pas un
+# registre OCI de plugins). Solution retenue : liste FQDN minimale, sur le seul port 443, et filtrage L7 des requêtes DNS
+# (seuls ces noms, le registre interne et *.cluster.local sont résolvables : pas de tunnel DNS). Les plugins étant mis en
+# cache sur le PVC (PULUMI_HOME), l'egress ne sert qu'au premier lancement et aux changements de version du provider :
+# il peut être retiré une fois le cache chaud (voir docs/composants/chall-manager.md).
+# Les NetworkPolicy k8s et CiliumNetworkPolicy s'additionnent : la CNP n'ouvre que ce qui est listé ici.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: chall-manager-egress-fqdn
+  namespace: chall-manager
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: chall-manager
+      app.kubernetes.io/component: api
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: ANY }
+          rules:
+            dns:
+              - matchName: github.com
+              - matchName: api.github.com
+              - matchName: objects.githubusercontent.com
+              - matchName: release-assets.githubusercontent.com
+              - matchName: get.pulumi.com
+              - matchName: registry.pad.internal # contracts: apps.registry
+              - matchPattern: "*.cluster.local"
+    - toFQDNs:
+        - matchName: github.com
+        - matchName: api.github.com
+        - matchName: objects.githubusercontent.com
+        - matchName: release-assets.githubusercontent.com
+        - matchName: get.pulumi.com
+      toPorts:
+        - ports:
+            - { port: "443", protocol: TCP }
 ---
 # Janitor : DNS + API chall-manager + OTLP.
 apiVersion: networking.k8s.io/v1

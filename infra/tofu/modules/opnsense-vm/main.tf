@@ -37,7 +37,7 @@ locals {
     gateway_uuid             = uuidv5("url", "https://pad.local/opnsense/gateway/wan")
     zones                    = local.zones
     wan = {
-      if          = "vtnet0"
+      "if"        = "vtnet0"
       ipaddr      = split("/", var.wan.address_cidr)[0]
       subnet      = split("/", var.wan.address_cidr)[1]
       gateway     = var.wan.gateway

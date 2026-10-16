@@ -27,7 +27,7 @@ ghcr.io sont vérifiées en keyless et n'utilisent pas cette clé.
 
 `failurePolicy: Fail` signifie qu'un Kyverno indisponible bloque la création de pods dans `inst-*`, `ctfd`, `frontend`
 et `netbird-sync` (le webhook est limité à ces namespaces par `matchConditions` ; `kube-system` et `kyverno` ne sont jamais
-concernés). Kyverno tourne en un seul réplica sur le pool platform : voir le [runbook Kyverno](../runbooks/kyverno.md).
+concernés). Le contrôleur d'admission Kyverno tourne en 2 réplicas sur le pool platform (PDB `minAvailable: 1`) : voir le [runbook Kyverno](../runbooks/kyverno.md).
 
 ## Passer en Enforce
 
@@ -47,14 +47,33 @@ concernés). Kyverno tourne en un seul réplica sur le pool platform : voir le [
 Les images `ghcr.io/<propriétaire du dépôt>/pad-*` sont construites, poussées et signées (cosign keyless, identité du workflow
 `images.yml`) par la CI. Les manifests `gitops/apps/*/deployment.yaml` les référencent en `tag@sha256:<empreinte>`.
 
-Flux de mise à jour :
+Flux de mise à jour (épinglage par l'opérateur) :
 
-1. La CI publie l'image et affiche son empreinte dans le résumé du job (`Résumé du digest`).
-2. Renovate (`:pinDigests`, `renovate.json`) propose la PR qui remplace l'empreinte dans le `deployment.yaml`.
-3. Après relecture, le merge déclenche le déploiement par ArgoCD.
+1. Sur push `main`, `images.yml` construit, scanne, pousse et signe chaque image (`ghcr.io/<propriétaire>/pad-<nom>:<sha court>`)
+   et affiche son empreinte dans le résumé du job (`Résumé du digest`).
+2. Une fois toutes les images publiées, le job `pin-digests` calcule les empreintes (`scripts/pin-image-digests.sh <propriétaire> <sha court>`)
+   et affiche dans le résumé du run le diff à appliquer. Il ne commite rien : le dépôt n'a qu'un auteur, l'opérateur.
+3. L'opérateur épingle localement puis commite :
 
-Tant que l'empreinte est nulle (`sha256:000…`, valeur de remplacement du premier commit), l'image ne démarre pas : c'est
-volontaire. Les Applications concernées restent `Degraded` jusqu'à la première publication.
+   ```bash
+   task apps:pin-digests -- <sha court>   # défaut : HEAD
+   git diff                               # vérifier les références tag@sha256
+   git commit -am "chore(images): épingler les empreintes des images <sha court>" && git push
+   ```
+
+   Le script lit l'empreinte de l'index OCI dans le registre et réécrit les références `tag@sha256` de
+   `gitops/apps/{ctfd,frontend,netbird-sync}/deployment.yaml` et l'empreinte de `challenges/*/challenge.yml`
+   (`registry.pad.internal/ctf/<nom>` : l'empreinte est la même dans Zot si l'image y est copiée à l'identique, par exemple
+   `crane copy ghcr.io/<propriétaire>/pad-chal-<nom>:<sha> registry.pad.internal/ctf/<nom>:<version>`).
+   ArgoCD déploie ensuite la nouvelle version.
+4. Renovate ignore ces images (règle `enabled: false` dans `renovate.json`) pour ne pas entrer en conflit avec ce flux ; il
+   continue de suivre les images de base et les autres dépendances.
+
+Les packages `ghcr.io/<propriétaire>/pad-*` doivent être **publics** (ou le cluster doit disposer d'un secret de pull) :
+GitHub crée un package privé par défaut. Package settings > Change visibility > Public.
+
+Tant que l'empreinte est nulle (`sha256:000…`, cas de `pad-frontend` tant qu'il n'est pas publié), l'image ne démarre pas :
+c'est volontaire. L'Application concernée reste `Degraded` jusqu'à la première publication, puis `task apps:pin-digests` l'épingle.
 
 !!! note "Points à vérifier au premier déploiement"
     - L'identité keyless attendue est `.github/workflows/images.yml` sur `main` ou un tag `v*` du dépôt du contrat

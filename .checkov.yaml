@@ -1,0 +1,21 @@
+# Configuration checkov (lue automatiquement depuis la racine du dépôt par les trois étapes checkov de
+# .github/workflows/ci.yml et par scripts/lint.sh). Les exceptions propres à une ressource sont des annotations
+# au plus près de celle-ci (`checkov.io/skip1` en Kubernetes, `# checkov:skip=` en Ansible/Dockerfile) : ne mettre
+# ici que ce qui vaut pour tout le dépôt, avec sa justification.
+skip-check:
+  # Le namespace est imposé par la `kustomization.yaml` de chaque application (champ `namespace:`) et par ArgoCD
+  # (destination.namespace) : checkov lit les manifestes bruts, avant kustomize, et signale à tort le namespace
+  # `default`. Les namespaces réels sont validés par scripts/validate-gitops.sh (kustomize build + kubeconform).
+  - CKV_K8S_21
+  # La configuration des applications est injectée par `secretKeyRef` depuis des Secrets chiffrés (SOPS + ksops) :
+  # les images (CTFd, front Next.js, controllers) lisent leur configuration dans l'environnement. Passer en
+  # fichiers monterait les mêmes secrets sans gain de confidentialité (même processus lecteur).
+  - CKV_K8S_35
+
+skip-path:
+  # Manifestes des providers Cluster API rendus par bootstrap/scripts/render-providers.sh à partir des
+  # releases amont (clusterctl) : fichiers générés, jamais édités à la main. Constats : images sans digest dans la
+  # source amont (le digest est imposé côté cluster par Kyverno verify-images), imagePullPolicy, limites CPU/mémoire
+  # absentes d'un manager amont, automount du jeton (ce sont des controllers), RoleBindings amont sur le
+  # ServiceAccount `default` du namespace.
+  - gitops/platform/capi-providers/manifests/(core-cluster-api|bootstrap-talos|control-plane-talos|infrastructure-proxmox|ipam-in-cluster)\.yaml

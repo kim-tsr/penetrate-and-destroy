@@ -127,7 +127,12 @@ if [ -f apps/frontend/package.json ]; then
 fi
 
 step "Sécurité IaC (checkov, trivy : secrets et configuration)"
-if have checkov; then checkov -d infra --quiet --compact --soft-fail >/dev/null || true; else need checkov || true; fi
+if need checkov; then
+  # Mêmes commandes que le job checkov de la CI ; exceptions justifiées dans .checkov.yaml et en annotations.
+  checkov -d infra --framework terraform,ansible --quiet --compact >/dev/null 2>&1 || { echo "checkov (tofu, ansible) en échec"; fail=1; }
+  checkov -d apps --framework dockerfile --quiet --compact >/dev/null 2>&1 || { echo "checkov (Dockerfiles) en échec"; fail=1; }
+  checkov -d gitops --framework kubernetes --quiet --compact >/dev/null 2>&1 || { echo "checkov (manifests Kubernetes) en échec"; fail=1; }
+fi
 if need trivy; then
   trivy fs --scanners secret --exit-code 1 --skip-dirs .git --skip-dirs node_modules --skip-dirs .state . >/dev/null || fail=1
   # trivy config n'accepte qu'une seule cible : un appel par dossier (comme la CI).

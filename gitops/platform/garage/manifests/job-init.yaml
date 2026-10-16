@@ -24,6 +24,7 @@ metadata:
   annotations:
     argocd.argoproj.io/hook: PostSync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    checkov.io/skip1: "CKV_K8S_38=le Job pilote garage-0 via kubectl exec et a besoin du jeton de son ServiceAccount (RBAC minimal dans rbac.yaml)"
 spec:
   backoffLimit: 6
   activeDeadlineSeconds: 900
@@ -37,8 +38,8 @@ spec:
       serviceAccountName: garage-init
       securityContext:
         runAsNonRoot: true
-        runAsUser: 1000
-        runAsGroup: 1000
+        runAsUser: 10001
+        runAsGroup: 10001
         seccompProfile:
           type: RuntimeDefault
       containers:

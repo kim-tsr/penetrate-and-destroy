@@ -16,7 +16,7 @@ Il supprime tout à la disparition de l'instance.
 
 ## Où elle tourne et comment elle est déployée
 
-Application `gitops/apps/netbird-sync` : un Deployment, ClusterRole en lecture sur `services`/`namespaces` et `patch` sur `services` (finalizer, limité aux namespaces `inst-*` par une ValidatingAdmissionPolicy), Service de métriques, ServiceMonitor, NetworkPolicy
+Application `gitops/apps/netbird-sync` : un Deployment, ClusterRole en lecture sur `services`/`namespaces` et `patch` sur `services` (finalizer ; une ValidatingAdmissionPolicy le limite aux namespaces `inst-*` et au seul finalizer `pad.io/netbird-sync` : ni create ni delete, spec/labels/annotations/ownerReferences intouchables), Service de métriques, ServiceMonitor, NetworkPolicy
 (sortie vers l'API NetBird et vers CTFd). Réconciliation complète toutes les 10 minutes (`--resync=10m`), membres des équipes toutes les minutes (`--membership-interval=1m`).
 
 ## Version épinglée

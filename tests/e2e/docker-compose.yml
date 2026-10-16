@@ -54,7 +54,8 @@ services:
       DATABASE_URL: mysql+pymysql://ctfd:e2e-only-ctfd@mariadb/ctfd
       REDIS_URL: redis://valkey:6379
       UPLOAD_PROVIDER: filesystem
-      WORKERS: "2"
+      # 1 worker par défaut : évite toute course entre workers sur les migrations du premier démarrage (E2E_WORKERS=2 pour la parité prod).
+      WORKERS: "${E2E_WORKERS:-1}"
       WORKER_CLASS: gevent
       UPDATE_CHECK: "false"
       SWAGGER_UI: "false"
