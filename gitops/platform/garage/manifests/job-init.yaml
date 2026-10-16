@@ -7,8 +7,9 @@
 #   4. (optionnel) clé "pad-backups" dédiée aux sauvegardes, si backup_access_key_id / backup_secret_access_key sont
 #      présents dans le Secret : elle seule accède au bucket backups, et "pad-apps" (celle de CTFd) perd tout droit
 #      dessus. Une compromission de CTFd ne permet alors plus de lire ni d'altérer les dumps MariaDB (hashes des mots
-#      de passe d'équipe). Sans ces champs, comportement historique (une seule clé sur les deux buckets) : tant que
-#      scripts/backup.sh et scripts/restore.sh n'utilisent pas la clé dédiée, ne pas renseigner les champs.
+#      de passe d'équipe). scripts/backup.sh et scripts/restore.sh utilisent cette clé dédiée pour `backups` dès qu'elle
+#      existe (repli sur la clé principale sinon). Sans ces champs, comportement historique (une seule clé sur les deux
+#      buckets).
 # La CLI garage v2 (`/garage`, image scratch sans shell) est exécutée via `kubectl exec garage-0` : elle lit
 # /etc/garage.toml (rpc_secret + node id) dans le pod, aucun secret n'est donc exposé au Job.
 apiVersion: batch/v1
