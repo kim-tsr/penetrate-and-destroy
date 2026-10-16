@@ -1,7 +1,7 @@
 ---
 galaxy_info:
   author: penetrate-and-destroy
-  description: Réglages de l'hôte Proxmox (ARC ZFS, sysctl, DNAT de repli, pve-exporter, node-exporter, Alloy)
+  description: Réglages de l'hôte Proxmox (ARC ZFS, import ISO, route vers les zones, keyctl LXC, sysctl, DNAT, exporters, Alloy)
   license: MIT
   min_ansible_version: "2.17"
   platforms:
