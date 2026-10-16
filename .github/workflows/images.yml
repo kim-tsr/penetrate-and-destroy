@@ -109,12 +109,12 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Empreintes à épingler (résumé)
         env:
-          OWNER: ${{ github.repository_owner }}
+          REPO_OWNER: ${{ github.repository_owner }}
         run: |
           set -euo pipefail
-          owner=$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')
+          proprietaire=$(printf '%s' "$REPO_OWNER" | tr '[:upper:]' '[:lower:]')
           tag=$(git rev-parse --short HEAD)
-          scripts/pin-image-digests.sh "$owner" "$tag"
+          scripts/pin-image-digests.sh "$proprietaire" "$tag"
           {
             echo "### Empreintes des images ${tag}"
             echo
