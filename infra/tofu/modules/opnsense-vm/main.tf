@@ -2,7 +2,7 @@
 # Chaîne de bootstrap (détails : infra/opnsense/README.md) :
 #   image nano épinglée (sha256) -> disque de la VM
 #   config.xml.tmpl --templatefile--> .state/opnsense/<vm>/iso/conf/config.xml --xorriso--> ISO --upload--> cdrom ide2
-#   1er boot : opnsense-importer copie /conf/config.xml depuis le cdrom (déclenché par sendkey, import-config.sh).
+#   1er boot : opnsense-importer copie /conf/config.xml depuis le cdrom (console série pilotée par import-config.sh).
 
 locals {
   opnsense_dir = abspath(var.opnsense_dir)
@@ -163,7 +163,7 @@ resource "proxmox_virtual_environment_vm" "this" {
     firewall = false
   }
 
-  # Console série (qm terminal) + VGA par défaut conservée : sendkey (import-config.sh) frappe sur le clavier/VGA.
+  # Console série (socket QEMU) : console primaire de l'image nano, pilotée par import-config.sh pour l'importer.
   serial_device {}
 
   lifecycle {
@@ -184,11 +184,9 @@ resource "null_resource" "import_config" {
     interpreter = ["bash", "-c"]
     command     = "'${local.opnsense_dir}/import-config.sh'"
     environment = {
-      PVE_ENDPOINT  = var.proxmox_endpoint
-      PVE_API_TOKEN = var.proxmox_api_token
-      PVE_INSECURE  = tostring(var.proxmox_insecure)
-      PVE_NODE      = var.node_name
-      VMID          = tostring(var.vmid)
+      SSH_HOST = var.ssh_host
+      SSH_USER = var.ssh_user
+      VMID     = tostring(var.vmid)
     }
   }
 }

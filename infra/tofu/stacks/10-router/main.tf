@@ -55,10 +55,9 @@ module "opnsense" {
   opnsense_dir = "${path.root}/../../../opnsense"
   build_dir    = "${path.root}/../../../../.state/opnsense"
 
-  auto_import       = var.auto_import
-  proxmox_endpoint  = local.pve_endpoint
-  proxmox_api_token = local.pve.proxmox.api_token
-  proxmox_insecure  = tobool(local.pve.proxmox.insecure)
+  auto_import = var.auto_import
+  ssh_host    = local.site.ssh_host
+  ssh_user    = local.site.ssh_user
 }
 
 check "image_pinned" {

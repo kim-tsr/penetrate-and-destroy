@@ -134,26 +134,19 @@ variable "build_dir" {
 }
 
 variable "auto_import" {
-  description = "Déclencher l'importer au premier boot via l'API Proxmox (sendkey)."
+  description = "Déclencher l'importer au premier boot par la console série de la VM (import-config.sh, SSH vers l'hôte)."
   type        = bool
   default     = true
 }
 
-variable "proxmox_endpoint" {
-  description = "URL de l'API Proxmox (https://host:8006), pour import-config.sh."
+variable "ssh_host" {
+  description = "Adresse SSH de l'hôte Proxmox (ssh_host de secrets/site.sops.yaml), pour import-config.sh."
   type        = string
 }
 
-variable "proxmox_api_token" {
-  description = "Jeton API Proxmox, pour import-config.sh (passé en variable d'environnement)."
+variable "ssh_user" {
+  description = "Utilisateur SSH (sudo) de l'hôte Proxmox, pour import-config.sh ; clé fournie par l'agent SSH."
   type        = string
-  sensitive   = true
-}
-
-variable "proxmox_insecure" {
-  description = "Ignorer le certificat de l'API Proxmox."
-  type        = bool
-  default     = false
 }
 
 variable "tags" {

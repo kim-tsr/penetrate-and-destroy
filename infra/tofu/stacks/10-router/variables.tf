@@ -22,7 +22,7 @@ variable "opnsense_images" {
 }
 
 variable "auto_import" {
-  description = "Déclencher automatiquement l'importer OPNsense au premier boot (sendkey via l'API Proxmox)."
+  description = "Déclencher automatiquement l'importer OPNsense au premier boot (console série de la VM, via SSH sur l'hôte)."
   type        = bool
   default     = true
 }

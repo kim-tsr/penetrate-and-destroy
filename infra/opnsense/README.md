@@ -14,7 +14,7 @@ API créée par ce `config.xml`.
 | 3. ISO | `null_resource.config_iso` → `build-config-iso.sh` | `.state/opnsense/<vm>/<vm>-config-<sha12>.iso` : ISO 9660, volume `OPNCONF`, contenant **`/conf/config.xml`** |
 | 4. Upload | `proxmox_virtual_environment_file.config_iso` | `local:iso/<vm>-config-<sha12>.iso` (API HTTP Proxmox) |
 | 5. VM | `proxmox_virtual_environment_vm.this` | disque `scsi0` importé depuis l'image nano, ISO en `ide2` (→ `cd0` sous FreeBSD), `vtnet0` = WAN, `vtnet1` = trunk `vmbr2` |
-| 6. Import | `null_resource.import_config` → `import-config.sh` | frappes clavier via l'API Proxmox (`sendkey`) pour lancer l'importer et choisir `cd0` |
+| 6. Import | `null_resource.import_config` → `import-config.sh` → `serial-import.py` (sur l'hôte, SSH + sudo) | pilotage de la **console série** : redémarrage de la VM, réponse au prompt de l'importer, choix de `cd0` |
 
 ### Comment l'importer trouve la config
 Au boot, `/usr/local/etc/rc` lance `opnsense-importer -b`. Pour chaque device proposé, l'importer
@@ -23,12 +23,18 @@ cherche **`<montage>/conf/config.xml`**, qu'il copie dans `/conf/config.xml`. L'
 `conf/config.xml` à sa racine, ce que fait `build-config-iso.sh`.
 
 L'importer n'est **pas automatique** : il affiche `Press any key to start the configuration importer`
-pendant environ 7 s, puis demande `Select device to import from`. `import-config.sh` tape donc
-`cd0<Entrée>` en boucle pendant une fenêtre de temps (voir les commentaires du script). C'est une
-méthode best-effort. En cas d'échec, OPNsense démarre avec sa config d'usine.
+pendant environ 7 s, puis demande `Select device to import from`. L'image nano démarre en
+« Dual Console: Serial Primary, Video Secondary » : ce prompt n'écoute que la **console série** (des frappes
+envoyées au clavier VGA par l'API `sendkey` finissent sur le `login:` sans rien importer). `import-config.sh`
+lance donc `serial-import.py` sur l'hôte : il ouvre le socket série QEMU (`/var/run/qemu-server/<vmid>.serial0`),
+redémarre la VM (`qm reset`), attend le texte de l'importer, appuie sur une touche, répond `cd0`, puis attend
+le `login:`. En cas d'échec, il affiche la fin de la console. Symptôme d'un import raté : hostname
+`OPNsense.internal` (config d'usine) et `10.20.10.1` injoignable.
+
+Pour relancer seulement l'import sur une VM existante : `tofu apply -replace='module.opnsense.null_resource.import_config[0]'`.
 
 ### Procédure manuelle de secours (1 minute)
-1. `qm reset 200` sur l'hôte (ou Reset dans l'UI), puis ouvrir la console (noVNC, ou `qm terminal 200` en série).
+1. Sur l'hôte : `qm terminal 200` (console **série** ; noVNC ne montre pas le prompt), puis dans un autre shell `qm reset 200`.
 2. À `Press any key to start the configuration importer`, appuyer sur une touche.
 3. À `Select device to import from`, taper `cd0`, puis Entrée. Le boot continue avec la config importée.
 
@@ -63,8 +69,7 @@ déjà configurée (`ignore_changes = [cdrom]`).
 - Le secret API en clair n'est jamais écrit dans l'ISO, seulement son hash.
 
 ## Points à valider au premier déploiement
-- La fenêtre de temps de `import-config.sh` sur la console nano (VGA vs série). Le cas échéant, régler
-  `BOOT_DELAY` et `BOOT_WINDOW`.
+- L'import par la console série (`serial-import.py`) sur une VM fraîche ; `IMPORT_TIMEOUT` (défaut 600 s) si le boot est lent.
 - Le nom des devices VLAN `vlan0.<tag>` accepté par OPNsense 25.7.
 - La connexion à `https://10.20.10.1` depuis le poste opérateur : tunnel SSH par l'hôte
   (`ssh -L 8443:10.20.10.1:443 <utilisateur>@<hôte>`) ou route vers `10.20.10.0/24`. Ajuster
