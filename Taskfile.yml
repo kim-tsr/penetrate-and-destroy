@@ -39,9 +39,15 @@ tasks:
         vars: { STACK: 60-opnsense-rules }
       - task: tofu:apply-stack
         vars: { STACK: 20-services-lxc }
-      - task: ansible:services
+      # Services en deux passes : les secrets des clients OIDC (NetBird, Warpgate, Grafana, front) sont GÉNÉRÉS par
+      # tofu 30-authentik, qui a besoin d'Authentik et de l'edge (URL publique). Passe 1 : monitoring, authentik, edge.
+      - cmd: "{{.TASK_EXE}} ansible:services -- --tags monitoring,authentik,edge"
       - task: tofu:apply-stack
         vars: { STACK: 30-authentik }
+      # Recopie les secrets OIDC (sortie tofu) dans les sops ; passe 2 : warpgate et netbird (qui les exigent) et monitoring
+      # (Grafana). Les rôles ansible sont idempotents : la passe 2 ne change que ce qui dépend de ces secrets.
+      - python3 {{.ROOT_DIR}}/scripts/sopsctl.py oidc-sync
+      - cmd: "{{.TASK_EXE}} ansible:services -- --tags monitoring,warpgate,netbird"
       - task: bootstrap:cluster
       - task: bootstrap:gitops
       - task: tofu:apply-stack
