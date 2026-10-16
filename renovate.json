@@ -3,5 +3,12 @@
   "extends": ["config:recommended", ":pinDigests"],
   "argocd": { "fileMatch": ["^gitops/.+\\.ya?ml$"] },
   "kubernetes": { "fileMatch": ["^gitops/.+\\.ya?ml$"] },
-  "packageRules": [{ "matchUpdateTypes": ["major"], "dependencyDashboardApproval": true }]
+  "packageRules": [
+    { "matchUpdateTypes": ["major"], "dependencyDashboardApproval": true },
+    {
+      "description": "Images du projet : tag (sha court) et empreinte sont réécrits par images.yml (job pin-digests, PR ci/pin-image-digests).",
+      "matchPackageNames": ["/^ghcr\\.io/[^/]+/pad-/", "/^registry\\.pad\\.internal/ctf//"],
+      "enabled": false
+    }
+  ]
 }

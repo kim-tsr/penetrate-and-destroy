@@ -15,8 +15,8 @@ tags: [pwn, ret2win]
 state: hidden
 version: "0.1"
 instance:
-  # Registre interne et empreinte obligatoires (remplacer l'empreinte nulle par celle du build CI).
-  image: registry.pad.internal/ctf/pwn-ret2win-instanced:0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000
+  # Registre interne et empreinte obligatoires (empreinte du build CI, tenue à jour par la PR automatique ci/pin-image-digests).
+  image: registry.pad.internal/ctf/pwn-ret2win-instanced:0.1.0@sha256:ba7a85b82d3e75fa3f7e50a277486bc7a914e602fe7744c0e3ac2e9f129d4538
   ports:
     - port: 1337
       protocol: tcp
