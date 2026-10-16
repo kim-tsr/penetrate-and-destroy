@@ -5,7 +5,8 @@
 # Le trafic intra-zone (même VLAN) ne traverse pas OPNsense : il est filtré par Cilium/NetBird si besoin.
 #
 # Correspondance matrice -> règles (préfixe "M" = matrice du PLAN, "I" = infrastructure, variables allow_*/internet_*) :
-#   M1  Internet -> DMZ : 443/80 (edge) et ports NetBird (netbird), + port-forwards WAN
+#   M1  Internet -> DMZ : 443/80 (edge) et ports NetBird (netbird) ; la redirection (DNAT) elle-même est dans le
+#       config.xml de bootstrap (stack 10-router), ces règles en autorisent le passage
 #   M2  DMZ (edge) -> PROD : ingress (Traefik du cluster, ingress_ip) en 80/443
 #   M3  DMZ (edge) -> IDENTITY : 443 (authentik)
 #   M4  Joueurs NetBird -> CHALLENGES : via le routing peer situé DANS la zone challenges => intra-zone, pas de règle OPNsense
@@ -127,7 +128,9 @@ locals {
     { id = "m10-chall-dns", seq = 710, ifaces = [local.iface["challenges"]], proto = "TCP/UDP", src = "net_challenges", dst = "(self)", port = tostring(local.p.dns), desc = "M10 CHALLENGES -> DNS interne (Unbound)" },
   ]
 
-  # M1 - Internet -> DMZ : une règle par entrée de wan.public_ports (après port-forward, la destination est l'IP interne).
+  # M1 - Internet -> DMZ : une règle par entrée de wan.public_ports. La redirection WAN (DNAT) vient du config.xml de
+  # bootstrap, sans règle de filtre associée : ces règles sont les seules à autoriser le trafic redirigé (pf filtre
+  # après la traduction, la destination est donc l'IP interne du service).
   wan_rules = [
     for i, e in local.c.wan.public_ports : {
       id  = "m1-wan-${e.to}-${e.proto}-${replace(tostring(e.port), "-", "_")}", seq = 100 + i, ifaces = ["wan"], proto = upper(e.proto),
@@ -253,35 +256,10 @@ resource "opnsense_firewall_filter" "default_deny" {
   depends_on = [opnsense_firewall_filter.pass]
 }
 
-# --- Port-forwards WAN (contrat wan.public_ports) ----------------------------------------------
-# Destination : adresse WAN d'OPNsense (IP publique routée vers la VM, ou transit .2 en mode nat après DNAT de l'hôte).
-# NAT sortant : mode "automatic" posé par config.xml (stack 10) => chaque réseau de zone est NATé derrière l'adresse WAN.
-# Les règles opnsense_firewall_nat (outbound) ne s'appliquent qu'en mode hybrid/manual : non utilisées ici.
-
-resource "opnsense_firewall_nat_port_forward" "wan" {
-  for_each = { for e in local.c.wan.public_ports : "${e.proto}-${replace(tostring(e.port), "-", ":")}" => e }
-
-  enabled  = true
-  sequence = 100 + index(local.c.wan.public_ports, each.value)
-  # Le provider n'accepte que [A-Za-z0-9 .] dans la description d'une redirection NAT.
-  description    = "pad WAN ${upper(each.value.proto)} ${replace(tostring(each.value.port), "-", " a ")} vers ${each.value.to}"
-  interface      = ["wan"]
-  ip_protocol    = "inet"
-  protocol       = upper(each.value.proto)
-  nat_reflection = "disable"
-  log            = false
-
-  source = {
-    net = "any"
-  }
-
-  destination = {
-    net  = "wanip"
-    port = tostring(each.value.port)
-  }
-
-  target = {
-    ip   = local.svc[each.value.to].ip
-    port = split("-", tostring(each.value.port))[0] # plage : décalage conservé par pf
-  }
-}
+# --- NAT -----------------------------------------------------------------------------------------
+# Aucune ressource NAT ici :
+# - redirections de ports WAN (contrat wan.public_ports) : posées par le config.xml de bootstrap (stack 10-router),
+#   car l'API d_nat (opnsense_firewall_nat_port_forward) n'existe qu'à partir d'OPNsense 26.1 (404 en 25.7).
+#   Elles n'ont pas de règle de filtre implicite : le passage est autorisé par les règles M1 ci-dessus.
+# - NAT sortant : mode "automatic" posé par config.xml => chaque réseau de zone est NATé derrière l'adresse WAN
+#   (les règles opnsense_firewall_nat outbound ne s'appliquent qu'en mode hybrid/manual).

@@ -3,8 +3,9 @@
   config.xml de bootstrap OPNsense - rendu par OpenTofu (module opnsense-vm, templatefile).
   NE PAS ÉDITER LE RENDU : il contient des secrets (hashs) et vit uniquement dans .state/opnsense/.
   Contenu minimal : interfaces (WAN + VLANs des zones), passerelle, Unbound, SSH restreint,
-  utilisateur root (hash bcrypt) avec clé API pour le provider tofu browningluke/opnsense.
-  Les règles de filtrage/NAT sont posées ensuite par le stack 60-opnsense-rules.
+  utilisateur root (hash bcrypt) avec clé API pour le provider tofu browningluke/opnsense,
+  NAT sortant automatique et redirections de ports WAN (contrat wan.public_ports).
+  Les règles de filtrage sont posées ensuite par le stack 60-opnsense-rules.
 -->
 <opnsense>
   <theme>opnsense</theme>
@@ -146,6 +147,37 @@
       <!-- NAT sortant automatique : chaque réseau interne est NATé derrière l'adresse WAN -->
       <mode>automatic</mode>
     </outbound>
+    <!-- Redirections de ports WAN (DNAT, port forward), une par entrée de wan.public_ports du contrat.
+         Posées ici et non par le stack 60 : l'API d_nat (/api/firewall/d_nat) n'existe qu'à partir
+         d'OPNsense 26.1 ; en 25.7 les port forwards n'existent qu'au format legacy de config.xml.
+         Destination : adresse de l'interface WAN (wanip), IP publique /32 en routed_ip, transit .2 en nat.
+         Plage de ports : local-port = premier port de la plage, pf conserve le décalage (même plage côté cible).
+         associated-rule-id vide : AUCUNE règle de filtre implicite (ni « rdr pass », ni règle liée). Le passage
+         est autorisé par les règles M1 du stack 60 (interface wan, destination = IP interne après DNAT) ;
+         le filtrage reste centralisé là, et le reste tombe sur le blocage par défaut journalisé.
+         Réflexion NAT désactivée (split-DNS Unbound vers l'IP interne de l'edge, stack 60). -->
+%{ for r in nat_rules ~}
+    <rule uuid="${r.uuid}">
+      <protocol>${r.proto}</protocol>
+      <interface>wan</interface>
+      <ipprotocol>inet</ipprotocol>
+      <descr>${r.descr}</descr>
+      <tag/>
+      <tagged/>
+      <poolopts/>
+      <associated-rule-id/>
+      <target>${r.target}</target>
+      <local-port>${r.local_port}</local-port>
+      <natreflection>disable</natreflection>
+      <source>
+        <any>1</any>
+      </source>
+      <destination>
+        <network>wanip</network>
+        <port>${r.port}</port>
+      </destination>
+    </rule>
+%{ endfor ~}
   </nat>
   <filter>
     <!-- Seule la règle anti-lockout implicite (MGMT -> GUI/SSH) existe au bootstrap.

@@ -23,6 +23,11 @@ déclarés dans la stack OpenTofu `60-opnsense-rules`, à partir des ports du co
 | I4 | `edge` | `monitoring` | 3001 | page de statut Uptime Kuma |
 | I5 | zones listées | Internet (hors plages privées) | 80, 443, 123/udp | mises à jour, ACME ; activable par zone |
 
+M1 ne fait qu'autoriser le trafic : la redirection de ports WAN (DNAT vers `edge` et `netbird`) est posée par le
+`config.xml` de bootstrap (stack `10-router`), sans règle de filtre associée, car l'API `d_nat` n'existe qu'à partir
+d'OPNsense 26.1. Changer `wan.public_ports` impose de réimporter la configuration
+(`tofu apply -replace=module.opnsense.proxmox_virtual_environment_vm.this` dans `10-router`).
+
 Les joueurs ne sont pas dans cette table : ils atteignent les instances **par NetBird**, dont les policies sont
 créées dynamiquement par `netbird-sync`. Voir [Cycle de vie d'une instance](instances.md).
 

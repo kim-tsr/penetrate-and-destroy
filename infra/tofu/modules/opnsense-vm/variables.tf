@@ -88,6 +88,32 @@ variable "zones" {
   }))
 }
 
+variable "port_forwards" {
+  description = <<-EOT
+    Redirections de ports WAN (DNAT) écrites dans config.xml (contrat wan.public_ports), destination = adresse WAN.
+    proto : tcp ou udp ; port : "443" ou plage "a-b" (même plage côté cible) ; target : IP interne ; name : service cible.
+    Le filtrage (règles pass M1) reste au stack 60-opnsense-rules.
+  EOT
+  type = list(object({
+    proto  = string
+    port   = string
+    target = string
+    name   = string
+  }))
+  default = []
+
+  validation {
+    condition = alltrue([
+      for pf in var.port_forwards :
+      contains(["tcp", "udp"], lower(pf.proto))
+      && can(regex("^[0-9]{1,5}(-[0-9]{1,5})?$", pf.port))
+      && can(cidrhost("${pf.target}/32", 0))
+      && can(regex("^[A-Za-z0-9_.-]+$", pf.name))
+    ])
+    error_message = "port_forwards : proto tcp|udp, port \"N\" ou \"A-B\", target = IPv4, name alphanumérique (rendu tel quel dans config.xml)."
+  }
+}
+
 variable "webgui_zones" {
   description = "Zones où la GUI/API OPNsense écoute."
   type        = list(string)

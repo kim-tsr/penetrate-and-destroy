@@ -351,10 +351,10 @@ Toutes les commandes se lancent depuis la racine du dépôt, dans `nix develop`,
 ### Phase 2 : routeur et pare-feu
 
 - **Fait** : `10-router` télécharge l'image OPNsense (somme de contrôle épinglée), construit sur **votre poste** un ISO contenant `config.xml`, le dépose sur l'hôte, crée la VM `200` (`10.20.10.1`),
-  puis envoie des frappes clavier pour déclencher l'import de la configuration. La tâche attend ensuite que la GUI réponde, pose sur l'hôte la **route vers les zones** (rôle `host-tuning`, tag `host_route` : unité `pad-route.service`, permanente et idempotente ; `task host:route`),
+  puis pilote sa console série pour déclencher l'import de la configuration. La tâche attend ensuite que la GUI réponde, pose sur l'hôte la **route vers les zones** (rôle `host-tuning`, tag `host_route` : unité `pad-route.service`, permanente et idempotente ; `task host:route`),
   et `60-opnsense-rules` installe la matrice de flux (deny all par défaut, règles « automation » par zone). Détail : [OPNsense](composants/opnsense.md), [Matrice de flux](architecture/flux.md).
 - **Commande** : `task phase:2-routeur`. Pour la partie règles, l'API d'OPNsense doit être joignable : tunnel de la section 1 et `export TF_VAR_opnsense_uri=https://127.0.0.1:8443`.
-- **Créé** : VM `200` (OPNsense), règles de pare-feu, port-forwards WAN.
+- **Créé** : VM `200` (OPNsense) avec ses redirections de ports WAN (dans le `config.xml` importé : l'API NAT du provider n'existe qu'à partir d'OPNsense 26.1), règles de pare-feu (stack 60).
 - **Vérifier** : `task check:2-routeur`, ou `qm list` (VM 200 `running`), `ping -c1 10.20.10.1` depuis l'hôte, `ip route get 10.20.60.5` (doit passer `via 10.20.10.1`).
 - **Erreurs** : la GUI ne répond pas, OPNsense a démarré en configuration d'usine → l'import automatique a échoué. Procédure manuelle d'une minute dans `infra/opnsense/README.md`
   (console `qm terminal 200`, touche au prompt de l'importer, `cd0`), puis relancer la phase. Authentification API refusée : `api_key`/`api_secret` de `secrets/opnsense.sops.yaml` ≠ ceux du `config.xml` importé → réimporter.

@@ -63,6 +63,21 @@ déjà configurée (`ignore_changes = [cdrom]`).
   Tout cela vient de `secrets/opnsense.sops.yaml` (voir `secrets/opnsense.example.yaml`).
 - **NAT sortant** : automatique (tous les réseaux internes derrière l'adresse WAN). Le provider ne
   gère pas l'outbound NAT.
+- **NAT entrant (redirections de ports WAN)** : une règle `<nat><rule>` (format legacy) par entrée de
+  `wan.public_ports` du contrat, rendue depuis la variable `port_forwards` du module (calculée par `10-router` à
+  partir de `wan.public_ports` et de l'IP du service cible dans `services`) : interface `wan`, destination
+  `wanip` (adresse de l'interface WAN : IP publique /32 en `routed_ip`, `.2` du transit en `nat`), cible = IP
+  interne du service (`edge` pour 443/80, `netbird` pour 3478 et la plage TURN), réflexion NAT désactivée.
+  Pour une plage (`49152-49252`), `local-port` vaut le premier port et pf conserve le décalage : la cible
+  reçoit la même plage. **Aucune règle de filtre associée** (`associated-rule-id` vide, pas de `rdr pass`) :
+  le trafic redirigé est autorisé par les règles M1 de `60-opnsense-rules` (interface `wan`, destination = IP
+  interne, puisque pf filtre après la traduction) ; le filtrage reste centralisé dans la stack 60, et tout le
+  reste tombe sur le blocage par défaut journalisé.
+  Pourquoi ici et pas dans la stack 60 : l'API `/api/firewall/d_nat/*` utilisée par
+  `opnsense_firewall_nat_port_forward` n'existe qu'à partir d'OPNsense 26.1 (404 en 25.7). Conséquence :
+  **changer `wan.public_ports` (ou l'IP d'`edge`/`netbird`) impose de réimporter la configuration**,
+  `tofu apply -replace=module.opnsense.proxmox_virtual_environment_vm.this` dans `10-router` (recrée la VM et
+  réimporte par la console série), puis réappliquer `60-opnsense-rules` (règles M1 et reste du filtrage).
 - **Filtrage** : vide au bootstrap. Le blocage par défaut est journalisé (`nologdefaultblock` absent).
 
 ## Sécurité
@@ -73,6 +88,8 @@ déjà configurée (`ignore_changes = [cdrom]`).
 ## Points à valider au premier déploiement
 - L'import par la console série (`serial-import.py`) sur une VM fraîche ; `IMPORT_TIMEOUT` (défaut 600 s) si le boot est lent.
 - Le nom des devices VLAN `vlan0.<tag>` accepté par OPNsense 25.7.
+- Les redirections WAN visibles dans *Firewall > NAT > Port Forward* (4 règles « pad WAN ... »), sans règle de
+  filtre liée ; `pfctl -s nat` sur OPNsense doit lister les `rdr` vers `edge` et `netbird`.
 - La connexion à `https://10.20.10.1` depuis le poste opérateur : tunnel SSH par l'hôte
   (`ssh -L 8443:10.20.10.1:443 <utilisateur>@<hôte>`) ou route vers `10.20.10.0/24`. Ajuster
   `opnsense_uri` dans `60-opnsense-rules`.

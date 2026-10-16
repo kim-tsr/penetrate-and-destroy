@@ -21,6 +21,17 @@ locals {
   }
 
   image_version = tostring(local.c.router.version)
+
+  # Redirections WAN (DNAT) du contrat, posées dans config.xml : l'API d_nat du provider n'existe qu'à partir
+  # d'OPNsense 26.1. Changer wan.public_ports impose donc de réimporter la config (recréer la VM, voir README).
+  port_forwards = [
+    for e in local.c.wan.public_ports : {
+      proto  = e.proto
+      port   = tostring(e.port)
+      target = local.c.services[e.to].ip
+      name   = e.to
+    }
+  ]
 }
 
 module "opnsense" {
@@ -43,9 +54,10 @@ module "opnsense" {
     sha256    = var.opnsense_images[local.image_version].sha256
   }
 
-  wan        = local.wan
-  lan_bridge = local.c.host.zones_bridge
-  zones      = local.c.zones
+  wan           = local.wan
+  port_forwards = local.port_forwards
+  lan_bridge    = local.c.host.zones_bridge
+  zones         = local.c.zones
 
   root_password_hash    = local.opn.root_password_bcrypt
   api_key               = local.opn.api_key

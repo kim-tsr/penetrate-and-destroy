@@ -12,8 +12,10 @@ alternatives écartées (pfSense, VyOS) : [ADR 1](../adr/001-routeur-opnsense.md
 
 Stack tofu `10-router` (module `opnsense-vm`) : l'image nano est téléchargée par Proxmox avec **checksum sha256 vérifié**,
 puis une ISO de configuration (`config.xml` rendu par `templatefile`) est montée et importée au premier boot par
-l'importer d'OPNsense (frappes clavier via l'API Proxmox, best-effort). Ensuite, la stack `60-opnsense-rules`
-applique **toutes** les règles par l'API.
+l'importer d'OPNsense (pilotage de la console série par `import-config.sh`). Ce `config.xml` porte aussi les
+**redirections de ports WAN** (DNAT des `wan.public_ports` du contrat vers `edge` et `netbird`) : l'API `d_nat` du
+provider n'existe qu'à partir d'OPNsense 26.1. Ensuite, la stack `60-opnsense-rules` applique **toutes** les règles
+de filtrage par l'API, dont les règles M1 qui autorisent le trafic redirigé.
 
 ## Version épinglée
 
@@ -30,7 +32,7 @@ applique **toutes** les règles par l'API.
 
 ## Interactions avec les autres briques
 
-- Reçoit le trafic Internet (DNAT des ports publics du contrat) et le route vers [Traefik edge](traefik-edge.md) et [NetBird](netbird.md).
+- Reçoit le trafic Internet (DNAT des ports publics du contrat, posé par le `config.xml` de bootstrap) et le route vers [Traefik edge](traefik-edge.md) et [NetBird](netbird.md).
 - Pilotée par [OpenTofu](opentofu.md) (VM et règles).
 - Scrapée par [VictoriaMetrics](victoriametrics.md) (`os-node_exporter`, port 9100 sur l'IP MGMT).
 - Passerelle de toutes les zones, y compris des nœuds [Talos](talos.md).
@@ -58,10 +60,13 @@ task tofu:apply-stack STACK=60-opnsense-rules
 
 ## Pièges connus
 
-- L'import de configuration par frappes clavier est best-effort : une procédure manuelle d'une minute existe.
+- L'import de configuration passe par la console série (`import-config.sh`) : une procédure manuelle d'une minute existe.
 - Un changement de `config.xml` seul n'altère pas une VM déjà configurée (`ignore_changes = [cdrom]`) ; pour réimporter,
   recréer la VM avec `-replace`.
-- Le provider ne gère pas le NAT sortant.
+- Le provider ne gère pas le NAT sortant, ni les redirections de ports en 25.7 (API `d_nat` absente avant 26.1) :
+  elles sont dans `config.xml`. Changer `wan.public_ports` demande donc de réimporter la configuration :
+  `tofu apply -replace=module.opnsense.proxmox_virtual_environment_vm.this` dans `10-router` (recrée la VM et
+  réimporte par la console série), puis `60-opnsense-rules`.
 
 ## Documentation officielle
 

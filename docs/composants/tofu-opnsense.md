@@ -49,6 +49,10 @@ task tofu:lock        # régénère les verrous après un changement de version
 
 Le provider ne gère **pas** le NAT sortant (automatique côté OPNsense) ni le bootstrap : celui-ci passe par l'ISO de configuration de la stack `10-router`.
 
+Les redirections de ports WAN (`opnsense_firewall_nat_port_forward`) ne sont pas utilisées : cette ressource appelle
+l'API `/api/firewall/d_nat/*`, qui n'existe qu'à partir d'OPNsense 26.1 (404 en 25.7). Elles sont donc rendues dans le
+`config.xml` de bootstrap (`wan.public_ports`) ; la stack 60 ne pose que les règles de filtre M1 qui les autorisent.
+
 ## Documentation officielle
 
 [Registry : browningluke/opnsense](https://registry.terraform.io/providers/browningluke/opnsense/latest/docs)

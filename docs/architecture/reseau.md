@@ -43,6 +43,10 @@ Deux modes, choisis dans le contrat (`wan.mode`) :
     OPNsense. Plus simple à obtenir, un saut de plus à diagnostiquer.
 
 Les ports publics (`wan.public_ports`) : 443/tcp et 80/tcp vers `edge`, 3478/udp et la plage TURN vers `netbird`.
+Dans les deux modes, OPNsense les redirige (DNAT) de son adresse WAN vers l'IP interne du service. Ces redirections
+sont écrites dans le `config.xml` de bootstrap (stack `10-router`, l'API NAT du provider n'existant qu'à partir
+d'OPNsense 26.1) ; les règles M1 de la stack `60-opnsense-rules` les autorisent. Modifier `wan.public_ports` demande
+de réimporter la configuration : `tofu apply -replace=module.opnsense.proxmox_virtual_environment_vm.this` dans `10-router`.
 
 ## DNS
 

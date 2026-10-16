@@ -23,6 +23,19 @@ locals {
   ]
   interface_by_zone = { for z in local.zones : z.name => z.key }
 
+  # Redirections de ports WAN (DNAT) au format legacy de config.xml (l'API d_nat n'existe qu'à partir d'OPNsense 26.1).
+  # Plage "a-b" : local-port = a, pf conserve le décalage (la cible reçoit la même plage).
+  nat_rules = [
+    for pf in var.port_forwards : {
+      uuid       = uuidv5("url", "https://pad.local/opnsense/nat/${lower(pf.proto)}/${pf.port}")
+      proto      = lower(pf.proto)
+      port       = pf.port
+      local_port = split("-", pf.port)[0]
+      target     = pf.target
+      descr      = "pad WAN ${upper(pf.proto)} ${pf.port} vers ${pf.name}"
+    }
+  ]
+
   config_xml = templatefile("${local.opnsense_dir}/config.xml.tmpl", {
     hostname                 = var.name
     domain                   = var.domain
@@ -36,6 +49,7 @@ locals {
     trunk_if                 = "vtnet1"
     gateway_uuid             = uuidv5("url", "https://pad.local/opnsense/gateway/wan")
     zones                    = local.zones
+    nat_rules                = local.nat_rules
     wan = {
       "if"        = "vtnet0"
       ipaddr      = split("/", var.wan.address_cidr)[0]
