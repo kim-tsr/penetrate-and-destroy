@@ -75,6 +75,7 @@ tasks:
         vars: { STACK: 10-router }
       - "{{.CHECK}} wait-opnsense"
       - task: host:route
+        vars: { CLI_ARGS: "" } # les options de tofu (ex. -auto-approve) ne concernent pas cette tâche
       - task: tofu:apply-stack
         vars: { STACK: 60-opnsense-rules }
       - "{{.CHECK}} 2-routeur"
@@ -94,6 +95,7 @@ tasks:
       - task: tofu:apply-stack
         vars: { STACK: 20-services-lxc }
       - task: host:lxc-features
+        vars: { CLI_ARGS: "" } # les options de tofu (ex. -auto-approve) ne concernent pas cette tâche
       - "{{.CHECK}} 4-lxc"
     env: { PAD_MARK: "1" }
 
@@ -113,11 +115,12 @@ tasks:
     env: { PAD_MARK: "1" }
 
   phase:7-identite:
-    desc: "Phase 7 : identité (tofu 30-authentik, depuis le bastion/mgmt ou un CIDR autorisé) puis recopie des secrets OIDC dans les sops (oidc-sync)"
+    desc: "Phase 7 : identité (tofu 30-authentik, API d'Authentik jointe en interne par la route du poste vers les zones) puis recopie des secrets OIDC dans les sops (oidc-sync)"
     cmds:
       - task: tofu:apply-stack
         vars: { STACK: 30-authentik }
       - task: secrets:oidc-sync
+        vars: { CLI_ARGS: "" } # les options de tofu (ex. -auto-approve) ne concernent pas cette tâche
       - "{{.CHECK}} 7-identite"
     env: { PAD_MARK: "1" }
 
@@ -153,7 +156,9 @@ tasks:
         vars: { STACK: 40-netbird }
       # Setup keys créées par 40-netbird -> secrets/netbird-agent.sops.yaml -> agents des deux routing peers (CHALLENGES, BASTION).
       - task: netbird:sync-keys
+        vars: { CLI_ARGS: "" } # les options de tofu (ex. -auto-approve) ne concernent pas cette tâche
       - task: netbird:agents
+        vars: { CLI_ARGS: "" } # les options de tofu (ex. -auto-approve) ne concernent pas cette tâche
       - task: tofu:apply-stack
         vars: { STACK: 50-warpgate }
       - "{{.CHECK}} 11-acces"
@@ -163,6 +168,7 @@ tasks:
     desc: "Recopie les setup keys des routing peers (sortie de 40-netbird) dans secrets/netbird-agent.sops.yaml (à committer si vous versionnez les secrets)"
     cmds:
       - task: secrets:netbird-keys-sync
+        vars: { CLI_ARGS: "" } # les options de tofu (ex. -auto-approve) ne concernent pas cette tâche
 
   netbird:agents:
     desc: "Enrôle les routing peers NetBird : /dev/net/tun sur l'hôte (lxc-tun) puis agent sur nbrouter (CHALLENGES) et warpgate (BASTION) ; rejouable"
@@ -175,7 +181,9 @@ tasks:
       - task: tofu:apply-stack
         vars: { STACK: 40-netbird, CLI_ARGS: "-replace=netbird_setup_key.routing_challenges -replace=netbird_setup_key.routing_bastion" }
       - task: netbird:sync-keys
+        vars: { CLI_ARGS: "" } # les options de tofu (ex. -auto-approve) ne concernent pas cette tâche
       - task: netbird:agents
+        vars: { CLI_ARGS: "" } # les options de tofu (ex. -auto-approve) ne concernent pas cette tâche
 
   phase:12-verify:
     desc: "Phase 12 : smoke tests (scripts/verify.sh) et rappel des actions manuelles ; à lancer depuis un poste connecté à NetBird"

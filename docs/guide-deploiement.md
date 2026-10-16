@@ -99,7 +99,7 @@ Surcharges personnelles éventuelles : `.envrc.local` (ignoré par Git). Plus ra
 | LXC (Ansible) | **automatique** | rebond SSH par l'hôte (`ProxyJump`), rien à configurer ; l'hôte doit router vers les zones (route posée en phase 2) |
 | API d'OPNsense (`10.20.10.1`, phase 2) | pour `60-opnsense-rules` | tunnel : `ssh -N -L 8443:10.20.10.1:443 <utilisateur>@<hôte>` puis `export TF_VAR_opnsense_uri=https://127.0.0.1:8443` |
 | API Kubernetes (`10.20.60.5:6443`) et API Talos (`:50000`) | phases 9 à 12 | il faut **une route de votre poste vers `10.20.60.0/24`** (voir ci-dessous) |
-| Console d'administration d'Authentik (phase 7) | pour `30-authentik` | l'edge la filtre : lancer depuis la zone bastion/mgmt, ou ajouter temporairement votre CIDR à `edge_traefik_crowdsec_authentik_admin_allowed_cidrs` (rôle `edge-traefik-crowdsec`) puis `task ansible:services -- --tags edge` |
+| API d'administration d'Authentik (phase 7) | **automatique** si le poste joint les zones | OpenTofu (`30-authentik`) joint l'API en interne (`https://<IP du LXC authentik>`, flux M0) ; l'edge refuse l'API d'administration depuis Internet (403). Depuis un autre poste : `-var authentik_api_url=https://auth.<domaine>` depuis la zone bastion/mgmt |
 
 **Joindre les zones depuis le poste (méthode recommandée : VPN maillé WireGuard à routes annoncées).** Pour les phases 2 à 12, la solution la plus simple et la plus
 robuste est de faire annoncer `10.20.0.0/16` par l'hôte Proxmox comme sous-réseau d'un VPN maillé. Elle est **indispensable pour `kind` en phases 9 et 10**, car

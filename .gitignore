@@ -2,6 +2,7 @@
 .terraform/
 *.tfstate
 *.tfstate.backup
+*.tfstate.*.backup
 *.tfplan
 .terraform.lock.hcl.bak
 node_modules/
