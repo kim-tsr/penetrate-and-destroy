@@ -13,6 +13,9 @@
 #     par la copie du bucket `backups` ci-dessous.
 #   - Garage : copie incrémentale (rclone copy, jamais de suppression) de chaque bucket de PAD_BACKUP_BUCKETS
 #     (défaut : "ctfd-uploads backups") vers <PAD_BACKUP_DIR>/garage/<bucket>.
+#     Clé S3 : celle de garage-s3-credentials (access_key_id). Si le Secret contient aussi la clé dédiée aux sauvegardes
+#     (backup_access_key_id), elle est utilisée pour le bucket `backups` (le seul où elle a des droits) ; la clé
+#     principale reste utilisée pour ctfd-uploads. Sans clé dédiée : la clé principale pour les deux buckets.
 #
 # DESTINATIONS
 #   - Local (toujours) : PAD_BACKUP_DIR (défaut .state/backups, ignoré par git).
@@ -97,7 +100,7 @@ backup_garage() {
   for b in $BUCKETS; do
     log "Garage : copie du bucket $b"
     mkdir -p "$BACKUP_DIR/garage/$b"
-    rclone_bin copy "garage:$b" "$BACKUP_DIR/garage/$b" --fast-list --transfers 8 --checksum
+    rclone_bin copy "$(garage_remote "$b"):$b" "$BACKUP_DIR/garage/$b" --fast-list --transfers 8 --checksum
   done
   close_garage
 }
