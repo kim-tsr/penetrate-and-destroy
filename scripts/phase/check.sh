@@ -418,17 +418,15 @@ c_2_routeur() {
 c_3_image_talos() {
   section "Stack 15-talos-image (template VM Talos)"
   stack_has_state 15-talos-image && pass "state tofu présent" || fail "pas de state pour 15-talos-image" "task phase:3-image-talos"
-  local want_id tf_id cfg
+  local want_id cfg lo hi
   want_id=$(c '.kubernetes.talos_template.vmid')
-  tf_id=$(c '.kubernetes.talos_template_vmid')
+  lo=$(c '.kubernetes.vmid_range[0]')
+  hi=$(c '.kubernetes.vmid_range[1]')
+  ((want_id >= lo && want_id <= hi)) && fail "le VMID du template (${want_id}) est dans la plage allouable par CAPMOX (${lo}-${hi})" "kubernetes.talos_template.vmid doit être hors de kubernetes.vmid_range"
   if cfg=$(pve_get "/nodes/$(node)/qemu/${want_id}/config" 2>/dev/null); then
     [[ "$(jq -r '.data.template // 0' <<<"$cfg")" == 1 ]] && pass "VM ${want_id} existe et est un template ($(jq -r '.data.name' <<<"$cfg"))" || fail "VM ${want_id} existe mais n'est pas un template" "qm template ${want_id}"
   else
-    if [[ "$tf_id" != "$want_id" ]] && pve_get "/nodes/$(node)/qemu/${tf_id}/config" >/dev/null 2>&1; then
-      fail "le template a été créé avec le VMID ${tf_id} (kubernetes.talos_template_vmid) mais les manifests CAPI visent ${want_id} (kubernetes.talos_template.vmid)" "incohérence du contrat : aligner les deux valeurs, voir le rapport / docs/guide-deploiement.md"
-    else
-      fail "template VM ${want_id} introuvable" "qm list ; task phase:3-image-talos"
-    fi
+    fail "template VM ${want_id} introuvable" "qm list ; task phase:3-image-talos"
   fi
   local sch
   sch=$(c '.kubernetes.talos_schematic_id')
