@@ -27,7 +27,7 @@ edge_traefik_crowdsec_host_auth: "{{ pad_fqdn.auth }}"
 edge_traefik_crowdsec_host_vpn: "{{ pad_fqdn.vpn }}"
 
 # Backends. L'ingress du cluster termine le trafic de l'edge en HTTP (TLS terminé sur l'edge).
-edge_traefik_crowdsec_ingress_url: "http://{{ pad.kubernetes.ingress_ip }}:{{ pad.ports.http }}"
+edge_traefik_crowdsec_ingress_url: "http://{{ pad.kubernetes.ingress_ip }}:{{ pad.flow_ports.http }}"
 edge_traefik_crowdsec_authentik_url: "https://{{ pad.services.authentik.ip }}:{{ pad.ports.authentik.https }}"
 edge_traefik_crowdsec_netbird_ip: "{{ pad.services.netbird.ip }}"
 edge_traefik_crowdsec_netbird_http_port: "{{ pad.ports.netbird.http }}"
