@@ -38,6 +38,10 @@ spec:
               valueFrom: { secretKeyRef: { name: netbird-sync, key: NETBIRD_API_URL } }
             - name: NETBIRD_API_TOKEN
               valueFrom: { secretKeyRef: { name: netbird-sync, key: NETBIRD_API_TOKEN } }
+            # Membres d'équipe (rattachement joueur -> groupe NetBird ctf-team-<id>) : endpoint interne de CTFd (pad_teams).
+            - { name: CTFD_URL, value: "http://ctfd.ctfd.svc.cluster.local:8000" } # contracts: apps.ctfd.service
+            - name: PAD_INTERNAL_TOKEN # = PAD_INTERNAL_TOKEN du Secret ctfd-secrets (même valeur)
+              valueFrom: { secretKeyRef: { name: netbird-sync, key: PAD_INTERNAL_TOKEN } }
             - name: NETBIRD_NETWORK_NAME
               value: pad-instances # contracts: netbird.network_name
             - name: NETBIRD_TEAM_GROUP_PREFIX

@@ -95,7 +95,7 @@ spec:
             # --- Métriques (jeton Bearer attendu par /api/metrics) ---
             - name: METRICS_TOKEN
               valueFrom: { secretKeyRef: { name: frontend-secrets, key: METRICS_TOKEN } }
-            # --- NetBird : guide d'onboarding et état du tunnel (lecture seule) ---
+            # --- NetBird : guide d'onboarding et état du tunnel. Jeton = PAT d'un service user de rôle auditor (lecture seule), distinct de celui de netbird-sync ---
             - { name: NETBIRD_MANAGEMENT_URL, value: "https://vpn.CHANGEME.example.net" } # contracts: hostnames.vpn + domain
             - { name: NETBIRD_API_URL, value: "https://vpn.CHANGEME.example.net/api" } # contracts: netbird.api_url
             - name: NETBIRD_API_TOKEN
