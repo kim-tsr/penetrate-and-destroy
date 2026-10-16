@@ -65,6 +65,7 @@ http:
     cluster-ingress:
       loadBalancer:
         passHostHeader: true
+        serversTransport: cluster@file
         servers:
           - url: {{ edge_traefik_crowdsec_ingress_url | to_json }}
     authentik:
@@ -91,6 +92,10 @@ http:
 
   # Authentik publie un certificat auto-signé sur 443 (lien DMZ -> IDENTITY interne).
   serversTransports:
+    # Ingress du cluster absent ou injoignable : 502 rapide plutôt qu'une requête pendue (défaut : 30 s de connexion).
+    cluster:
+      forwardingTimeouts:
+        dialTimeout: 5s
     authentik:
       insecureSkipVerify: true
 

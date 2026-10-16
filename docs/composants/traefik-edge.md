@@ -67,3 +67,6 @@ Pour essayer l'ACME sans consommer le quota, renseigner `edge_traefik_crowdsec_a
 [doc.traefik.io](https://doc.traefik.io/traefik/)
 
 [Retour à l'index des composants](index.md){ .md-button }
+
+- Le service `cluster-ingress` utilise le transport `cluster@file` (`dialTimeout: 5s`) : si l'ingress du cluster est
+  absent (avant la phase 9) ou injoignable, l'edge répond **502** en quelques secondes au lieu de laisser la requête pendue.
