@@ -8,6 +8,11 @@
     name: pad-nat
     state: restarted
 
+- name: Recharger pad-raw
+  ansible.builtin.systemd_service:
+    name: pad-raw
+    state: restarted
+
 - name: Redémarrer pve-exporter
   ansible.builtin.systemd_service:
     name: prometheus-pve-exporter

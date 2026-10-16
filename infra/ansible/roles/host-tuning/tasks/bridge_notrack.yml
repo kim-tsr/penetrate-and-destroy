@@ -1,0 +1,61 @@
+---
+# Pas de suivi de connexion (conntrack) sur les trames pontées du pont des zones (table inet pad_raw).
+# Le pont des zones est VLAN-aware et OPNsense route entre les VLANs. Le poste d'administration joint les zones par une route d'un VPN
+# maillé qui traduit (SNAT) le trafic vers l'IP mgmt de l'hôte. Comme le pare-feu Proxmox active br_netfilter, la réponse d'un service
+# d'une autre zone, qui traverse le pont en simple pont (VLAN de la zone -> OPNsense), retombe sur l'entrée conntrack de la traduction
+# et est « dé-NATée » sur le pont : OPNsense la jette. `iifname` = le pont lui-même : seules les trames pontées sont concernées, le
+# trafic routé de l'hôte arrive par <pont>.<vlan> et reste suivi.
+# Table nftables dédiée, chargée par une unité systemd propre : on n'utilise PAS nftables.service (son "flush ruleset" effacerait
+# les règles du pare-feu Proxmox).
+- name: Installer nftables
+  ansible.builtin.apt:
+    name: nftables
+    state: present
+
+- name: Créer le répertoire des règles PAD
+  ansible.builtin.file:
+    path: /etc/pad
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Déployer les règles notrack du pont des zones
+  ansible.builtin.template:
+    src: pad-raw.nft.j2
+    dest: /etc/pad/raw.nft
+    owner: root
+    group: root
+    mode: "0640"
+    validate: nft -c -f %s
+  notify: Recharger pad-raw
+
+- name: Déployer l'unité systemd pad-raw
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/pad-raw.service
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Géré par Ansible (rôle host-tuning) - contracts: host.zones_bridge
+      [Unit]
+      Description=PenetrateAndDestroy - pas de conntrack sur les trames pontees du pont des zones
+      After=network-online.target pve-firewall.service proxmox-firewall.service
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/usr/sbin/nft -f /etc/pad/raw.nft
+      ExecStop=-/usr/sbin/nft delete table inet pad_raw
+
+      [Install]
+      WantedBy=multi-user.target
+  register: host_tuning_raw_unit
+
+- name: Activer pad-raw
+  ansible.builtin.systemd_service:
+    name: pad-raw
+    enabled: true
+    state: started
+    daemon_reload: "{{ host_tuning_raw_unit is changed }}"

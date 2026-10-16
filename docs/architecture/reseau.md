@@ -63,6 +63,12 @@ L'hôte Proxmox doit rester joignable indépendamment de la plateforme (SSH, con
 OPNsense ou la destruction de la plateforme ne coupe jamais l'accès à l'hôte. La zone MGMT sert à OpenTofu pour joindre OPNsense (`https://10.20.10.1`) et à CAPMOX pour joindre l'API Proxmox.
 Une route retour `10.20.0.0/16` via la passerelle MGMT est posée sur l'hôte par Ansible.
 
+Le poste d'administration joint les zones par une route annoncée par un VPN maillé, qui traduit (SNAT) le trafic vers l'IP mgmt de l'hôte
+(interface `vmbr2.10`). Le pare-feu Proxmox active `br_netfilter` : la réponse d'un service d'une autre zone, qui traverse le pont en simple pont
+(VLAN de la zone vers OPNsense), retomberait sur l'entrée conntrack de la traduction et serait « dé-NATée » sur le pont, puis jetée par OPNsense.
+Le rôle `host-tuning` charge donc la table nftables `inet pad_raw` (unité `pad-raw.service`, tag `host_bridge_notrack`) qui applique `notrack` aux
+trames entrant par le pont des zones (`iifname "vmbr2"`). Le trafic routé de l'hôte arrive par `vmbr2.10` et reste suivi.
+
 ## Pools d'adresses Cilium
 
 Cilium LB-IPAM alloue deux pools, sélectionnés par le label `pad.io/lb-pool` des Services :

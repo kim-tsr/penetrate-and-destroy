@@ -425,6 +425,7 @@ c_1_reseau() {
   local port
   port=$(c '.monitoring.exporters.node')
   host_ssh "ss -ltn | grep -q ':${port} '" 2>/dev/null && pass "node-exporter écoute sur le port ${port}" || fail "rien n'écoute sur le port ${port} de l'hôte" "systemctl status prometheus-node-exporter ; task ansible:host"
+  host_ssh sudo -n nft list table inet pad_raw >/dev/null 2>&1 && pass "pad_raw (pas de conntrack sur le pont des zones) chargée" || fail "table inet pad_raw absente : le trafic retour du VPN maillé est cassé hors mgmt (SYN sans SYN-ACK)" "task ansible:host -- --tags host_bridge_notrack ; systemctl status pad-raw"
   if [[ "$(c '.wan.mode')" == nat ]]; then
     host_ssh systemctl is-active pad-nat >/dev/null 2>&1 && pass "pad-nat (DNAT de repli) actif" || fail "unité pad-nat inactive (wan.mode = nat)" "systemctl status pad-nat ; nft list table ip pad_nat"
   fi

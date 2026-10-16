@@ -30,6 +30,10 @@
 - name: Configurer le DNAT de repli
   ansible.builtin.import_tasks: nat.yml
 
+- name: Désactiver le suivi de connexion sur les trames pontées du pont des zones
+  ansible.builtin.import_tasks: bridge_notrack.yml
+  tags: [host_bridge_notrack]
+
 - name: Poser la route de l'hôte vers les zones (après la phase routeur)
   ansible.builtin.import_tasks: route.yml
   tags: [host_route]

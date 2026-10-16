@@ -8,6 +8,8 @@ host_tuning_iso_datastore: "{{ pad.host.datastore_iso }}"
 # Route de l'hôte vers les zones via OPNsense (plage privée /16 commune aux zones du contrat).
 host_tuning_router_vmid: "{{ pad.router.vmid }}"
 host_tuning_route_gw: "{{ pad.zones.mgmt.gw }}"
+# Pont des zones (VLAN-aware) : pas de conntrack sur ses trames pontées (tasks/bridge_notrack.yml).
+host_tuning_zones_bridge: "{{ pad.host.zones_bridge }}"
 host_tuning_route_dev: "{{ pad.host.zones_bridge }}.{{ pad.zones.mgmt.vlan }}"
 host_tuning_route_cidr: "{{ pad.zones.mgmt.cidr.split('.')[:2] | join('.') }}.0.0/16"
 

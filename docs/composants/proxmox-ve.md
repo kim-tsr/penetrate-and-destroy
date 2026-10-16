@@ -34,7 +34,7 @@ Aucune version n'est épinglée par le dépôt (l'hôte est un prérequis : Prox
 ## Fichiers de configuration dans le dépôt
 
 - `infra/contracts.yaml` : section `host`, `wan`, `zones`, `services` (VMID, IP, ressources).
-- `infra/ansible/roles/host-tuning/` : ARC ZFS, sysctl, DNAT de repli (`pad-nat.nft.j2`), exporters.
+- `infra/ansible/roles/host-tuning/` : ARC ZFS, sysctl, DNAT de repli (`pad-nat.nft.j2`), `notrack` des trames pontées du pont des zones (`pad-raw.nft.j2`, tag `host_bridge_notrack`), exporters.
 - `infra/ansible/inventories/prod/group_vars/proxmox_host.yml` et `hosts.example.yml` : inventaire de l'hôte.
 - `infra/tofu/modules/proxmox-network/`, `lxc-service/`, `opnsense-vm/`, `talos-image/` : ce que tofu crée dessus.
 - `secrets/proxmox.example.yaml` (token d'API, SSH) et `secrets/site.example.yaml` (URL, IP publique) : modèles.

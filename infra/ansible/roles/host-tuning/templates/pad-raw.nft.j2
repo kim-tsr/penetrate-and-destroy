@@ -1,0 +1,12 @@
+# Géré par Ansible (rôle host-tuning) - contracts: host.zones_bridge
+# Idempotent : la table est recréée à chaque chargement (add + delete + définition).
+table inet pad_raw
+delete table inet pad_raw
+
+table inet pad_raw {
+  chain pre {
+    type filter hook prerouting priority raw; policy accept;
+    # Trames pontées du pont des zones : pas de conntrack (le trafic routé de l'hôte passe par <pont>.<vlan>, donc reste suivi).
+    iifname "{{ host_tuning_zones_bridge }}" notrack
+  }
+}
