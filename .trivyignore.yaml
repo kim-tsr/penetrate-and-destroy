@@ -35,3 +35,15 @@ misconfigurations:
     paths:
       - apps/netbird-sync/rbac.yaml
     statement: "ClusterRole netbird-sync : patch des Services pour poser un finalizer ; borné aux namespaces inst-* par la ValidatingAdmissionPolicy pad-netbird-sync-inst-only du même fichier."
+  - id: KSV053
+    paths:
+      - platform/garage/manifests/rbac.yaml
+    statement: "Role garage-init : pods/exec limité par resourceNames au seul pod garage-0 du namespace storage (CLI garage v2 dans une image scratch sans shell, lit /etc/garage.toml dans le pod ; aucun accès aux Secrets). Utilisé uniquement par le Job PostSync garage-init."
+  - id: KSV056
+    paths:
+      - apps/chall-manager/rbac.yaml
+    statement: "ClusterRole pad:chall-manager-instances : chall-manager crée Services et NetworkPolicies par instance (Pulumi) ; les namespaces étant cluster-scoped, le droit est cluster-wide côté RBAC et borné aux namespaces inst-* par la ValidatingAdmissionPolicy pad-chall-manager-inst-only du même fichier."
+  - id: KSV056
+    paths:
+      - platform/kyverno/policies/rbac-background-controller.yaml
+    statement: "ClusterRole agrégé au background controller Kyverno : requis pour que les politiques generate (add-default-networkpolicy, instance-guardrails) créent les NetworkPolicies des namespaces d'instance."
