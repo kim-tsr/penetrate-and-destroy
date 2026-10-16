@@ -50,6 +50,7 @@ task apps:build:frontend
 
 ## Pièges connus
 
+- Le front demande le scope `offline_access` : Authentik émet un refresh token (12 h) avec lequel il revalide les groupes ; sans lui la session tomberait à l'expiration de l'access token (10 min).
 - Le token CTFd vit 15 min alors que la session Auth.js en dure 12 h : réémission transparente (un verrou Valkey évite N appels simultanés ; fail-open si Valkey est indisponible).
 - Un cookie CTFd présent prime sur `Authorization` : ne jamais en relayer.
 - Pour monter en version de Next.js, relancer lint, typecheck, tests, build et Playwright.

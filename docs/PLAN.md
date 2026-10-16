@@ -109,8 +109,8 @@ penetrate-and-destroy/
 ## `task up` : reconstruction complète
 1. `00-host-network` crée `vmbr2`, et le rôle Ansible host-tuning configure l'ARC ZFS et nftables (le DNAT de repli).
 2. `10-router` crée la VM OPNsense avec l'ISO de config, puis `60-opnsense-rules` pose la matrice de flux.
-3. `20-services-lxc` crée les LXC, puis Ansible y déploie edge, netbird, warpgate, authentik et monitoring en Docker Compose, avec des images épinglées par digest.
-4. `30-authentik` configure en tofu les applications, providers, groupes et flows (OIDC pour NetBird, Warpgate, Grafana, ArgoCD, front et Proxmox).
+3. `20-services-lxc` crée les LXC, puis Ansible y déploie en Docker Compose, avec des images épinglées par digest, une première passe (monitoring, authentik, edge).
+4. `30-authentik` configure en tofu les applications, providers, groupes et flows (OIDC pour NetBird, Warpgate, Grafana, ArgoCD, front et Proxmox) et **génère** les secrets des clients OIDC ; `scripts/sopsctl.py oidc-sync` les recopie dans les sops, puis Ansible déploie la seconde passe (warpgate, netbird, rejeu de monitoring).
 5. `bootstrap/` lance kind, puis `clusterctl init` et la création du cluster Talos, puis `clusterctl move` dans la prod. ArgoCD est installé et l'Application root est appliquée.
 6. ArgoCD synchronise la plateforme, puis les apps, puis les manifests de son propre cluster CAPI.
 7. `40-netbird` et `50-warpgate` créent les groupes, policies, routes et targets. `70-dns` crée les enregistrements.
@@ -249,7 +249,8 @@ Après les vagues 0, 1 et la majeure partie de la vague 2, le lot 1 a complété
 - **Flux** : I3 asymétrique, 6443 limité aux workers challenges (stack `60-opnsense-rules`).
 - **NetBird** : entrée des instances limitée au routing peer (plus d'overlay), rattachement automatique des joueurs à `ctf-team-<id>` par netbird-sync, refus de démarrer tant que la policy Default existe, PAT `network_admin` pour netbird-sync et `auditor` pour le front.
 - **Socle** : PSS et NetworkPolicy pour les namespaces CAPI, `pad-cluster` et `csi-proxmox` ; clé S3 de sauvegarde dédiée (optionnelle) dans Garage.
-- **À faire (hors périmètre du lot)** : règle Zot `ctf/**` et identifiants de pull des nœuds ; `scripts/sopsctl.py` doit copier `PAD_INTERNAL_TOKEN` de CTFd vers le secret netbird-sync et générer la clé de sauvegarde Garage, `scripts/backup.sh`/`restore.sh` doivent l'utiliser ; pas de limite globale d'instances (pool LB-IPAM de 100 IP, finding A1-5) ; vérifier sur cluster réel `UserNamespacesSupport` sous Talos, les motifs DNS Cilium, le rôle `network_admin` NetBird et la syntaxe keyless de Kyverno.
+- **Raccordements faits ensuite** : `scripts/sopsctl.py` copie `PAD_INTERNAL_TOKEN` de CTFd vers le secret netbird-sync, génère la clé de sauvegarde Garage avec `--all` et recopie les secrets OIDC (`oidc-sync`) ; `scripts/backup.sh`/`restore.sh` utilisent la clé dédiée quand elle existe (repli sur la clé principale) ; `task up` déploie les services en deux passes autour de `30-authentik`.
+- **À faire (hors périmètre du lot)** : règle Zot `ctf/**` et identifiants de pull des nœuds (voir les actions manuelles) ; création du Secret `argocd-oidc` par `bootstrap/scripts/gitops.sh` ; pas de limite globale d'instances (pool LB-IPAM de 100 IP, finding A1-5) ; vérifier sur cluster réel `UserNamespacesSupport` sous Talos, les motifs DNS Cilium, le rôle `network_admin` NetBird et la syntaxe keyless de Kyverno.
 
 ### Prochain lot
 1. Revue de sécurité croisée.

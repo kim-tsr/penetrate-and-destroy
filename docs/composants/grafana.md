@@ -29,7 +29,7 @@ Lit [VictoriaMetrics](victoriametrics.md), [Loki](loki.md), [Tempo](tempo.md) et
 ## Sécurité
 
 - Inscription libre désactivée (`GF_USERS_ALLOW_SIGN_UP=false`), télémétrie et vérification de mise à jour coupées.
-- Rôles stricts (`ROLE_ATTRIBUTE_STRICT`) : administrateurs = groupes `infra-admins` et `ctf-admins`.
+- Rôles stricts (`ROLE_ATTRIBUTE_STRICT`) : administrateur = groupe `infra-admins` seulement (`monitoring_stack_grafana_admin_groups`), les autres comptes SSO sont `Viewer`.
 - Mot de passe admin et clé de secret dans SOPS (`secrets/monitoring.example.yaml` pour les clés attendues).
 
 ## Supervision

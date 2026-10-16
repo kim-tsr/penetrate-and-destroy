@@ -35,8 +35,14 @@ est planifiée par un timer systemd. La configuration applicative (groupes, clie
 ## Sécurité
 
 - Pas de collecte : mise à jour, analytique de démarrage et rapport d'erreurs désactivés.
-- `no-new-privileges` ; politique de mot de passe (`authentik_policy_password`) et captcha à l'inscription.
-- Authentik n'est joignable depuis la DMZ que sur 443 ; groupes de rôles `ctf-players`, `ctf-managers`, `ctf-admins`, `infra-admins`.
+- `no-new-privileges` ; politique de mot de passe (`authentik_policy_password`) et captcha à l'inscription (activé par défaut, clés fournies par l'opérateur).
+- Authentik n'est joignable depuis la DMZ que sur 443 ; groupes de rôles `ctf-players`, `ctf-managers`, `ctf-admins` (administrateurs d'**un événement**, sans accès à l'infrastructure) et `infra-admins` (seul groupe admin d'ArgoCD, Warpgate, Grafana, Proxmox et du forward-auth).
+- **MFA obligatoire** (TOTP ou WebAuthn) pour `ctf-managers`, `ctf-admins` et `infra-admins`, au flow de connexion **et** au flow d'autorisation commun à tous les providers : un compte staff ne peut obtenir de jeton d'aucune application sans second facteur. Enrôlement forcé à la première connexion.
+- **Anti-brute-force** : flow annulé après 5 mots de passe faux et réputation par IP (20 échecs cumulés, `login_reputation_threshold`) ; le verrouillage par identifiant est désactivé par défaut pour qu'un joueur ne puisse pas bloquer un compte staff.
+- Les utilisateurs ne peuvent plus changer eux-mêmes e-mail, pseudo ni nom (l'e-mail est la clé de liaison avec CTFd et NetBird).
+- Durées de jeton : access token 10 min ; refresh token 12 h, émis grâce au scope `offline_access` rattaché aux seuls clients qui le demandent (le front revalide les groupes via le refresh token).
+- **Console d'administration hors Internet** : l'edge ne laisse atteindre `/if/admin` et les API d'administration (`/api/v3/admin`, `rbac`, `outposts`, `providers`, `propertymappings`, `crypto`, `managed`) que depuis les CIDR du bastion et du management
+  (`edge_traefik_crowdsec_authentik_admin_allowed_cidrs`). Détail : [Identité](../operations/securite-identite.md).
 
 ## Supervision
 
@@ -47,14 +53,18 @@ est planifiée par un timer systemd. La configuration applicative (groupes, clie
 
 ```bash
 task ansible:services -- --tags authentik --limit authentik
+# depuis le bastion ou la zone management (le provider appelle les chemins d'administration filtrés à l'edge)
 task tofu:apply-stack STACK=30-authentik
+task secrets:oidc-sync        # recopie les secrets des clients OIDC (sortie tofu) dans les sops
 # sur le LXC : sauvegarde à la demande
 systemctl start authentik-backup.service
 ```
 
 ## Pièges connus
 
-- Authentik doit être déployé avant Warpgate et NetBird (leurs connecteurs OIDC en dépendent) : l'ordre de `services.yml` le respecte.
+- Authentik doit être déployé avant Warpgate et NetBird (leurs connecteurs OIDC en dépendent), et leurs secrets OIDC sont générés par `30-authentik` : `task up` déploie les services en deux passes autour de cette stack ([Up](../runbooks/up.md)).
+- `tofu apply` de `30-authentik` échoue (403 ou page d'erreur) depuis un poste hors des CIDR autorisés : le lancer depuis le bastion ou le management.
+- Sans clés de captcha, `tofu plan` échoue (`captcha_enabled` vaut `true` par défaut) : [Actions manuelles](../operations/actions-post-deploiement.md).
 - Aligner la version du provider tofu sur celle du serveur.
 
 ## Documentation officielle

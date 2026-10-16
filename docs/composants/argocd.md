@@ -27,12 +27,13 @@ Chart `argo-cd` 10.10.5 dans `gitops/platform/argocd/application.yaml` ; init co
 ## Interactions avec les autres briques
 
 - Lit le dépôt Git (clé de déploiement) et déchiffre via [ksops](sops-age-ksops.md).
-- Authentifie par [Authentik](authentik.md) (client `pad-argocd`, groupes `ctf-admins` et `infra-admins` = admin).
+- Authentifie par [Authentik](authentik.md) (client `pad-argocd`, **seul** le groupe `infra-admins` est admin ; `ctf-admins`, qui n'administre qu'un événement, n'a aucun accès).
 - Applique tous les composants : [Cilium](cilium-hubble.md), [Kyverno](kyverno.md), [cert-manager](cert-manager.md), les [applications CTF](ctfd.md)...
 
 ## Sécurité
 
-- SSO uniquement en nominal (le compte `admin` n'est gardé que pour le dépannage) ; politique RBAC par défaut vide, aucun droit hors groupes autorisés.
+- SSO uniquement : le compte local `admin` est désactivé dès le bootstrap (secours : `argocd login --core` avec les droits `kubectl` de l'opérateur) ; politique RBAC par défaut vide, aucun droit hors `infra-admins`.
+- Une PR qui touche le RBAC, `gitops/bootstrap/root.yaml` ou un `ClusterRoleBinding` se relit comme un changement de privilèges ; protéger la branche `main` ([procédure](../operations/protection-branche.md)).
 - `exec.enabled: false` ; suivi des ressources par annotation (évite la capture des objets enfants Cluster API).
 - Namespace en PSS `restricted` ; `server.insecure` car le TLS est terminé par Traefik.
 - AppProjects distincts : le projet `apps` ne peut créer que des namespaces explicitement listés.

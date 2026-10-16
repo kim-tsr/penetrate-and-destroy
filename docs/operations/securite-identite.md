@@ -31,6 +31,12 @@ Récupération : un administrateur supprime l'appareil dans Authentik (Directory
 enrôle un nouveau. Si le dernier `infra-admins` perd son facteur : `docker exec` dans le conteneur `server` d'Authentik
 et `ak shell` depuis le bastion.
 
+## Durée des sessions et refresh token
+
+Le front revalide les groupes de l'utilisateur via le **refresh token** OIDC : le scope `offline_access` est demandé par le front et rattaché à son seul provider (les autres clients n'obtiennent pas de refresh token).
+L'access token vit 10 minutes (`access_token_validity`), le refresh token 12 heures (`refresh_token_validity`, jamais en dessous de la durée de session du front). Retirer un utilisateur d'un groupe prend donc effet au prochain renouvellement,
+au plus tard à l'expiration du refresh token.
+
 ## Anti-brute-force
 
 - Le flow est annulé après 5 mots de passe faux.
