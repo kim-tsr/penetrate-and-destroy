@@ -34,3 +34,4 @@ site/
 # Binaires Go compilés localement
 apps/chall-manager-scenario/chall-manager-scenario
 apps/netbird-sync/netbird-sync
+.envrc.local

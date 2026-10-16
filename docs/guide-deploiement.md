@@ -74,6 +74,18 @@ mkdir -p ~/.config/pad && chmod 700 ~/.config/pad
 export TF_VAR_state_passphrase="$(cat ~/.config/pad/state.pass)"      # à refaire dans chaque nouveau shell
 ```
 
+**Chargement automatique avec direnv (recommandé).** Le fichier `.envrc` du dépôt charge le devshell (`use flake`) et exporte
+`TF_VAR_state_passphrase` à chaque entrée dans le dépôt. Il cherche la phrase dans le trousseau macOS (service `tf_passphrase`), sinon dans
+`~/.config/pad/state.pass`. Sur macOS, pour la ranger dans le trousseau plutôt que dans un fichier :
+
+```bash
+security add-generic-password -a "$USER" -s tf_passphrase -w "$(openssl rand -base64 32)"   # une seule fois
+security find-generic-password -s tf_passphrase -w        # l'afficher, pour la sauvegarder hors machine
+direnv allow                                              # à la racine du dépôt
+```
+
+Surcharges personnelles éventuelles : `.envrc.local` (ignoré par Git). Plus rapide avec `nix-direnv` (cache du devshell).
+
 !!! danger "Perdre cette phrase = perdre les states"
     Sans elle, les states sont illisibles : vous ne pourrez plus détruire proprement ce qu'OpenTofu a créé. Voir « Repartir vraiment de zéro ».
 
