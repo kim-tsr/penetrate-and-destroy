@@ -16,6 +16,7 @@
 ARG NODE_IMAGE=docker.io/library/node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
 
 # ---------------------------------------------------------------- base
+# checkov:skip=CKV_DOCKER_7:faux positif, ${NODE_IMAGE} est un tag épinglé par digest (ARG ci-dessus)
 FROM ${NODE_IMAGE} AS base
 ENV NEXT_TELEMETRY_DISABLED=1 \
     CI=1 \

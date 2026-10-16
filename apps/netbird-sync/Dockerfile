@@ -10,6 +10,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-buildid= -s -w" -o /out/netbird-sync .
 
 # gcr.io/distroless/static:nonroot
+# checkov:skip=CKV_DOCKER_2:image distroless sans shell ni client HTTP ; la santé est portée par les probes Kubernetes (8081)
 FROM gcr.io/distroless/static:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3
 COPY --from=build /out/netbird-sync /netbird-sync
 USER 65532:65532
