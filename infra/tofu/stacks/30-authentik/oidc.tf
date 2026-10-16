@@ -13,6 +13,10 @@ locals {
       launch_url    = "https://${local.host.front}/"
       groups        = local.player_groups
       public        = false
+      # Scope offline_access : le front revalide les groupes via le refresh token (apps/frontend/src/auth.ts,
+      # scope demandé "openid email profile groups offline_access"). Sans lui, la session tombe à l'expiration
+      # de l'access token. Le refresh token vit refresh_token_validity (>= 4 h, aligné sur la session du front).
+      offline_access = true
     }
     netbird = {
       name = "NetBird"
@@ -85,6 +89,12 @@ data "authentik_property_mapping_provider_scope" "default" {
   ]
 }
 
+# Scope offline_access : Authentik n'émet un refresh token que si ce mapping est rattaché au provider
+# ET demandé par le client (scope). Rattaché uniquement aux clients qui l'exigent (offline_access = true).
+data "authentik_property_mapping_provider_scope" "offline_access" {
+  managed_list = ["goauthentik.io/providers/oauth2/scope-offline_access"]
+}
+
 # Claim `groups` = noms des groupes de l'utilisateur.
 resource "authentik_property_mapping_provider_scope" "groups" {
   name        = "pad-scope-groups"
@@ -120,6 +130,10 @@ resource "authentik_provider_oauth2" "client" {
   signing_key        = data.authentik_certificate_key_pair.signing.id
   issuer_mode        = "per_provider"
 
+  # Durées des jetons : le refresh token doit vivre au moins aussi longtemps qu'une session du front (>= 4 h).
+  access_token_validity  = var.access_token_validity
+  refresh_token_validity = var.refresh_token_validity
+
   allowed_redirect_uris = [
     for u in each.value.redirect_uris : { matching_mode = "strict", url = u }
   ]
@@ -127,6 +141,7 @@ resource "authentik_provider_oauth2" "client" {
   property_mappings = concat(
     data.authentik_property_mapping_provider_scope.default.ids,
     [authentik_property_mapping_provider_scope.groups.id],
+    try(each.value.offline_access, false) ? data.authentik_property_mapping_provider_scope.offline_access.ids : [],
   )
 }
 

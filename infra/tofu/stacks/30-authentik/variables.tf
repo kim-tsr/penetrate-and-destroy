@@ -35,6 +35,23 @@ variable "captcha_private_key" {
   sensitive   = true
 }
 
+variable "access_token_validity" {
+  description = "Durée de vie des access tokens OIDC (format Authentik : hours=1;minutes=2)."
+  type        = string
+  default     = "minutes=10"
+}
+
+variable "refresh_token_validity" {
+  description = "Durée de vie des refresh tokens OIDC (scope offline_access). Doit rester >= 4 h : le front revalide les groupes via le refresh token ; 12 h = durée de session du front."
+  type        = string
+  default     = "hours=12"
+
+  validation {
+    condition     = can(regex("^(hours=([4-9]|[1-9][0-9]+)|days=[1-9][0-9]*)$", var.refresh_token_validity))
+    error_message = "refresh_token_validity doit valoir au moins 4 heures (ex. hours=12 ou days=1)."
+  }
+}
+
 variable "email_from" {
   description = "Expéditeur des e-mails de vérification (le serveur SMTP est configuré côté rôle ansible authentik). Vide = noreply@<domain>."
   type        = string
