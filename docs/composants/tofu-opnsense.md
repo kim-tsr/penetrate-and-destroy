@@ -4,7 +4,7 @@
 
 ## À quoi elle sert ici et pourquoi ce choix
 
-Provider OpenTofu `browningluke/opnsense`. Gère toute la matrice de flux d'OPNsense (règles « automation » évaluées en premier, deny all journalisé en dernier).
+Provider OpenTofu `browningluke/opnsense`. Gère toute la matrice de flux d'OPNsense (règles « automation » évaluées en premier, blocage par défaut intégré d'OPNsense, journalisé, en fin de chaîne).
 
 Utilisé par : 60-opnsense-rules. Cadre général : [OpenTofu](opentofu.md) et [ADR 3](../adr/003-iac-hyperviseur.md).
 
@@ -54,6 +54,8 @@ l'API `/api/firewall/d_nat/*`, qui n'existe qu'à partir d'OPNsense 26.1 (404 en
 `config.xml` de bootstrap (`wan.public_ports`) ; la stack 60 ne pose que les règles de filtre M1 qui les autorisent.
 
 La règle M0 (`m0-host-zones`, interface mgmt, source = alias `host_proxmox_api`, destination `net_all_zones`, ports SSH, HTTPS, 6443, 50000) autorise le flux de l'hôte Proxmox vers les zones : rebond SSH d'Ansible vers les LXC, et trafic du poste opérateur arrivant par la route du VPN maillé, traduit (SNAT) vers l'IP mgmt de l'hôte.
+
+**Piège : ne jamais créer de règle `block` multi-interfaces dans cette stack.** OPNsense traite une règle posée sur plusieurs interfaces comme une règle **flottante**, évaluée **avant** les règles d'interface, quel que soit son numéro de séquence. L'ancienne règle `default_deny` (séquence 60000, toutes interfaces) bloquait donc toute la matrice (constaté : SSH de l'hôte vers les LXC refusé). Elle a été supprimée : c'est le blocage par défaut intégré d'OPNsense, en fin de chaîne, qui s'applique ; il est journalisé (`config.xml` de bootstrap sans `nologdefaultblock`).
 
 ## Documentation officielle
 

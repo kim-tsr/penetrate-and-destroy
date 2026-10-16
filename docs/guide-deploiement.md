@@ -362,7 +362,7 @@ Toutes les commandes se lancent depuis la racine du dépôt, dans `nix develop`,
 
 - **Fait** : `10-router` télécharge l'image OPNsense (somme de contrôle épinglée), construit sur **votre poste** un ISO contenant `config.xml`, le dépose sur l'hôte, crée la VM `200` (`10.20.10.1`),
   puis pilote sa console série pour déclencher l'import de la configuration. La tâche attend ensuite que la GUI réponde, pose sur l'hôte la **route vers les zones** (rôle `host-tuning`, tag `host_route` : unité `pad-route.service`, permanente et idempotente ; `task host:route`),
-  et `60-opnsense-rules` installe la matrice de flux (deny all par défaut, règles « automation » par zone). Détail : [OPNsense](composants/opnsense.md), [Matrice de flux](architecture/flux.md).
+  et `60-opnsense-rules` installe la matrice de flux (blocage par défaut intégré d'OPNsense, journalisé, et règles « automation » par zone). Détail : [OPNsense](composants/opnsense.md), [Matrice de flux](architecture/flux.md).
 - **Commande** : `task phase:2-routeur`. Pour la partie règles, l'API d'OPNsense doit être joignable : tunnel de la section 1 et `export TF_VAR_opnsense_uri=https://127.0.0.1:8443`.
 - **Créé** : VM `200` (OPNsense) avec ses redirections de ports WAN (dans le `config.xml` importé : l'API NAT du provider n'existe qu'à partir d'OPNsense 26.1), règles de pare-feu (stack 60).
 - **Vérifier** : `task check:2-routeur`, ou `qm list` (VM 200 `running`), `ping -c1 10.20.10.1` depuis l'hôte, `ip route get 10.20.60.5` (doit passer `via 10.20.10.1`).
@@ -401,7 +401,7 @@ Toutes les commandes se lancent depuis la racine du dépôt, dans `nix develop`,
 
 - **Fait** : `70-dns` publie quatre enregistrements `A` (`ctf`, `auth`, `vpn`, `status`) vers `wan.ip`. Les noms internes (bastion, grafana, argocd...) ne sont **jamais** publiés.
 - **Commande** : `task phase:5-dns`.
-- **Vérifier** : `task check:5-dns`, ou `dig +short auth.<domaine>` (= votre IP publique). TTL 300 s : patientez après un premier changement.
+- **Vérifier** : `task check:5-dns` interroge un serveur DNS **faisant autorité** pour la zone (`dns_zone`, sinon `domain`) et non le résolveur local, dont le cache négatif donnerait un faux KO juste après la création. À la main : `dig +short auth.<domaine> @<serveur DNS de la zone>` (= votre IP publique). TTL 300 s : patientez après un premier changement.
 - **Erreurs** : `This call has not been granted` → droits du jeton OVH (section 3) ; mauvais `endpoint` dans `secrets/ovh.sops.yaml`.
 - **Rejouer** : sans risque.
 
@@ -601,6 +601,7 @@ Avant d'ouvrir l'événement aux joueurs :
 | `tofu` (phase 2) : `unable to authenticate user ... over SSH to "<IP>:22" ... i/o timeout` | le provider se connecte à `ssh_host` (et non à l'adresse annoncée par l'API Proxmox) : vérifier `ssh_host` dans `secrets/site.sops.yaml` (adresse joignable depuis le poste, ex. IP VPN) et que le dépôt est à jour |
 | Phase 4 : LXC `running` mais SSH injoignable (Ansible : « SSH injoignable ») | vérifier que la règle **M0** est appliquée : `task tofu:apply-stack STACK=60-opnsense-rules` (le rebond passe par l'IP mgmt de l'hôte). Voir le journal pf sur OPNsense : `tcpdump -n -e -i pflog0 host <IP du LXC>` |
 | Phase 4 (LXC) : `unable to create CT ... zfs error: cannot mount '...subvol-...': no mountpoint set` | le dataset ZFS du stockage des VM a `mountpoint=none` : `zfs set mountpoint=/<dataset> <dataset>` sur l'hôte (2.1), puis relancer la phase |
+| Phase 5 OK, mais le navigateur ou le poste ne résout pas encore le nom | cache négatif du résolveur local : attendre le TTL négatif de la zone ou vider le cache DNS du poste |
 | `kubectl` : `connection refused` / délai | route de votre poste vers `10.20.60.0/24` ; VIP `10.20.60.5` ; VM allumées |
 | Une phase échoue à mi-chemin | la corriger puis relancer **la même phase** ; elle reprend là où elle s'est arrêtée |
 | Savoir où l'on en est | `task status` (rapide) ou `task status -- --live` (contacte l'hôte) |

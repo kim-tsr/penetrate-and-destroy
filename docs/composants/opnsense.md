@@ -41,7 +41,7 @@ de filtrage par l'API, dont les règles M1 qui autorisent le trafic redirigé et
 
 - SSH par clé uniquement, GUI et API en HTTPS sur la zone MGMT seulement.
 - Le secret d'API en clair n'est jamais écrit dans l'ISO (seulement son hash).
-- Règles « automation » évaluées en premier, puis un blocage final **journalisé**.
+- Règles « automation » évaluées en premier, puis le blocage par défaut **intégré** d'OPNsense, en fin de chaîne et **journalisé** (aucune règle deny explicite n'est créée par la stack 60).
 - Le trafic intra-zone ne traverse pas OPNsense : il est filtré par Cilium et NetBird.
 - DHCP désactivé, toutes les adresses sont statiques.
 

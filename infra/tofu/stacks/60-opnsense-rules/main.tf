@@ -1,7 +1,8 @@
 # Stack 60 : matrice de flux OPNsense (docs/PLAN.md, section Réseau).
 #
 # Principe : règles "automation" (MVC) évaluées en premier, `quick`, direction `in` sur l'interface de la zone source.
-# Tout ce qui n'est pas explicitement autorisé tombe sur la règle finale BLOCK journalisée (deny par défaut).
+# Tout ce qui n'est pas explicitement autorisé tombe sur le blocage par défaut intégré d'OPNsense (fin de chaîne, journalisé) :
+# aucune règle deny explicite n'est posée ici (voir la note avant la section NAT).
 # Le trafic intra-zone (même VLAN) ne traverse pas OPNsense : il est filtré par Cilium/NetBird si besoin.
 #
 # Correspondance matrice -> règles (préfixe "M" = matrice du PLAN, "I" = infrastructure, variables allow_*/internet_*) :
