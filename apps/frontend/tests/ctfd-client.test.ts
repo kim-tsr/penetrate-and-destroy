@@ -210,7 +210,7 @@ describe("manager_api", () => {
   it("importe un challenge instancié comme dynamic_instance", async () => {
     const m = await session("max", ["ctf-managers"]);
     const yml =
-      "name: Inst\ncategory: pwn\ndescription: d\nvalue: 10\nflags: [\"PAD{i}\"]\ninstance:\n  image: registry.example.test/pad/x:1\n  ports: [1337]\n  ttl: 30m\n";
+      "name: Inst\ncategory: pwn\ndescription: d\nvalue: 10\nflags: [\"PAD{i}\"]\ninstance:\n  image: registry.pad.internal/ctf/x:1@sha256:0000000000000000000000000000000000000000000000000000000000000000\n  ports: [1337]\n  ttl: 30m\n";
     expect(await api().importChallenge(m.token, await zip(yml), "c.zip")).toMatchObject({ type: "dynamic_instance", instance: true });
   });
   it("renvoie les erreurs de validation de CTFd (422) avec leur détail", async () => {

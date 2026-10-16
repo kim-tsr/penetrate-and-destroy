@@ -15,7 +15,8 @@ tags: [sqli, flask]
 state: hidden
 version: "0.1"
 instance:
-  image: registry.changeme.example.net/ctf/web-sqli-instanced:0.1.0
+  # Registre interne et empreinte obligatoires (remplacer l'empreinte nulle par celle du build CI).
+  image: registry.pad.internal/ctf/web-sqli-instanced:0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000
   ports:
     - port: 8080
       protocol: tcp
