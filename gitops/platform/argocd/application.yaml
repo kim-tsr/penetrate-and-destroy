@@ -2,7 +2,8 @@
 # Sources : (1) chart Helm épinglé, (2) ce repo en `$values`.
 # Secrets attendus dans le namespace argocd (hors Git, ou chiffrés SOPS via ksops) :
 #   - sops-age     : clé age privée du cluster (clé `keys.txt`), créée au bootstrap -> déchiffrement ksops
-#   - argocd-oidc  : clé `clientSecret` du client Authentik `pad-argocd` (label app.kubernetes.io/part-of=argocd)
+#   - argocd-oidc  : clé `clientSecret` du client Authentik `pad-argocd` (label app.kubernetes.io/part-of=argocd) ;
+#                    secret-oidc.sops.yaml, déchiffré par ksops et appliqué par l'Application `root` (alimenté par `task secrets:oidc-sync`)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

@@ -15,7 +15,7 @@ resources:
   - cert-manager/application.yaml
   - capi-providers/application.yaml
   - kyverno
-  - argocd/application.yaml
+  - argocd
   - proxmox-csi
   - mariadb-operator
   - traefik/application.yaml

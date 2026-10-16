@@ -12,7 +12,7 @@ déploiement. **Les faire avant d'ouvrir la plateforme aux joueurs.**
 | # | Action | Quand |
 |---|---|---|
 | 1 | Clés du captcha | avant `task up` |
-| 2 | `tofu apply` de `30-authentik` depuis le bastion ou le management, secret d'ArgoCD | pendant `task up` |
+| 2 | `tofu apply` de `30-authentik` depuis le bastion ou le management, commit des sops OIDC | pendant `task up` |
 | 3 | Enrôler le MFA du premier `infra-admins` | après `30-authentik` |
 | 4 | Supprimer la policy NetBird « Default » | après le déploiement de NetBird |
 | 5 | Créer les PAT NetBird (`netbird-sync`, front) | après le déploiement de NetBird |
@@ -44,19 +44,13 @@ CIDR du bastion et du management (`edge_traefik_crowdsec_authentik_admin_allowed
    poste, ajouter temporairement son CIDR à cette variable du rôle edge et rejouer
    `task ansible:services -- --tags edge`, puis le retirer.
 2. `task up` enchaîne ensuite `task secrets:oidc-sync`, qui recopie les secrets des clients OIDC générés par tofu dans les sops de
-   NetBird, Warpgate, Grafana et du front, avant la seconde passe d'Ansible ([Up](../runbooks/up.md)). Commiter les sops modifiés
-   (`secrets/*.sops.yaml` et `gitops/apps/frontend/secret.sops.yaml`) **avant** `bootstrap:gitops`.
-3. **ArgoCD** : son secret OIDC n'est pas recopié automatiquement. Une fois le cluster créé, créer le Secret attendu par l'Application
-   (clé `clientSecret`, label `app.kubernetes.io/part-of=argocd`), sans afficher la valeur :
-
-    ```bash
-    tofu -chdir=infra/tofu/stacks/30-authentik output -json oidc_client_secrets | jq -r .argocd \
-      | kubectl -n argocd create secret generic argocd-oidc --from-file=clientSecret=/dev/stdin
-    kubectl -n argocd label secret argocd-oidc app.kubernetes.io/part-of=argocd
-    ```
-
-   Tant qu'il n'existe pas, la connexion SSO à ArgoCD échoue ; le compte local `admin` est désactivé, utiliser
-   `argocd login --core` avec les droits `kubectl`. Le client `proxmox` (realm OpenID de Proxmox) se configure aussi à la main.
+   NetBird, Warpgate, Grafana, du front et d'ArgoCD, avant la seconde passe d'Ansible ([Up](../runbooks/up.md)). Commiter les sops
+   modifiés (`secrets/*.sops.yaml`, `gitops/apps/frontend/secret.sops.yaml` et `gitops/platform/argocd/secret-oidc.sops.yaml`)
+   **avant** `bootstrap:gitops`.
+3. **ArgoCD** : rien à faire à la main. Son Secret `argocd-oidc` (clé `clientSecret`) est déclaratif : sops + ksops, appliqué par
+   l'Application `root` dès la première synchronisation. Tant que le sops contient `CHANGEME` (oidc-sync non lancé), la connexion SSO
+   échoue ; le compte local `admin` est désactivé, utiliser `argocd login --core` avec les droits `kubectl`. Seul le client `proxmox`
+   (realm OpenID de Proxmox) se configure à la main.
 
 ## 3. Enrôler le MFA du premier administrateur d'infrastructure
 
