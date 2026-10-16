@@ -33,6 +33,8 @@ LATER=(
   "gitops/apps/frontend/secret.sops.yaml|AUTH_AUTHENTIK_SECRET|7-identite"
   "gitops/platform/argocd/secret-oidc.sops.yaml|clientSecret|7-identite"
   "secrets/netbird-tofu.sops.yaml|api_token|11-acces"
+  "secrets/netbird-agent.sops.yaml|netbird_agent_setup_key_challenges|11-acces"
+  "secrets/netbird-agent.sops.yaml|netbird_agent_setup_key_bastion|11-acces"
   "secrets/warpgate-tofu.sops.yaml|api_token|11-acces"
   "gitops/apps/netbird-sync/secret.sops.yaml|NETBIRD_API_TOKEN|11-acces"
   "gitops/apps/frontend/secret.sops.yaml|NETBIRD_API_TOKEN|11-acces"
@@ -453,7 +455,7 @@ c_3_image_talos() {
 }
 
 c_4_lxc() {
-  section "Stack 20-services-lxc (cinq LXC)"
+  section "Stack 20-services-lxc (LXC du contrat)"
   stack_has_state 20-services-lxc && pass "state tofu présent" || fail "pas de state pour 20-services-lxc" "task phase:4-lxc"
   [[ -s "${ROOT_DIR}/infra/ansible/inventories/prod/hosts.generated.yml" ]] && pass "inventaire Ansible généré (hosts.generated.yml)" || fail "hosts.generated.yml absent" "il est écrit par la stack 20-services-lxc"
   local s id st ip
@@ -592,6 +594,36 @@ c_10_gitops() {
   ((sc > 0)) && pass "StorageClass présente (Proxmox CSI)" || warn "aucune StorageClass pour l'instant" "l'Application proxmox-csi est-elle Synced ? secret du CSI renseigné ?"
 }
 
+# netbird_api <jeton> <chemin> : GET sur l'API NetBird (jeton via --config, jamais dans la ligne de commande).
+netbird_api() {
+  curl -fsS --max-time 15 --config <(printf 'header = "Authorization: Token %s"\n' "$1") "https://$(fqdn vpn)/api$2"
+}
+
+# check_routing_peers <jeton> : un routing peer connecté par groupe pad-routers-* et un routeur actif par network.
+check_routing_peers() {
+  local tok=$1 peers nets g z n nid routers
+  section "Routing peers NetBird (agents enrôlés, routes actives)"
+  if ! peers=$(netbird_api "$tok" /peers 2>/dev/null) || ! jq -e . >/dev/null 2>&1 <<<"$peers"; then
+    fail "liste des peers NetBird illisible" "PAT de secrets/netbird-tofu.sops.yaml valide ?"
+    return
+  fi
+  for z in challenges bastion; do
+    g=$(c ".netbird.technical_groups.routers_${z}")
+    n=$(jq --arg g "$g" '[.[] | select(.connected == true and ((.groups // []) | map(.name) | index($g)))] | length' <<<"$peers")
+    ((n >= 1)) && pass "routing peer ${z} connecté (${n} pair(s) dans ${g})" || fail "aucun pair connecté dans le groupe ${g}" "task netbird:agents ; sur le LXC : netbird status ; setup key expirée : task netbird:rotate-keys"
+  done
+  nets=$(netbird_api "$tok" /networks 2>/dev/null || echo '[]')
+  for n in "$(c '.netbird.network_name')" "$(c '.netbird.bastion_network_name')"; do
+    nid=$(jq -r --arg n "$n" '.[] | select(.name == $n) | .id' <<<"$nets" | head -n1)
+    if [[ -z "$nid" ]]; then
+      fail "network NetBird ${n} introuvable" "task plan:40-netbird"
+      continue
+    fi
+    routers=$(netbird_api "$tok" "/networks/${nid}/routers" 2>/dev/null || echo '[]')
+    jq -e '[.[] | select(.enabled == true)] | length >= 1' >/dev/null 2>&1 <<<"$routers" && pass "network ${n} : routeur actif" || fail "network ${n} : aucun routeur actif" "task apply-netbird (network_router de 40-netbird)"
+  done
+}
+
 c_11_acces() {
   section "Stacks 40-netbird et 50-warpgate"
   stack_has_state 40-netbird && pass "state 40-netbird présent" || fail "pas de state pour 40-netbird" "task phase:11-acces (PAT NetBird requis)"
@@ -607,6 +639,7 @@ c_11_acces() {
         pass "la policy « Default » n'est plus active"
       fi
       jq -e '[.[] | select(.name=="staff-vers-bastion")] | length > 0' <<<"$pol" >/dev/null 2>&1 && pass "policy staff-vers-bastion présente" || fail "policy staff-vers-bastion absente" "task plan:40-netbird"
+      check_routing_peers "$tok"
     else
       fail "API NetBird injoignable ou PAT refusé" "PAT de secrets/netbird-tofu.sops.yaml valide ? https://$(fqdn vpn)"
     fi
@@ -618,7 +651,15 @@ c_11_acces() {
     r=$(kprod -n "$(c '.namespaces.netbird_sync')" get deploy netbird-sync -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "")
     [[ "${r:-0}" -ge 1 ]] && pass "netbird-sync prêt" || warn "netbird-sync pas prêt" "PAT dans gitops/apps/netbird-sync/secret.sops.yaml puis commit + push ; kubectl -n netbird-sync logs deploy/netbird-sync"
   fi
-  warn "enrôlement des routing peers NetBird (challenges $(c '.netbird.routing_peer_ip'), bastion $(svc_ip warpgate)) : non automatisé par le dépôt" "sortie sensible routing_peer_setup_keys de 40-netbird ; voir guide §phase 11 et docs/operations/actions-post-deploiement.md §6"
+  local rip rname
+  for rname in nbrouter warpgate; do
+    rip=$(svc_ip "$rname")
+    if lxc_ssh "$rip" netbird status >/dev/null 2>&1; then
+      pass "agent NetBird actif sur ${rname} (${rip})"
+    else
+      warn "agent NetBird injoignable ou non connecté sur ${rname} (${rip})" "task netbird:agents ; sur le LXC : netbird status, journalctl -u netbird ; /dev/net/tun présent ? (rôle lxc-tun)"
+    fi
+  done
 }
 
 c_12_verify() {
