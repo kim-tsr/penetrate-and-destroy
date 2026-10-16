@@ -14,6 +14,8 @@ Conteneur du Compose de monitoring ; OTLP gRPC 4317, OTLP HTTP 4318, API 3200 ; 
 ## Version épinglée
 
 `pad_images.tempo` dans `infra/ansible/inventories/prod/group_vars/all/versions.yml` ; rétention `monitoring_stack_tempo_retention: 336h`.
+En Tempo 3.x, cette rétention se règle sous `backend_scheduler.provider.compaction.compaction.block_retention`
+(`tempo.yml.j2`) : l'ancien bloc `compactor` est refusé au démarrage (« field compactor not found in type app.Config »).
 
 ## Fichiers de configuration dans le dépôt
 

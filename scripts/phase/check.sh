@@ -548,8 +548,8 @@ c_6_services_1() {
   code=$(host_ssh curl -sS --max-time 8 -o /dev/null -w '%{http_code}' "http://$(svc_ip monitoring):$(c '.ports.monitoring.victoriametrics')/health" 2>/dev/null || echo 000)
   [[ "$code" == 200 ]] && pass "VictoriaMetrics répond (health 200)" || fail "VictoriaMetrics : HTTP ${code}" "docker logs sur le LXC monitoring"
   https_valid "$(fqdn auth)" "/-/health/live/" "200|204"
-  https_valid "$(fqdn front)" "/" "200|301|302|307|308|404|502|503"
-  info "le front n'existe pas encore (cluster) : un 404/502/503 de l'edge suffit à prouver que Traefik sert un certificat valide"
+  https_valid "$(fqdn front)" "/" "200|301|302|307|308|404|502|503|504"
+  info "le front n'existe pas encore (cluster) : un 404/502/503/504 de l'edge suffit à prouver que Traefik sert un certificat valide"
 }
 
 c_7_identite() {

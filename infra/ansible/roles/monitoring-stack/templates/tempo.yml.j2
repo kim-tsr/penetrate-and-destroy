@@ -26,9 +26,12 @@ metrics_generator:
       - url: http://victoriametrics:{{ pad.ports.monitoring.victoriametrics }}/api/v1/write
         send_exemplars: true
 
-compactor:
-  compaction:
-    block_retention: {{ monitoring_stack_tempo_retention }}
+# Tempo 3.x : le bloc « compactor » n'existe plus (refusé au démarrage) ; la rétention est portée par le backend-scheduler.
+backend_scheduler:
+  provider:
+    compaction:
+      compaction:
+        block_retention: {{ monitoring_stack_tempo_retention }}
 
 storage:
   trace:
