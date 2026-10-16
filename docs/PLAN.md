@@ -252,6 +252,12 @@ Après les vagues 0, 1 et la majeure partie de la vague 2, le lot 1 a complété
 - **Raccordements faits ensuite** : `scripts/sopsctl.py` copie `PAD_INTERNAL_TOKEN` de CTFd vers le secret netbird-sync, génère la clé de sauvegarde Garage avec `--all` et recopie les secrets OIDC (`oidc-sync`) ; `scripts/backup.sh`/`restore.sh` utilisent la clé dédiée quand elle existe (repli sur la clé principale) ; `task up` déploie les services en deux passes autour de `30-authentik`.
 - **À faire (hors périmètre du lot)** : identifiants de pull Zot (`pad-pull`) sur les nœuds challenges, à poser par `talosctl` (action manuelle 8 ; règle `ctf/**` et Secret `argocd-oidc` faits : sops + ksops, alimenté par `oidc-sync`) ; vérifier sur cluster réel `UserNamespacesSupport` sous Talos, les motifs DNS Cilium, le rôle `network_admin` NetBird et la syntaxe keyless de Kyverno.
 
+### Lot 4 : durcissement, suite de la revue de sécurité
+- **Limite globale d'instances** : `instances.max_total` (90) et `instances.max_per_team` (3) au contrat ; refus 503 côté plugin `chall_manager_bridge` (`PAD_INSTANCES_MAX_TOTAL`, préchauffées comprises, managers exemptés) ; alertes `InstancesLBPoolFilling` et `InstancesLBPoolExhausted`. Non transactionnel : la marge de 10 IP absorbe les courses.
+- **Egress de chall-manager** : plus de `0.0.0.0/0:443` ; `CiliumNetworkPolicy` avec `toFQDNs` (hôtes de releases GitHub, `get.pulumi.com`) et DNS filtré en L7. À vérifier sur cluster réel (hôtes réellement requis par le CLI Pulumi) ; règle retirable une fois le cache de plugins chaud.
+- **netbird-sync** : la VAP limite le `patch` au seul finalizer `pad.io/netbird-sync` des Services `inst-*` (ni create ni delete, spec intouchable).
+- **Kyverno** : contrôleur d'admission en 2 réplicas, anti-affinité préférée, PDB `minAvailable: 1` (pas 3 : 2 workers platform et RAM serrée).
+
 ### Prochain lot
 1. Revue de sécurité croisée.
 2. Documentation MkDocs : architecture, ADR, matrice de flux, runbooks (dont les 24 référencés par les alertes), guides joueur et manager, procédure du repo privé de challenges.
