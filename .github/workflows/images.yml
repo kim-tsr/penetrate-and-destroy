@@ -88,3 +88,61 @@ jobs:
             echo "$REF"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # Épingle les empreintes publiées dans les manifests (gitops/apps/*/deployment.yaml, challenges/*/challenge.yml) et
+  # ouvre/met à jour UNE PR `ci/pin-image-digests`. Seulement sur main, une fois toutes les images publiées et signées.
+  # Secret optionnel PAD_BOT_TOKEN (PAT ou token d'app, droits contents+pull-requests) : sans lui, la PR est créée avec
+  # GITHUB_TOKEN, ce qui exige le réglage « Allow GitHub Actions to create and approve pull requests » et ne déclenche
+  # pas la CI sur la PR (limite GitHub) ; avec lui, la CI s'exécute normalement.
+  pin-digests:
+    needs: build
+    if: github.ref == 'refs/heads/main' && !startsWith(github.event.head_commit.message, 'chore(images)')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+      packages: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          token: ${{ secrets.PAD_BOT_TOKEN || github.token }}
+          persist-credentials: true
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Réécrire les empreintes
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          owner=$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')
+          tag=$(git rev-parse --short HEAD)
+          scripts/pin-image-digests.sh "$owner" "$tag" | tee "$RUNNER_TEMP/changed.txt"
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+      - name: Commit, push et PR
+        env:
+          GH_TOKEN: ${{ secrets.PAD_BOT_TOKEN || github.token }}
+          BRANCH: ci/pin-image-digests
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "Empreintes déjà à jour" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add gitops/apps challenges
+          git commit -m "chore(images): épingler les empreintes des images ${TAG}"
+          git push --force origin "$BRANCH"
+          if [ -z "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')" ]; then
+            gh pr create --base main --head "$BRANCH" \
+              --title "chore(images): épingler les empreintes des images" \
+              --body "Empreintes publiées par images.yml (tag ${TAG}), réécrites par scripts/pin-image-digests.sh. Relire, puis fusionner : ArgoCD déploie ensuite. Voir docs/operations/images-signees.md."
+          else
+            gh pr edit "$BRANCH" --title "chore(images): épingler les empreintes des images" \
+              --body "Empreintes publiées par images.yml (tag ${TAG}), réécrites par scripts/pin-image-digests.sh. Voir docs/operations/images-signees.md."
+          fi

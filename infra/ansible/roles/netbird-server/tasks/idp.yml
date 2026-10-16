@@ -1,6 +1,7 @@
 ---
 - name: Lister les fournisseurs d'identité NetBird
   ansible.builtin.uri:
+    # checkov:skip=CKV2_ANSIBLE_1:API NetBird jointe en HTTP sur la boucle locale de l'hôte (127.0.0.1), sans transit réseau
     url: "{{ netbird_server_api_url }}/identity-providers"
     headers:
       Authorization: "Token {{ netbird_server_api_token }}"
@@ -11,6 +12,7 @@
 
 - name: Créer le connecteur OIDC Authentik
   ansible.builtin.uri:
+    # checkov:skip=CKV2_ANSIBLE_1:API NetBird jointe en HTTP sur la boucle locale de l'hôte (127.0.0.1), sans transit réseau
     url: "{{ netbird_server_api_url }}/identity-providers"
     method: POST
     headers:
@@ -27,6 +29,7 @@
 
 - name: Récupérer le compte NetBird
   ansible.builtin.uri:
+    # checkov:skip=CKV2_ANSIBLE_1:API NetBird jointe en HTTP sur la boucle locale de l'hôte (127.0.0.1), sans transit réseau
     url: "{{ netbird_server_api_url }}/accounts"
     headers:
       Authorization: "Token {{ netbird_server_api_token }}"
@@ -37,6 +40,7 @@
 
 - name: Activer la synchronisation des groupes JWT
   ansible.builtin.uri:
+    # checkov:skip=CKV2_ANSIBLE_1:API NetBird jointe en HTTP sur la boucle locale de l'hôte (127.0.0.1), sans transit réseau
     url: "{{ netbird_server_api_url }}/accounts/{{ netbird_server_accounts.json[0].id }}"
     method: PUT
     headers:

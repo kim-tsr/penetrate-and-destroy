@@ -24,6 +24,8 @@ kind: Deployment
 metadata:
   name: ctfd
   namespace: ctfd
+  annotations:
+    checkov.io/skip1: CKV_K8S_40=UID 1001 imposé par l'image officielle CTFd (propriétaire de /opt/venv) ; non-root, rootfs en lecture seule, capabilities supprimées
   labels: &labels
     app.kubernetes.io/name: ctfd
     app.kubernetes.io/component: web
@@ -63,10 +65,9 @@ spec:
               app.kubernetes.io/component: web
       containers:
         - name: ctfd
-          # Référence par empreinte obligatoire (Kyverno verify-images, CONVENTIONS.md). L'empreinte nulle ci-dessous est un
-          # PLACEHOLDER : à la 1re publication CI (images.yml, résumé du digest) Renovate (:pinDigests) la remplace par la
-          # vraie ; l'image ne démarre pas tant qu'elle est nulle (échec de pull, volontaire).
-          image: ghcr.io/kim-tsr/pad-ctfd:0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          # Référence par empreinte obligatoire (Kyverno verify-images, CONVENTIONS.md). Tag et empreinte sont tenus à jour par la
+          # PR automatique `ci/pin-image-digests` (images.yml, scripts/pin-image-digests.sh) : ne pas les éditer à la main.
+          image: ghcr.io/kim-tsr/pad-ctfd:5459b3a@sha256:bbf7b7f171701175b7ddcbee466e5f2c14640dccedc8b088975f981fa45984d8
           ports:
             - name: http
               containerPort: 8000
@@ -105,6 +106,8 @@ spec:
             # --- Plugins pad_* ---
             - { name: PAD_CHALL_MANAGER_URL, value: "http://chall-manager.chall-manager.svc.cluster.local:8080" } # contracts: apps.chall_manager.service
             - { name: PAD_GENERIC_SCENARIO, value: "registry.CHANGEME.example.net/pad/scenarios/k8s-instance:0.1.0" } # contracts: apps.chall_manager.generic_scenario (+ tag)
+            - { name: PAD_INSTANCES_MAX_TOTAL, value: "90" } # contracts: instances.max_total
+            - { name: PAD_INSTANCES_MAX_PER_SOURCE, value: "3" } # contracts: instances.max_per_team (le plugin lit PAD_INSTANCES_MAX_PER_SOURCE)
             - { name: PAD_GROUP_ADMINS, value: ctf-admins } # contracts: identity.groups
             - { name: PAD_GROUP_MANAGERS, value: ctf-managers }
             - { name: PAD_GROUP_PLAYERS, value: ctf-players }

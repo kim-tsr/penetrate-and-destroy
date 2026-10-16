@@ -56,4 +56,7 @@ LABEL org.opencontainers.image.title="pad-ctfd" \
 
 USER 1001
 EXPOSE 8000
+# Sonde utilisée par docker compose (e2e) ; Kubernetes s'appuie sur ses propres probes.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthcheck', timeout=3)"]
 ENTRYPOINT ["/opt/CTFd/docker-entrypoint.sh"]
