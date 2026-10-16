@@ -130,7 +130,10 @@ step "Sécurité IaC (checkov, trivy : secrets et configuration)"
 if have checkov; then checkov -d infra --quiet --compact --soft-fail >/dev/null || true; else need checkov || true; fi
 if need trivy; then
   trivy fs --scanners secret --exit-code 1 --skip-dirs .git --skip-dirs node_modules --skip-dirs .state . >/dev/null || fail=1
-  trivy config --exit-code 0 --severity HIGH,CRITICAL gitops apps >/dev/null || true
+  # trivy config n'accepte qu'une seule cible : un appel par dossier (comme la CI).
+  for d in gitops apps infra; do
+    trivy config --exit-code 1 --severity HIGH,CRITICAL "$d" >/dev/null || fail=1
+  done
 fi
 
 printf '\nRésumé : %s étape(s) sautée(s), %s\n' "$skipped" "$([ "$fail" -eq 0 ] && echo OK || echo ÉCHEC)"
