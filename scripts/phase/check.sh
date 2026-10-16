@@ -521,9 +521,14 @@ c_5_dns() {
   local wan h name got
   wan=$(site_get wan.ip)
   [[ -n "$wan" ]] || { fail "wan.ip vide dans secrets/site.sops.yaml" "sops secrets/site.sops.yaml"; return; }
+  # Interroge un serveur faisant autorité pour la zone : le résolveur local garde en cache la réponse négative
+  # d'avant la création des enregistrements (TTL négatif de la zone), ce qui donnerait un faux KO.
+  local zone ns=""
+  zone=$(c '.dns_zone // ""'); [[ -n "$zone" ]] || zone=$(c '.domain')
+  have dig && ns=$(dig +short +time=3 +tries=1 NS "$zone" 2>/dev/null | head -n1)
   for h in front auth vpn status; do
     name=$(fqdn "$h")
-    if have dig; then got=$(dig +short +time=3 +tries=1 "$name" A 2>/dev/null | tail -n1); else got=$(getent hosts "$name" 2>/dev/null | awk '{print $1; exit}'); fi
+    if have dig; then got=$(dig +short +time=3 +tries=1 ${ns:+@"$ns"} "$name" A 2>/dev/null | tail -n1); else got=$(getent hosts "$name" 2>/dev/null | awk '{print $1; exit}'); fi
     [[ "$got" == "$wan" ]] && pass "${name} -> ${wan}" || fail "${name} résout « ${got:-rien} », attendu l'IP WAN" "propagation (TTL 300 s) ; zone OVH : dig +short ${name} @<serveur DNS de la zone>"
   done
   info "les noms internes (bastion, grafana, argocd...) ne sont jamais publiés : normal qu'ils ne résolvent pas"
