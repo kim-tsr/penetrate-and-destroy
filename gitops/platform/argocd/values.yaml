@@ -12,16 +12,18 @@ crds:
 configs:
   cm:
     url: https://argocd.CHANGEME.example.net # contracts: hostnames.argocd + domain
-    # Pas de login local en nominal : SSO Authentik uniquement. Compte `admin` conservé pour le dépannage
-    # tant que l'OIDC n'est pas validé (domaine encore CHANGEME) ; à passer à "false" ensuite.
-    admin.enabled: "true"
+    # Aucun compte local : SSO Authentik uniquement (groupe infra-admins). Le compte `admin` intégré est désactivé
+    # dès le bootstrap. Secours si l'OIDC est indisponible : `argocd login --core` (droits kubectl de l'opérateur),
+    # sans réactiver de mot de passe. Pas de jeton de compte non plus (aucun compte local déclaré).
+    admin.enabled: "false"
     exec.enabled: "false"
     # Suivi par annotation (et non par label app.kubernetes.io/instance) : Cluster API recopie les labels des objets
     # (MachineDeployment -> MachineSet -> Machine) et ArgoCD prendrait ces enfants pour des ressources de l'Application.
     application.resourceTrackingMethod: annotation
     # ksops : Kustomize doit autoriser les plugins exec (ksops est un plugin exec kustomize).
     kustomize.buildOptions: --enable-alpha-plugins --enable-exec
-    # SSO Authentik (OIDC). Groupes IdP : ctf-admins, infra-admins (contracts: identity.groups).
+    # SSO Authentik (OIDC). Seul le groupe IdP infra-admins est admin (contracts: identity.groups) ;
+    # ctf-admins (organisateurs d'un événement) n'a aucun accès ArgoCD (et le client OIDC pad-argocd ne les laisse pas se connecter).
     oidc.config: |
       name: Authentik
       issuer: https://auth.CHANGEME.example.net/application/o/pad-argocd/
@@ -32,10 +34,11 @@ configs:
   params:
     server.insecure: true # TLS terminé par Traefik
   rbac:
-    policy.default: "" # aucun droit sans appartenance à un groupe autorisé
+    policy.default: "" # aucun droit sans appartenance à un groupe autorisé (ni même readonly)
     scopes: "[groups]"
+    # Séparation des privilèges : ArgoCD peut déployer n'importe quoi dans le cluster (et lit les Secrets déchiffrés
+    # via repo-server) ; réservé à infra-admins. Ne JAMAIS y ajouter ctf-admins/ctf-managers.
     policy.csv: |
-      g, ctf-admins, role:admin
       g, infra-admins, role:admin
 
 # --- Composants ---

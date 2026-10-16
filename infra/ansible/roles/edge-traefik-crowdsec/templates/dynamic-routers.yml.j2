@@ -4,7 +4,7 @@ http:
     front:
       entryPoints: [websecure]
       rule: "Host(`{{ edge_traefik_crowdsec_host_front }}`)"
-      middlewares: [edge-default@file]
+      middlewares: [edge-front@file]
       service: cluster-ingress
       tls: {}
     status:
@@ -17,6 +17,16 @@ http:
       entryPoints: [websecure]
       rule: "Host(`{{ edge_traefik_crowdsec_host_auth }}`)"
       middlewares: [edge-default@file]
+      service: authentik
+      tls: {}
+    # Console d'administration d'Authentik et API d'administration : NON publiques. Routeur prioritaire,
+    # limité aux CIDR d'administration (edge_traefik_crowdsec_authentik_admin_allowed_cidrs). Les flows, le portail
+    # utilisateur (/if/user), OIDC (/application/o) et le reste de l'API restent publics (permissions Authentik).
+    auth-admin:
+      entryPoints: [websecure]
+      priority: 1000
+      rule: "Host(`{{ edge_traefik_crowdsec_host_auth }}`) && ({% for p in edge_traefik_crowdsec_authentik_admin_paths %}PathPrefix(`{{ p }}`){% if not loop.last %} || {% endif %}{% endfor %})"
+      middlewares: [edge-authentik-admin@file]
       service: authentik
       tls: {}
     # NetBird : dashboard (défaut), API/OAuth, relay websocket et gRPC h2c (signal + management).

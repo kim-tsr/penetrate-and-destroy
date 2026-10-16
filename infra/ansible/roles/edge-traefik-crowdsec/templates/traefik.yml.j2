@@ -15,6 +15,10 @@ accessLog:
 entryPoints:
   web:
     address: ":80"
+    # L'edge est le premier maillon de confiance : aucun X-Forwarded-* entrant n'est cru (pas de trustedIPs),
+    # Traefik les écrase avec l'adresse réelle du client. Explicite pour qu'un changement soit visible en revue.
+    forwardedHeaders:
+      insecure: false
     http:
       redirections:
         entryPoint:
@@ -23,6 +27,9 @@ entryPoints:
           permanent: true
   websecure:
     address: ":443"
+    # Idem : X-Forwarded-For entrant écrasé (jamais de trustedIPs ni insecure côté edge).
+    forwardedHeaders:
+      insecure: false
     transport:
       respondingTimeouts:
         # Flux longs NetBird (gRPC, websocket) : pas de délai de lecture global.

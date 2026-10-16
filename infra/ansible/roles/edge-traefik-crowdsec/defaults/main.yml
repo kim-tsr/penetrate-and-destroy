@@ -27,7 +27,7 @@ edge_traefik_crowdsec_host_auth: "{{ pad_fqdn.auth }}"
 edge_traefik_crowdsec_host_vpn: "{{ pad_fqdn.vpn }}"
 
 # Backends. L'ingress du cluster termine le trafic de l'edge en HTTP (TLS terminé sur l'edge).
-edge_traefik_crowdsec_ingress_url: "http://{{ pad.kubernetes.ingress_ip }}:{{ pad.ports.http }}"
+edge_traefik_crowdsec_ingress_url: "http://{{ pad.kubernetes.ingress_ip }}:{{ pad.flow_ports.http }}"
 edge_traefik_crowdsec_authentik_url: "https://{{ pad.services.authentik.ip }}:{{ pad.ports.authentik.https }}"
 edge_traefik_crowdsec_netbird_ip: "{{ pad.services.netbird.ip }}"
 edge_traefik_crowdsec_netbird_http_port: "{{ pad.ports.netbird.http }}"
@@ -36,6 +36,21 @@ edge_traefik_crowdsec_netbird_dashboard_port: "{{ pad.ports.netbird.dashboard }}
 # Middlewares.
 edge_traefik_crowdsec_hsts_seconds: 31536000
 edge_traefik_crowdsec_csp: "frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+# Console d'admin Authentik : chemins retirés d'Internet et réseaux autorisés (bastion et management, atteints par le
+# staff via NetBird/Warpgate). L'accès depuis le poste de l'opérateur (tofu 30-authentik) se fait depuis ces zones,
+# ou en ajoutant temporairement son CIDR ici. Jamais 0.0.0.0/0.
+edge_traefik_crowdsec_authentik_admin_paths:
+  - /if/admin
+  - /api/v3/admin
+  - /api/v3/rbac
+  - /api/v3/outposts
+  - /api/v3/providers
+  - /api/v3/propertymappings
+  - /api/v3/crypto
+  - /api/v3/managed
+edge_traefik_crowdsec_authentik_admin_allowed_cidrs:
+  - "{{ pad.zones.bastion.cidr }}"
+  - "{{ pad.zones.mgmt.cidr }}"
 edge_traefik_crowdsec_rate_limit: { average: 100, burst: 200, period: 1s }
 # NetBird : beaucoup de pairs derrière une même IP et flux longs (gRPC, websocket) -> plafond plus haut.
 edge_traefik_crowdsec_rate_limit_vpn: { average: 300, burst: 600, period: 1s }

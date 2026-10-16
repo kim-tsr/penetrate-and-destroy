@@ -72,12 +72,21 @@ spec:
     - { server: https://kubernetes.default.svc, namespace: frontend } # contracts: namespaces.frontend
     - { server: https://kubernetes.default.svc, namespace: chall-manager } # contracts: namespaces.chall_manager
     - { server: https://kubernetes.default.svc, namespace: netbird-sync } # contracts: namespaces.netbird_sync
-  # Uniquement les ressources cluster-scoped que les apps doivent porter : leur Namespace (gitops/apps/*/namespace.yaml,
-  # Delete=false) et le RBAC de chall-manager.
+  # Uniquement les ressources cluster-scoped que les apps doivent porter :
+  #  - leur Namespace (gitops/apps/*/namespace.yaml, Delete=false) ;
+  #  - le RBAC cluster de chall-manager et de netbird-sync (ClusterRole + ClusterRoleBinding) ;
+  #  - leurs garde-fous d'admission (ValidatingAdmissionPolicy + Binding : écritures limitées aux namespaces inst-*,
+  #    cf. gitops/apps/{chall-manager,netbird-sync}/rbac.yaml). Sans eux la synchronisation d'Application serait refusée.
+  # LIMITE CONNUE : un AppProject filtre par groupe/kind, jamais par nom. Toute PR dans gitops/apps/** pourrait donc
+  # déclarer un ClusterRoleBinding vers cluster-admin. Compensations : CODEOWNERS sur gitops/ et bootstrap/ + protection
+  # de la branche main (revue obligatoire, cf. docs/operations/protection-branche.md) ; ne jamais ajouter d'autres kinds
+  # ici ; revue systématique de tout diff touchant rbac.yaml.
   clusterResourceWhitelist:
     - { group: "", kind: Namespace }
     - { group: rbac.authorization.k8s.io, kind: ClusterRole }
     - { group: rbac.authorization.k8s.io, kind: ClusterRoleBinding }
+    - { group: admissionregistration.k8s.io, kind: ValidatingAdmissionPolicy }
+    - { group: admissionregistration.k8s.io, kind: ValidatingAdmissionPolicyBinding }
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject

@@ -5,9 +5,17 @@ locals {
   groups = toset(local.c.identity.groups)
 
   g_players = "ctf-players"
-  # Groupes autorisés sur les apps staff / ouvertes aux joueurs.
-  staff_groups  = ["infra-admins", "ctf-admins"]
-  player_groups = local.c.identity.groups
+  # Séparation des privilèges :
+  #  - infra_groups : administration de l'infrastructure (ArgoCD, Warpgate, Grafana, Proxmox, forward-auth) ;
+  #    uniquement `infra-admins`. `ctf-admins` (organisateurs d'un événement) n'y a PAS accès.
+  #  - event_admin_groups : administration de l'événement CTF (admin CTFd).
+  #  - player_groups : front et NetBird, ouverts à tous les groupes du contrat.
+  infra_groups       = ["infra-admins"]
+  event_admin_groups = ["ctf-admins", "infra-admins"]
+  player_groups      = local.c.identity.groups
+
+  # Groupes soumis à la MFA obligatoire (TOTP ou WebAuthn) : tout compte à privilèges.
+  mfa_groups = ["ctf-managers", "ctf-admins", "infra-admins"]
 }
 
 resource "authentik_group" "contract" {

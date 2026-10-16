@@ -4,6 +4,8 @@
     file: "{{ edge_traefik_crowdsec_secrets_file }}"
     name: edge_traefik_crowdsec_secrets
   no_log: true
+  delegate_to: localhost
+  become: false
 
 - name: Vérifier la présence des secrets requis
   ansible.builtin.assert:

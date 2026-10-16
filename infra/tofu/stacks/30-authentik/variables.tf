@@ -5,9 +5,9 @@ variable "state_passphrase" {
 }
 
 variable "captcha_enabled" {
-  description = "Active le captcha (Turnstile/hCaptcha/reCAPTCHA) dans le flow d'inscription des joueurs."
+  description = "Captcha (Turnstile/hCaptcha/reCAPTCHA) dans le flow d'inscription des joueurs. Activé par défaut ; le désactiver est un choix explicite (captcha_enabled=false). Clés : captcha_public_key/captcha_private_key ou secrets/authentik-tofu.sops.yaml."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "captcha_js_url" {
@@ -23,16 +23,57 @@ variable "captcha_api_url" {
 }
 
 variable "captcha_public_key" {
-  description = "Clé publique (site key) du captcha. Requise si captcha_enabled."
+  description = "Clé publique (site key) du captcha. Vide = captcha_public_key de secrets/authentik-tofu.sops.yaml. Requise si captcha_enabled."
   type        = string
   default     = ""
 }
 
 variable "captcha_private_key" {
-  description = "Clé privée (secret key) du captcha. Requise si captcha_enabled."
+  description = "Clé privée (secret key) du captcha. Vide = captcha_private_key de secrets/authentik-tofu.sops.yaml. Requise si captcha_enabled."
   type        = string
   default     = ""
   sensitive   = true
+}
+
+variable "access_token_validity" {
+  description = "Durée de vie des access tokens OIDC (format Authentik : hours=1;minutes=2)."
+  type        = string
+  default     = "minutes=10"
+}
+
+variable "refresh_token_validity" {
+  description = "Durée de vie des refresh tokens OIDC (scope offline_access). Doit rester >= 4 h : le front revalide les groupes via le refresh token ; 12 h = durée de session du front."
+  type        = string
+  default     = "hours=12"
+
+  validation {
+    condition     = can(regex("^(hours=([4-9]|[1-9][0-9]+)|days=[1-9][0-9]*)$", var.refresh_token_validity))
+    error_message = "refresh_token_validity doit valoir au moins 4 heures (ex. hours=12 ou days=1)."
+  }
+}
+
+variable "login_max_failed_attempts" {
+  description = "Mots de passe faux avant annulation du flow de connexion."
+  type        = number
+  default     = 5
+}
+
+variable "login_reputation_threshold" {
+  description = "Nombre d'échecs de connexion cumulés (par IP) au-delà duquel la connexion est refusée. Élevé par défaut : plusieurs joueurs peuvent partager une IP (NAT, salle)."
+  type        = number
+  default     = 20
+}
+
+variable "login_reputation_check_username" {
+  description = "Verrouille aussi par identifiant. Désactivé par défaut : un joueur pourrait sinon verrouiller un compte staff en échouant exprès (la MFA protège les comptes staff)."
+  type        = bool
+  default     = false
+}
+
+variable "staff_mfa_reauth_minutes" {
+  description = "Un facteur MFA validé depuis moins de N minutes n'est pas redemandé (évite le double prompt connexion + application)."
+  type        = number
+  default     = 10
 }
 
 variable "email_from" {

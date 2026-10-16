@@ -1,0 +1,31 @@
+# Propriétaires des chemins sensibles. Complément indispensable d'une protection de branche sur `main` :
+# "Require review from Code Owners" + "Require signed commits" + pas de push direct (voir docs/operations/protection-branche.md).
+# ArgoCD synchronise `main` automatiquement : tout ce qui est fusionné dans gitops/ ou bootstrap/ s'exécute dans le cluster.
+# Remplacer @kim-tsr (propriétaire du dépôt, cf. git.repo du contrat) par une équipe GitHub dès qu'il y en a une.
+
+# Par défaut : tout est relu par le propriétaire.
+*                 @kim-tsr
+
+# Ce qu'ArgoCD déploie et ce qui bootstrap le cluster.
+/gitops/          @kim-tsr
+/bootstrap/       @kim-tsr
+
+# Infrastructure (Proxmox, OPNsense, Authentik, edge, bastion, contrat).
+/infra/           @kim-tsr
+
+# CI/CD et supply chain.
+/.github/         @kim-tsr
+/scripts/         @kim-tsr
+/Dockerfile*      @kim-tsr
+/flake.nix        @kim-tsr
+/flake.lock       @kim-tsr
+/renovate.json    @kim-tsr
+
+# Secrets chiffrés et règles SOPS.
+/secrets/         @kim-tsr
+/.sops.yaml       @kim-tsr
+
+# Documentation d'exploitation et de sécurité.
+/docs/            @kim-tsr
+/CONVENTIONS.md   @kim-tsr
+/CLAUDE.md        @kim-tsr

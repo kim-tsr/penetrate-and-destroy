@@ -1,7 +1,24 @@
 # Géré par Ansible (rôle edge-traefik-crowdsec) - middlewares (contient la clé du bouncer : mode 0600)
 http:
   middlewares:
+    # En-têtes communs SANS Content-Security-Policy. Le middleware headers de Traefik POSE (remplace) le CSP de
+    # la réponse : appliqué au front, il écraserait le CSP à nonce + strict-dynamic posé par Next.js
+    # (apps/frontend/src/proxy.ts). Le front passe donc par edge-front, sans CSP à l'edge.
     security-headers:
+      headers:
+        stsSeconds: {{ edge_traefik_crowdsec_hsts_seconds }}
+        stsIncludeSubdomains: true
+        stsPreload: true
+        forceSTSHeader: true
+        frameDeny: true
+        contentTypeNosniff: true
+        referrerPolicy: strict-origin-when-cross-origin
+        customResponseHeaders:
+          Server: ""
+          X-Powered-By: ""
+
+    # Idem + CSP minimal, pour les services qui n'en posent pas eux-mêmes (auth, status, vpn).
+    security-headers-csp:
       headers:
         stsSeconds: {{ edge_traefik_crowdsec_hsts_seconds }}
         stsIncludeSubdomains: true
@@ -14,6 +31,11 @@ http:
         customResponseHeaders:
           Server: ""
           X-Powered-By: ""
+
+    # Console d'administration d'Authentik : réservée aux réseaux d'administration (bastion/mgmt via NetBird).
+    authentik-admin-allowlist:
+      ipAllowList:
+        sourceRange: {{ edge_traefik_crowdsec_authentik_admin_allowed_cidrs | to_json }}
 
     rate-limit:
       rateLimit:
@@ -47,11 +69,27 @@ http:
         middlewares:
           - crowdsec-bouncer@file
           - rate-limit@file
+          - security-headers-csp@file
+
+    # Front Next.js : pas de CSP à l'edge (le front pose le sien, avec nonce).
+    edge-front:
+      chain:
+        middlewares:
+          - crowdsec-bouncer@file
+          - rate-limit@file
           - security-headers@file
+
+    edge-authentik-admin:
+      chain:
+        middlewares:
+          - crowdsec-bouncer@file
+          - authentik-admin-allowlist@file
+          - rate-limit@file
+          - security-headers-csp@file
 
     edge-vpn:
       chain:
         middlewares:
           - crowdsec-bouncer@file
           - rate-limit-vpn@file
-          - security-headers@file
+          - security-headers-csp@file

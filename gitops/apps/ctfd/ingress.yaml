@@ -1,26 +1,52 @@
 # UI d'administration brute de CTFd (secours), uniquement via le Traefik interne (10.20.60.200),
 # joignable par le staff via NetBird/bastion. Pas de publication sur l'edge.
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+#
+# Les points d'entrée machine de CTFd ne passent PAS par cette UI : ils ne sont joignables que depuis le cluster
+# (le front appelle http://ctfd.ctfd.svc.cluster.local:8000, Alloy scrape /metrics en interne). Ils sont donc refusés (403)
+# ici, pour qu'un client qui atteindrait le Traefik interne ne puisse viser ni l'échange de session SSO, ni les routes
+# internes de netbird-sync, ni les métriques (seul le HMAC / un jeton les protégerait sinon) :
+#   /api/v1/sso, /api/v1/pad/internal, /metrics.
+# Un Ingress ne sait pas exclure de chemins : IngressRoute (Traefik CRD) avec une route prioritaire de refus.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: ctfd-admin-deny
+  namespace: ctfd
+  labels:
+    app.kubernetes.io/name: ctfd
+    app.kubernetes.io/part-of: ctfd
+spec:
+  # Liste d'autorisation qui ne contient que le loopback : toute requête reçoit 403.
+  ipAllowList:
+    sourceRange:
+      - 127.0.0.1/32
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
 metadata:
   name: ctfd-admin
   namespace: ctfd
   labels:
     app.kubernetes.io/name: ctfd
     app.kubernetes.io/part-of: ctfd
-  annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    traefik.ingress.kubernetes.io/router.tls: "true"
 spec:
-  ingressClassName: traefik
-  rules:
-    - host: ctfd-admin.pad.internal # contracts: hostnames.ctfd_admin + internal_domain
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: ctfd
-                port:
-                  name: http
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      priority: 1000
+      match: >-
+        Host(`ctfd-admin.pad.internal`) &&
+        (PathPrefix(`/api/v1/sso`) || PathPrefix(`/api/v1/pad/internal`) || PathPrefix(`/metrics`))
+      middlewares:
+        - name: ctfd-admin-deny
+      services:
+        - name: ctfd
+          port: http
+    - kind: Rule
+      priority: 1
+      match: Host(`ctfd-admin.pad.internal`) # contracts: hostnames.ctfd_admin + internal_domain
+      services:
+        - name: ctfd
+          port: http
+  tls: {}
