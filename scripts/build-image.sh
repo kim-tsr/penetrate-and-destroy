@@ -34,7 +34,7 @@ work=$(mktemp -d)
 meta="${work}/metadata.json"
 trap 'rm -rf "$work"' EXIT
 
-# Étape 1 (SCAN=1) : build local en archive OCI (sans attestations), puis scan Trivy BLOQUANT. Rien n'est poussé ni
+# Étape 1 (SCAN=1) : build local en archive OCI (sans attestations) extraite en layout OCI, puis scan Trivy BLOQUANT. Rien n'est poussé ni
 # signé si le scan échoue. Exige un builder buildx à pilote docker-container (docker/setup-buildx-action). Le cache de
 # couches est réutilisé à l'étape 2 : l'image poussée a les mêmes couches que l'image scannée (horodatages réécrits
 # avec SOURCE_DATE_EPOCH). Seule la première plateforme de PLATFORMS est scannée.
@@ -52,8 +52,11 @@ if [ "${SCAN:-0}" = 1 ]; then
     "${tags[@]}" \
     ${extra[@]+"${extra[@]}"} \
     "$context" >&2
+  # Trivy lit une archive docker ou un RÉPERTOIRE de layout OCI, pas une archive OCI : on extrait l'archive.
+  mkdir "${work}/oci"
+  tar -xf "${work}/image.tar" -C "${work}/oci"
   echo "Scan Trivy de ${image} (${scan_platform})" >&2
-  trivy image --input "${work}/image.tar" --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed >&2
+  trivy image --input "${work}/oci" --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed >&2
   cache=(--cache-from "type=local,src=${work}/cache")
 fi
 
