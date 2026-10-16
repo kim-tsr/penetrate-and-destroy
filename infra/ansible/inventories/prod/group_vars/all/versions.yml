@@ -24,6 +24,7 @@ pad_apt_versions:
   containerd: "2.4.2-2~debian.13~trixie"
   docker_compose_plugin: "5.6.0-1~debian.13~trixie"
   alloy: "1.20.1-1"
+  netbird: "0.81.0"   # agent des routing peers (même version que le serveur netbird_server)
 
 # Plugin Traefik (téléchargé au démarrage depuis plugins.traefik.io).
 pad_traefik_plugins:

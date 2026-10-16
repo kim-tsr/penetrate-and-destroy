@@ -1,0 +1,9 @@
+---
+# LXC du contrat portant `tun: true` (agent NetBird : routing peers CHALLENGES et BASTION).
+lxc_tun_services: "{{ pad.services | dict2items | selectattr('value.tun', 'defined') | selectattr('value.tun') | list }}"
+lxc_tun_device: /dev/net/tun
+# Emplacement devN utilisé dans la configuration du conteneur.
+lxc_tun_slot: dev0
+lxc_tun_mode: "0666"
+# Redémarrage du LXC quand le périphérique vient d'être ajouté (nécessaire pour qu'il apparaisse).
+lxc_tun_restart: true

@@ -6,11 +6,13 @@
 #   3. warpgate   : bastion ;
 #   4. netbird    : VPN (IdP Authentik ajouté via l'API) ;
 #   5. edge       : dernier, ses backends (authentik, netbird) existent déjà quand Traefik demande les certificats ACME.
+#   6. routing peers NetBird (tag netbird-agent, jamais joués sans ce tag) : phase 11 uniquement, car ils exigent les setup keys
+#      créées par la stack tofu 40-netbird (task netbird:sync-keys). /dev/net/tun est d'abord ajouté aux LXC depuis l'hôte Proxmox.
 # Chaque play : base-hardening (sans Alloy, posé ensuite avec la découverte Docker), docker, alloy, rôle du service.
 # Secrets : chaque rôle de service déchiffre lui-même secrets/<service>.sops.yaml (community.sops, sur le contrôleur) ;
 # les valeurs de site (secrets/site.sops.yaml) ne sont lues qu'à la connexion (access.yml). Un pré-contrôle échoue tôt
 # si le fichier chiffré du service est absent.
-# Tags : un par service (monitoring, authentik, warpgate, netbird, edge) + base, docker, alloy, service.
+# Tags : un par service (monitoring, authentik, warpgate, netbird, edge, netbird-agent) + base, docker, alloy, service.
 # Exemple : task ansible:services -- --tags edge --limit edge
 - name: Vérifier l'inventaire des LXC
   hosts: localhost
@@ -171,3 +173,76 @@
     - { role: docker, tags: [docker] }
     - { role: alloy, tags: [alloy] }
     - { role: edge-traefik-crowdsec, tags: [service] }
+
+# --- Routing peers NetBird (phase 11) ----------------------------------------------------------------------------------
+# `never` : ces plays ne tournent que sur demande explicite (--tags netbird-agent), après `task netbird:sync-keys`.
+- name: Autoriser /dev/net/tun dans les LXC routing peers (depuis l'hôte Proxmox)
+  hosts: proxmox_host
+  become: true
+  gather_facts: false
+  any_errors_fatal: true
+  tags: [netbird-agent, never]
+  roles:
+    - { role: lxc-tun, tags: [lxc-tun] }
+
+- name: Enrôler le routing peer NetBird de la zone CHALLENGES (LXC nbrouter)
+  hosts: svc_nbrouter
+  become: true
+  gather_facts: true
+  any_errors_fatal: true
+  serial: 1
+  tags: [netbird-agent, never]
+  vars:
+    netbird_agent_zone: challenges
+    alloy_docker_enabled: false
+  pre_tasks:
+    - name: Attendre le LXC (redémarré par lxc-tun)
+      ansible.builtin.wait_for_connection:
+        delay: 5
+        timeout: 180
+
+    - name: Rechercher le secret chiffré netbird-agent.sops.yaml
+      ansible.builtin.stat:
+        path: "{{ pad_secrets_dir }}/netbird-agent.sops.yaml"
+      delegate_to: localhost
+      become: false
+      register: services_secret_file
+
+    - name: Exiger le secret chiffré (task secrets:init puis task netbird:sync-keys)
+      ansible.builtin.assert:
+        that: services_secret_file.stat.exists
+        fail_msg: "secrets/netbird-agent.sops.yaml absent (modèle : secrets/netbird-agent.example.yaml)."
+        quiet: true
+  roles:
+    - { role: base-hardening, tags: [base] }
+    - { role: netbird-agent, tags: [service] }
+
+- name: Enrôler le routing peer NetBird de la zone BASTION (agent sur le LXC warpgate)
+  hosts: svc_warpgate
+  become: true
+  gather_facts: true
+  any_errors_fatal: true
+  serial: 1
+  tags: [netbird-agent, never]
+  vars:
+    netbird_agent_zone: bastion
+  pre_tasks:
+    - name: Attendre le LXC (redémarré par lxc-tun)
+      ansible.builtin.wait_for_connection:
+        delay: 5
+        timeout: 180
+
+    - name: Rechercher le secret chiffré netbird-agent.sops.yaml
+      ansible.builtin.stat:
+        path: "{{ pad_secrets_dir }}/netbird-agent.sops.yaml"
+      delegate_to: localhost
+      become: false
+      register: services_secret_file
+
+    - name: Exiger le secret chiffré (task secrets:init puis task netbird:sync-keys)
+      ansible.builtin.assert:
+        that: services_secret_file.stat.exists
+        fail_msg: "secrets/netbird-agent.sops.yaml absent (modèle : secrets/netbird-agent.example.yaml)."
+        quiet: true
+  roles:
+    - { role: netbird-agent, tags: [service] }

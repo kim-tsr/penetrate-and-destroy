@@ -1,0 +1,57 @@
+---
+# Un jeton API non root@pam ne peut pas poser `devN` sur un conteneur : on passe par `pct` sur l'hôte (sudo), ce qui
+# évite aussi d'écrire à la main dans /etc/pve/lxc/<vmid>.conf (pmxcfs). Idempotent : rien ne change si le périphérique est déjà présent.
+- name: Vérifier que la cible est bien un hôte Proxmox VE
+  ansible.builtin.stat:
+    path: /usr/sbin/pct
+  register: lxc_tun_pct
+
+- name: Refuser de continuer hors Proxmox
+  ansible.builtin.assert:
+    that: lxc_tun_pct.stat.exists
+    fail_msg: "lxc-tun ne s'applique qu'à l'hôte Proxmox (pct introuvable)."
+    quiet: true
+
+- name: Lire la configuration des LXC concernés
+  ansible.builtin.command: "pct config {{ item.value.vmid }}"
+  loop: "{{ lxc_tun_services }}"
+  loop_control:
+    label: "{{ item.key }} ({{ item.value.vmid }})"
+  register: lxc_tun_config
+  changed_when: false
+
+- name: Refuser d'écraser un autre périphérique sur l'emplacement choisi
+  ansible.builtin.assert:
+    that: >-
+      (item.stdout_lines | select('match', '^' ~ lxc_tun_slot ~ ':') | list | length == 0)
+      or (item.stdout_lines | select('search', lxc_tun_device) | list | length > 0)
+    fail_msg: "{{ item.item.key }} : l'emplacement {{ lxc_tun_slot }} est déjà utilisé par un autre périphérique."
+    quiet: true
+  loop: "{{ lxc_tun_config.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"
+
+- name: Ajouter /dev/net/tun aux LXC qui ne l'ont pas
+  ansible.builtin.command: "pct set {{ item.item.value.vmid }} --{{ lxc_tun_slot }} {{ lxc_tun_device }},mode={{ lxc_tun_mode }}"
+  loop: "{{ lxc_tun_config.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"
+  when: item.stdout_lines | select('search', lxc_tun_device) | list | length == 0
+  register: lxc_tun_added
+  changed_when: true
+
+- name: Lire l'état des LXC modifiés
+  ansible.builtin.command: "pct status {{ item.item.item.value.vmid }}"
+  loop: "{{ lxc_tun_added.results | selectattr('changed') | list }}"
+  loop_control:
+    label: "{{ item.item.item.key }}"
+  register: lxc_tun_status
+  changed_when: false
+  when: lxc_tun_restart | bool
+
+- name: Redémarrer les LXC modifiés (le périphérique n'apparaît qu'au démarrage)
+  ansible.builtin.command: "pct {{ 'reboot' if 'running' in item.stdout else 'start' }} {{ item.item.item.item.value.vmid }}"
+  loop: "{{ lxc_tun_status.results | default([]) | selectattr('stdout', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.item.item.item.key }}"
+  changed_when: true
