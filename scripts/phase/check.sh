@@ -106,10 +106,16 @@ phase_index() {
 lxc_containers_ok() {
   local svc=$1 ip out bad n
   ip=$(svc_ip "$svc")
-  if ! out=$(lxc_ssh "$ip" docker ps -a --format '{{.Names}}|{{.Status}}' 2>&1); then
-    fail "${svc} (${ip}) : docker ps impossible (${out%%$'\n'*})" "ssh -J <hôte> root@${ip} ; le LXC tourne-t-il ? Ansible est-il passé ? (task ansible:services)"
+  local err
+  # Commande distante en UNE chaîne citée : ssh concatène ses arguments, un « | » nu serait interprété par le shell
+  # distant comme un pipe. stderr à part : les avertissements de ~/.ssh/config ne doivent pas polluer la sortie.
+  err=$(mktemp)
+  if ! out=$(lxc_ssh "$ip" "docker ps -a --format '{{.Names}}|{{.Status}}'" 2>"$err"); then
+    out=$(grep -v -i 'unsupported option' "$err" | head -n1); rm -f "$err"
+    fail "${svc} (${ip}) : docker ps impossible (${out})" "ssh -J <hôte> root@${ip} ; le LXC tourne-t-il ? Ansible est-il passé ? (task ansible:services)"
     return
   fi
+  rm -f "$err"
   n=$(grep -c . <<<"$out" || true)
   bad=$(grep -E 'Restarting|unhealthy|Exited|Dead|Created' <<<"$out" | cut -d'|' -f1 | tr '\n' ' ')
   if ((n == 0)); then

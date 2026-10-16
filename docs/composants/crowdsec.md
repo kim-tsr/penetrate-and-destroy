@@ -19,6 +19,10 @@ Image `pad_images.crowdsec` dans `infra/ansible/inventories/prod/group_vars/all/
 `crowdsecurity/traefik`, `crowdsecurity/http-cve`, `crowdsecurity/appsec-virtual-patching`,
 `crowdsecurity/appsec-generic-rules` (liste dans `infra/ansible/roles/edge-traefik-crowdsec/defaults/main.yml`).
 
+Le WAF (AppSec) charge une seule configuration, `crowdsecurity/appsec-default` (`crowdsec-acquis-appsec.yaml.j2`).
+N'y ajoutez pas `crowdsecurity/virtual-patching` et `crowdsecurity/generic-rules` ensemble : ils déclarent tous deux la
+règle d'identifiant 100 et CrowdSec quitte au démarrage (« duplicated rule id 100 »), en boucle de redémarrage.
+
 ## Fichiers de configuration dans le dépôt
 
 - `infra/ansible/roles/edge-traefik-crowdsec/templates/crowdsec-acquis-traefik.yaml.j2` et `crowdsec-acquis-appsec.yaml.j2`.
