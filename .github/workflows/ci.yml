@@ -3,6 +3,9 @@ name: ci
 on:
   push:
   pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"   # lundi 04:17 UTC : passe complète (dérive des dépendances, CVE)
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -17,6 +20,9 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
+      # Sur main, à la demande et chaque semaine : TOUS les jobs (un vert sur main prouve tout). Ailleurs (PR,
+      # branches) : seuls les jobs dont les chemins ont changé.
+      full: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
       tofu: ${{ steps.f.outputs.tofu }}
       ansible: ${{ steps.f.outputs.ansible }}
       gitops: ${{ steps.f.outputs.gitops }}
@@ -36,6 +42,8 @@ jobs:
           persist-credentials: false
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: f
+        # Inutile (et sans base de comparaison) pour une passe complète.
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
         with:
           filters: |
             tofu:
@@ -100,7 +108,7 @@ jobs:
 
   tofu:
     needs: changes
-    if: needs.changes.outputs.tofu == 'true'
+    if: needs.changes.outputs.tofu == 'true' || needs.changes.outputs.full == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -122,7 +130,7 @@ jobs:
 
   ansible:
     needs: changes
-    if: needs.changes.outputs.ansible == 'true'
+    if: needs.changes.outputs.ansible == 'true' || needs.changes.outputs.full == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -135,7 +143,7 @@ jobs:
 
   gitops:
     needs: changes
-    if: needs.changes.outputs.gitops == 'true'
+    if: needs.changes.outputs.gitops == 'true' || needs.changes.outputs.full == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -161,7 +169,7 @@ jobs:
 
   ctfd:
     needs: changes
-    if: needs.changes.outputs.ctfd == 'true'
+    if: needs.changes.outputs.ctfd == 'true' || needs.changes.outputs.full == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -174,7 +182,7 @@ jobs:
 
   netbird-sync:
     needs: changes
-    if: needs.changes.outputs.netbird-sync == 'true'
+    if: needs.changes.outputs.netbird-sync == 'true' || needs.changes.outputs.full == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -187,7 +195,7 @@ jobs:
 
   chall-manager-scenario:
     needs: changes
-    if: needs.changes.outputs.chall-manager-scenario == 'true'
+    if: needs.changes.outputs.chall-manager-scenario == 'true' || needs.changes.outputs.full == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -200,7 +208,7 @@ jobs:
 
   frontend:
     needs: changes
-    if: needs.changes.outputs.frontend == 'true'
+    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.full == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -228,7 +236,7 @@ jobs:
 
   challenges:
     needs: changes
-    if: needs.changes.outputs.challenges == 'true'
+    if: needs.changes.outputs.challenges == 'true' || needs.changes.outputs.full == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -241,7 +249,7 @@ jobs:
 
   shell:
     needs: changes
-    if: needs.changes.outputs.shell == 'true'
+    if: needs.changes.outputs.shell == 'true' || needs.changes.outputs.full == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -310,7 +318,7 @@ jobs:
 
   checkov:
     needs: changes
-    if: needs.changes.outputs.iac == 'true'
+    if: needs.changes.outputs.iac == 'true' || needs.changes.outputs.full == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -329,7 +337,7 @@ jobs:
 
   workflows:
     needs: changes
-    if: needs.changes.outputs.workflows == 'true'
+    if: needs.changes.outputs.workflows == 'true' || needs.changes.outputs.full == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -342,7 +350,7 @@ jobs:
 
   taskfile:
     needs: changes
-    if: needs.changes.outputs.taskfile == 'true'
+    if: needs.changes.outputs.taskfile == 'true' || needs.changes.outputs.full == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -362,7 +370,7 @@ jobs:
 
   tests:
     needs: changes
-    if: needs.changes.outputs.tests == 'true'
+    if: needs.changes.outputs.tests == 'true' || needs.changes.outputs.full == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
