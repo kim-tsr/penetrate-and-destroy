@@ -39,6 +39,32 @@
           '';
         };
 
+        # kind : version exacte du contrat (kubernetes.kind_version, image de nœud associée) ; nixpkgs est en retard.
+        # Empreintes tirées des fichiers kind-<os>-<arch>.sha256sum de la release.
+        kindVersion = "0.33.0";
+        kindAssets = {
+          x86_64-linux = { os = "linux"; arch = "amd64"; sha256 = "aee6151561422756b764a4ae28e7f44cda5af5a9eead3cc9985112b1de8d8e0d"; };
+          aarch64-linux = { os = "linux"; arch = "arm64"; sha256 = "20022bee6cfcd5086cb7234d218e3454e6090022f2a8f55d1fa7fcf42c3867a2"; };
+          x86_64-darwin = { os = "darwin"; arch = "amd64"; sha256 = "5a99f26f57246dc9319dd294803313197a0f34d33c525b3ea8b655db5916ece0"; };
+          aarch64-darwin = { os = "darwin"; arch = "arm64"; sha256 = "0c8c7dbe5e23594a198b786c4bc13dacc101fa6196b0cb0b23a1ca44e61f4b4f"; };
+        };
+        kindAsset = kindAssets.${system};
+        kind = pkgs.stdenvNoCC.mkDerivation {
+          pname = "kind-bin";
+          version = kindVersion;
+          src = pkgs.fetchurl {
+            url = "https://github.com/kubernetes-sigs/kind/releases/download/v${kindVersion}/kind-${kindAsset.os}-${kindAsset.arch}";
+            inherit (kindAsset) sha256;
+          };
+          dontUnpack = true;
+          dontConfigure = true;
+          dontBuild = true;
+          dontFixup = true; # binaire statique
+          installPhase = ''
+            install -Dm755 $src $out/bin/kind
+          '';
+        };
+
         # Le plugin kustomize `ksops` (nixpkgs : kustomize-sops) doit être dans le PATH pour que `kustomize build
         # --enable-alpha-plugins --enable-exec` déchiffre les secrets. On expose explicitement `bin/ksops`, quel que
         # soit le nom sous lequel le paquet installe l'exécutable.
@@ -63,12 +89,13 @@
             python
             pkgs.python311
             opentofu
+            kind
             ksops
           ] ++ (with pkgs; [
             # IaC
             ansible ansible-lint python3Packages.jmespath python3Packages.netaddr
             # Kubernetes
-            kubectl kubernetes-helm kustomize kind clusterctl talosctl cilium-cli argocd kubeconform
+            kubectl kubernetes-helm kustomize clusterctl talosctl cilium-cli argocd kubeconform
             # Secrets
             sops age
             # task secrets:* (htpasswd : hash bcrypt de Zot/OPNsense ; ssh-keygen : clé de déploiement) et lint local

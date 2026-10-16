@@ -213,7 +213,7 @@ c_0_prereqs() {
   else
     fail "clé age du cluster illisible (${ck/#$HOME/~})" "task secrets:keys (ou PAD_CLUSTER_AGE_KEY_FILE)"
   fi
-  if grep -q 'CHANGEME' "${ROOT_DIR}/.sops.yaml"; then fail ".sops.yaml contient encore CHANGEME (recipients)" "task secrets:keys"; else pass ".sops.yaml : recipients renseignés"; fi
+  if grep -qE '^[[:space:]]*-[[:space:]]*&[A-Za-z0-9_]+[[:space:]]+age1CHANGEME' "${ROOT_DIR}/.sops.yaml"; then fail ".sops.yaml contient encore CHANGEME (recipients)" "task secrets:keys"; else pass ".sops.yaml : recipients renseignés"; fi
   local pp=${TF_VAR_state_passphrase:-} pass_len
   pass_len=${#pp}
   if ((pass_len >= 16)); then
@@ -325,7 +325,7 @@ check_storage() {
   fi
   local mem need
   mem=$(pve_get "/nodes/$(node)/status" 2>/dev/null | jq -r '.data.memory.total // 0')
-  need=$(yq '[.router.memory_mb] + [.services[].memory_mb] + [.kubernetes.control_plane.memory_mb] + [.kubernetes.pools.platform.memory_mb * .kubernetes.pools.platform.replicas] + [.kubernetes.pools.challenges.memory_mb * .kubernetes.pools.challenges.min] | add' "$CONTRACTS")
+  need=$(yq '.router.memory_mb, .services[].memory_mb, .kubernetes.control_plane.memory_mb, .kubernetes.pools.platform.memory_mb * .kubernetes.pools.platform.replicas, .kubernetes.pools.challenges.memory_mb * .kubernetes.pools.challenges.min' "$CONTRACTS" | awk '{s+=$1} END {print s+0}')
   if ((mem > 0)); then
     if ((mem / 1048576 < need + $(c '.host.zfs_arc_max_bytes') / 1048576)); then
       warn "RAM de l'hôte $((mem / 1073741824)) Gio, minimum de la plateforme ≈ $(((need + 4096) / 1024)) Gio (invités + ARC)" "réduire replicas/memory_mb dans infra/contracts.yaml"
@@ -337,7 +337,7 @@ check_storage() {
 
 check_space() {
   local avail=$1 need
-  need=$(yq '([.router.disk_gb] + [.services[].disk_gb] + [.kubernetes.control_plane.disk_gb] + [.kubernetes.pools.platform.disk_gb * .kubernetes.pools.platform.replicas] + [.kubernetes.pools.challenges.disk_gb * .kubernetes.pools.challenges.min]) | add' "$CONTRACTS")
+  need=$(yq '.router.disk_gb, .services[].disk_gb, .kubernetes.control_plane.disk_gb, .kubernetes.pools.platform.disk_gb * .kubernetes.pools.platform.replicas, .kubernetes.pools.challenges.disk_gb * .kubernetes.pools.challenges.min' "$CONTRACTS" | awk '{s+=$1} END {print s+0}')
   if ((avail / 1073741824 < need + 40)); then
     warn "espace libre $((avail / 1073741824)) Gio sur $(c '.host.datastore_vm'), besoin ≈ $((need + 40)) Gio (invités au minimum + template + volumes)" "libérer de l'espace ou réduire disk_gb"
   else

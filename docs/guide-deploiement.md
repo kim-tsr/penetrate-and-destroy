@@ -61,8 +61,9 @@ ssh-keygen -t ed25519 -f ~/.ssh/pad_admin      # clé d'administration de l'hôt
 eval "$(ssh-agent)" && ssh-add ~/.ssh/pad_admin  # le provider OpenTofu bpg/proxmox utilise l'AGENT SSH (phase 2)
 ```
 
-Deux autres clés sont **générées pour vous** par `task secrets:init` : la clé publique qu'Ansible injecte dans les LXC (`ssh.ansible_public_key`,
-à fournir dans `secrets/proxmox.sops.yaml`) et la clé de déploiement GitHub d'ArgoCD.
+Dans `secrets/proxmox.sops.yaml`, `ssh.ansible_public_key` (injectée dans les LXC, Ansible s'y connecte avec l'agent SSH) et
+`ssh.admin_public_keys` (root d'OPNsense) reçoivent **le contenu de `~/.ssh/pad_admin.pub`**. Seule la clé de déploiement GitHub
+d'ArgoCD est générée par `task secrets:init`.
 
 ### Phrase secrète des states OpenTofu
 
