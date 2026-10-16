@@ -161,7 +161,7 @@ ressources que les stacks créent et de ce que CAPMOX exige :
 | `VM.Allocate`, `VM.Clone`, `VM.Audit` | créer, cloner (CAPMOX clone le template Talos) et lire VM et LXC |
 | `VM.Config.CDROM`, `.CPU`, `.Cloudinit`, `.Disk`, `.HWType`, `.Memory`, `.Network`, `.Options` | configuration complète des VM et LXC (étiquettes, démarrage, réseau, disques) |
 | `VM.PowerMgmt` | démarrer, arrêter, redémarrer |
-| `VM.Console` | frappes clavier envoyées pour l'import de configuration d'OPNsense (`sendkey`), console |
+| `VM.Console` | accès console des VM (diagnostic) ; l'import de configuration d'OPNsense passe par la console série, en SSH sur l'hôte |
 | `VM.GuestAgent.Audit` | agent invité (adresses IP des VM). Proxmox 9 a supprimé `VM.Monitor` : ne pas l'ajouter (`invalid privilege 'VM.Monitor'`) |
 
 ```bash
