@@ -32,5 +32,12 @@ provider "proxmox" {
   ssh {
     agent    = true
     username = local.site.ssh_user
+
+    # Sans ce bloc, le provider prend l'adresse que l'API annonce pour le nœud (souvent l'IP publique, filtrée) :
+    # on impose ssh_host, l'adresse par laquelle le poste joint réellement l'hôte (VPN, LAN...).
+    node {
+      name    = local.c.host.node
+      address = local.site.ssh_host
+    }
   }
 }
