@@ -42,7 +42,25 @@ COPY . .
 # Aucun secret au build : toute la configuration est lue à l'exécution (src/lib/env.ts).
 RUN pnpm build
 
-# ---------------------------------------------------------------- runtime
+# ---------------------------------------------------------------- e2e (tests uniquement, JAMAIS publiée)
+# Cible `--target e2e` utilisée par tests/e2e/docker-compose.yml : dépendances de dev + sources, lancée avec
+# `next dev` (NODE_ENV=development, PAD_MOCK=1 fournis par le compose). Le garde-fou de production (src/lib/env.ts
+# refuse PAD_MOCK avec NODE_ENV=production) reste intact : l'image de production ci-dessous est la DERNIÈRE étape,
+# donc la cible par défaut de scripts/build-image.sh et de images.yml, qui ne construisent jamais `e2e`.
+FROM base AS e2e
+ENV NODE_ENV=development \
+    HOSTNAME=0.0.0.0 \
+    PORT=3000
+RUN chown node:node /app
+COPY --from=deps --chown=node:node /app/node_modules ./node_modules
+COPY --chown=node:node . .
+USER node
+EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
+    CMD ["node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+CMD ["node_modules/.bin/next", "dev", "--port", "3000", "--hostname", "0.0.0.0"]
+
+# ---------------------------------------------------------------- runtime (cible par défaut : DOIT rester la dernière étape)
 FROM ${NODE_IMAGE} AS runtime
 ARG SOURCE_DATE_EPOCH
 ENV NODE_ENV=production \
