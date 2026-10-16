@@ -59,6 +59,7 @@ markdown_extensions:
 nav:
   - Accueil: index.md
   - Démarrage rapide: demarrage-rapide.md
+  - Comment tout fonctionne: fonctionnement.md
   - Architecture:
       - architecture/index.md
       - Réseau et zones: architecture/reseau.md
@@ -69,6 +70,80 @@ nav:
       - Scaling: architecture/scaling.md
       - Supervision: architecture/supervision.md
       - Plan et avancement: PLAN.md
+  - Composants:
+      - composants/index.md
+      - Hyperviseur et réseau:
+          - "Proxmox VE": composants/proxmox-ve.md
+          - "OpenTofu": composants/opentofu.md
+          - "Provider bpg/proxmox": composants/tofu-bpg-proxmox.md
+          - "Provider browningluke/opnsense": composants/tofu-opnsense.md
+          - "Provider goauthentik/authentik": composants/tofu-authentik.md
+          - "Provider netbirdio/netbird": composants/tofu-netbird.md
+          - "Provider warp-tech/warpgate": composants/tofu-warpgate.md
+          - "Provider ovh/ovh": composants/tofu-ovh.md
+          - "Provider carlpett/sops": composants/tofu-sops.md
+          - "Ansible": composants/ansible.md
+          - "OPNsense": composants/opnsense.md
+      - Services LXC:
+          - "Traefik (edge)": composants/traefik-edge.md
+          - "CrowdSec": composants/crowdsec.md
+          - "NetBird": composants/netbird.md
+          - "Warpgate": composants/warpgate.md
+          - "Authentik": composants/authentik.md
+          - "Docker et Compose (dans les LXC)": composants/docker-lxc.md
+      - Observabilité:
+          - "VictoriaMetrics et vmalert": composants/victoriametrics.md
+          - "Loki": composants/loki.md
+          - "Tempo": composants/tempo.md
+          - "Grafana": composants/grafana.md
+          - "Alertmanager": composants/alertmanager.md
+          - "Uptime Kuma": composants/uptime-kuma.md
+          - "Grafana Alloy": composants/alloy.md
+          - "Exporters (node, pve, kube-state-metrics, Docker)": composants/exporters.md
+      - Cluster Kubernetes:
+          - "Talos Linux": composants/talos.md
+          - "Cluster API (core)": composants/cluster-api.md
+          - "CAPMOX (provider Proxmox)": composants/capmox.md
+          - "CABPT et CACPPT (providers Talos)": composants/cabpt-cacppt.md
+          - "IPAM in-cluster (Cluster API)": composants/ipam-in-cluster.md
+          - "kind (bootstrap)": composants/kind.md
+          - "cluster-autoscaler": composants/cluster-autoscaler.md
+          - "Cilium et Hubble": composants/cilium-hubble.md
+          - "Proxmox CSI": composants/proxmox-csi.md
+          - "Traefik (cluster)": composants/traefik-cluster.md
+      - Plateforme GitOps:
+          - "ArgoCD": composants/argocd.md
+          - "SOPS, age et ksops": composants/sops-age-ksops.md
+          - "cert-manager": composants/cert-manager.md
+          - "Kyverno": composants/kyverno.md
+          - "KEDA": composants/keda.md
+          - "external-dns": composants/external-dns.md
+          - "mariadb-operator et MariaDB": composants/mariadb.md
+          - "Valkey": composants/valkey.md
+          - "Garage (S3)": composants/garage.md
+          - "Zot (registry OCI)": composants/zot.md
+          - "cosign et Trivy": composants/cosign-trivy.md
+      - Applications CTF:
+          - "CTFd (headless)": composants/ctfd.md
+          - "Plugin CTFd pad_common": composants/ctfd-plugin-pad-common.md
+          - "Plugin CTFd sso_bridge": composants/ctfd-plugin-sso-bridge.md
+          - "Plugin CTFd chall_manager_bridge": composants/ctfd-plugin-chall-manager-bridge.md
+          - "Plugin CTFd pad_teams": composants/ctfd-plugin-pad-teams.md
+          - "Plugin CTFd pad_public": composants/ctfd-plugin-pad-public.md
+          - "Plugin CTFd manager_api": composants/ctfd-plugin-manager-api.md
+          - "Plugin CTFd metrics_exporter": composants/ctfd-plugin-metrics-exporter.md
+          - "chall-manager": composants/chall-manager.md
+          - "Scénario Pulumi Go (instance générique)": composants/chall-manager-scenario.md
+          - "netbird-sync": composants/netbird-sync.md
+          - "Front Next.js (Auth.js et BFF)": composants/frontend.md
+      - Outillage et CI:
+          - "Nix (devshell)": composants/nix.md
+          - "Taskfile (go-task)": composants/taskfile.md
+          - "GitHub Actions": composants/github-actions.md
+          - "Renovate et Dependabot": composants/renovate-dependabot.md
+          - "k6 (tests de charge)": composants/k6.md
+          - "Playwright (tests e2e du front)": composants/playwright.md
+          - "MkDocs Material (documentation)": composants/mkdocs.md
   - Décisions (ADR):
       - adr/index.md
       - "1. Routeur OPNsense": adr/001-routeur-opnsense.md
