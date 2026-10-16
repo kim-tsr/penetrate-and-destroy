@@ -19,9 +19,10 @@ vars:
   ANSIBLE_LINT:
     sh: command -v ansible-lint >/dev/null 2>&1 && echo ansible-lint || echo "nix shell nixpkgs#ansible-lint -c ansible-lint"
 
-env:
-  ANSIBLE_CONFIG: "{{.TASKFILE_DIR}}/ansible.cfg"
-  ANSIBLE_COLLECTIONS_PATH: "{{.TASKFILE_DIR}}/.collections"
+# Pas de variable ANSIBLE_CONFIG / ANSIBLE_COLLECTIONS_PATH ici : inclus depuis le Taskfile racine, TASKFILE_DIR y vaut la
+# racine du dépôt et la valeur fausse, héritée par les sous-processus « task ansible:... » des phases, masquait les
+# collections (« couldn't resolve module/action community.sops.load_vars »). Les tâches s'exécutent dans ce répertoire :
+# ansible.cfg y est lu, et son collections_path (.collections) est relatif à son propre emplacement.
 
 tasks:
   deps:
