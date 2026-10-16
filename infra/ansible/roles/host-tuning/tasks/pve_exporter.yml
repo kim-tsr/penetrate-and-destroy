@@ -1,11 +1,56 @@
 ---
 # Le jeton API de pve-exporter est créé sur l'hôte et n'en sort jamais (pas de secret SOPS à gérer).
-- name: Installer prometheus-pve-exporter (paquet Debian)
+# Proxmox 9 (Debian trixie) ne fournit plus de paquet prometheus-pve-exporter : installation depuis PyPI dans un
+# virtualenv dédié, version épinglée, service systemd local. L'utilisateur « prometheus » vient du paquet node-exporter.
+- name: Installer python3-venv
   ansible.builtin.apt:
-    name: prometheus-pve-exporter
+    name: python3-venv
     state: present
     update_cache: true
     cache_valid_time: 3600
+
+- name: Installer prometheus-pve-exporter (PyPI, virtualenv dédié)
+  ansible.builtin.pip:
+    name: "prometheus-pve-exporter=={{ host_tuning_pve_exporter_version }}"
+    virtualenv: "{{ host_tuning_pve_exporter_venv }}"
+    virtualenv_command: python3 -m venv
+  notify: Redémarrer pve-exporter
+
+- name: Créer /etc/prometheus
+  ansible.builtin.file:
+    path: /etc/prometheus
+    state: directory
+    owner: root
+    group: prometheus
+    mode: "0750"
+
+- name: Installer le service systemd de pve-exporter
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/prometheus-pve-exporter.service
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Géré par Ansible (rôle host-tuning)
+      [Unit]
+      Description=Prometheus exporter pour Proxmox VE
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      User=prometheus
+      Group=prometheus
+      EnvironmentFile=/etc/default/prometheus-pve-exporter
+      ExecStart={{ host_tuning_pve_exporter_venv }}/bin/pve_exporter $ARGS
+      Restart=on-failure
+      NoNewPrivileges=true
+      ProtectSystem=strict
+      ProtectHome=true
+      PrivateTmp=true
+
+      [Install]
+      WantedBy=multi-user.target
+  notify: Redémarrer pve-exporter
 
 - name: Lister les utilisateurs Proxmox
   ansible.builtin.command: pveum user list --output-format json
@@ -85,3 +130,4 @@
     name: prometheus-pve-exporter
     enabled: true
     state: started
+    daemon_reload: true
