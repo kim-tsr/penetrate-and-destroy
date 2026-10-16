@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  author: penetrate-and-destroy
+  description: Stack de monitoring Docker Compose (VictoriaMetrics, vmalert, Alertmanager, Loki, Tempo, Grafana OIDC, Uptime Kuma)
+  license: MIT
+  min_ansible_version: "2.17"
+  platforms:
+    - name: Debian
+      versions: [all]
+dependencies:
+  - role: docker

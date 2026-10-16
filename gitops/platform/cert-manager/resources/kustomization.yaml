@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - internal-ca.yaml
+# Secret ovh-credentials chiffré SOPS : ovh-credentials.sops.yaml, créé par `task secrets:init` (à compléter avec le
+# jeton OVH, mêmes valeurs que secrets/ovh.sops.yaml) ; ovh-credentials.example.yaml n'est jamais appliqué.
+generators:
+  - ksops-generator.yaml

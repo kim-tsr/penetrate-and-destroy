@@ -1,0 +1,100 @@
+# Base de données de CTFd : MariaDB (mariadb-operator), 1 instance, PVC pad-zfs,
+# sauvegarde logique planifiée vers le bucket Garage `backups`.
+# Identifiants : Secret `ctfd-secrets` (cf. secret.example.yaml), partagé avec le Deployment CTFd.
+---
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: MariaDB
+metadata:
+  name: ctfd-mariadb
+  namespace: ctfd
+  labels:
+    app.kubernetes.io/name: mariadb
+    app.kubernetes.io/instance: ctfd-mariadb
+    app.kubernetes.io/part-of: ctfd
+spec:
+  image: docker.io/library/mariadb:10.11.19@sha256:7db29378d4fdab73f8123bbc2b48905c90d1a4b00cf848b028f1e81e623257f2
+  replicas: 1
+  rootPasswordSecretKeyRef:
+    name: ctfd-secrets
+    key: MARIADB_ROOT_PASSWORD
+  # Base et utilisateur applicatifs créés par l'opérateur (ALL PRIVILEGES sur la base `ctfd`).
+  database: ctfd
+  username: ctfd
+  passwordSecretKeyRef:
+    name: ctfd-secrets
+    key: DATABASE_PASSWORD
+  myCnf: |
+    [mariadb]
+    character_set_server=utf8mb4
+    collation_server=utf8mb4_unicode_ci
+    max_connections=200
+    innodb_buffer_pool_size=256M
+  storage:
+    size: 10Gi
+    storageClassName: pad-zfs
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { cpu: "1", memory: 1Gi }
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    runAsGroup: 999
+    fsGroup: 999
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: [ALL]
+  # Exporter Prometheus + ServiceMonitor (mot de passe de l'utilisateur de métriques généré par l'opérateur).
+  metrics:
+    enabled: true
+    passwordSecretKeyRef:
+      name: ctfd-mariadb-metrics
+      key: password
+      generate: true
+    serviceMonitor:
+      interval: 30s
+---
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: Backup
+metadata:
+  name: ctfd-mariadb
+  namespace: ctfd
+  labels:
+    app.kubernetes.io/name: mariadb-backup
+    app.kubernetes.io/part-of: ctfd
+spec:
+  mariaDbRef:
+    name: ctfd-mariadb
+  schedule:
+    cron: "0 */6 * * *"
+  maxRetention: 168h
+  compression: gzip
+  storage:
+    s3:
+      bucket: backups # contracts: apps.ctfd.backup_bucket
+      prefix: mariadb
+      endpoint: garage.storage.svc.cluster.local:3900 # contracts: apps.garage.s3_endpoint (sans schéma)
+      region: garage # contracts: apps.garage.region
+      accessKeyIdSecretKeyRef:
+        name: ctfd-secrets
+        key: AWS_ACCESS_KEY_ID
+      secretAccessKeySecretKeyRef:
+        name: ctfd-secrets
+        key: AWS_SECRET_ACCESS_KEY
+      tls:
+        enabled: false # Garage en HTTP dans le cluster
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    runAsGroup: 999
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: [ALL]
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 512Mi }

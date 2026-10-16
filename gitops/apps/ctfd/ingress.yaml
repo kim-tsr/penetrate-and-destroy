@@ -1,0 +1,26 @@
+# UI d'administration brute de CTFd (secours), uniquement via le Traefik interne (10.20.60.200),
+# joignable par le staff via NetBird/bastion. Pas de publication sur l'edge.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ctfd-admin
+  namespace: ctfd
+  labels:
+    app.kubernetes.io/name: ctfd
+    app.kubernetes.io/part-of: ctfd
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: ctfd-admin.pad.internal # contracts: hostnames.ctfd_admin + internal_domain
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ctfd
+                port:
+                  name: http

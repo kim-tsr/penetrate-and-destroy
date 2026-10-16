@@ -1,0 +1,4 @@
+# Dépendances du contrôleur pour monitoring/uptime-kuma/sync.py (versions exactes, maintenues par Renovate).
+# uptime-kuma-api-v2 : fork compatible Uptime Kuma 2.x (l'image déployée est 2.x), module Python `uptime_kuma_api`.
+uptime-kuma-api-v2==1.0.3
+PyYAML==6.0.3

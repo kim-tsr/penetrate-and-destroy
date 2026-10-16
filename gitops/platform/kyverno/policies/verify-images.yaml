@@ -1,0 +1,47 @@
+# Vérification des signatures cosign des images du registry interne.
+# Mode Audit au départ (clé publique encore placeholder) : passer en Enforce une fois
+# cosign-pubkey renseignée et les images signées par la CI.
+# contracts: internal_domain (registry.pad.internal) ; hostnames.registry
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-images
+  annotations:
+    policies.kyverno.io/title: Vérifier les signatures cosign
+    policies.kyverno.io/category: Software Supply Chain Security
+    policies.kyverno.io/severity: high
+spec:
+  validationFailureAction: Audit
+  background: false
+  webhookConfiguration:
+    failurePolicy: Ignore
+    timeoutSeconds: 15
+  rules:
+    - name: verify-cosign-internal-registry
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+      exclude:
+        any:
+          - resources:
+              namespaces: ["kube-system", "kyverno"]
+      context:
+        - name: cosign
+          configMap:
+            name: cosign-pubkey
+            namespace: kyverno
+      verifyImages:
+        - imageReferences:
+            - "registry.pad.internal/*"
+          mutateDigest: false
+          verifyDigest: false
+          required: true
+          attestors:
+            - entries:
+                - keys:
+                    publicKeys: "{{ cosign.data.\"cosign.pub\" }}"
+                    rekor:
+                      ignoreTlog: true
+                    ctlog:
+                      ignoreSCT: true

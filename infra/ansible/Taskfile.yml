@@ -1,0 +1,58 @@
+version: "3"
+
+# Inclus par le Taskfile racine (dir: ./infra/ansible).
+# Outils : `nix develop` (recommandé) ; à défaut, ansible du PATH. ansible-lint retombe sur `nix shell` s'il est absent.
+# Accès SSH aux LXC (voir inventories/prod/group_vars/all/access.yml) :
+#   PAD_ACCESS_MODE=proxmox (défaut, ProxyJump via l'hôte Proxmox : ssh_user@ssh_host de secrets/site.sops.yaml) | bastion (Warpgate) | direct
+#   PAD_PROXMOX_JUMP=<utilisateur>@<hôte> (surcharge)   PAD_BASTION_USER=ansible
+
+vars:
+  INVENTORY: '{{.INVENTORY | default "inventories/prod/hosts.generated.yml"}}'
+  EXAMPLE_INVENTORY: inventories/prod/hosts.example.yml
+  PLAYBOOKS: playbooks/host.yml playbooks/services.yml
+  ANSIBLE_LINT:
+    sh: command -v ansible-lint >/dev/null 2>&1 && echo ansible-lint || echo "nix shell nixpkgs#ansible-lint -c ansible-lint"
+
+env:
+  ANSIBLE_CONFIG: "{{.TASKFILE_DIR}}/ansible.cfg"
+  ANSIBLE_COLLECTIONS_PATH: "{{.TASKFILE_DIR}}/.collections"
+
+tasks:
+  deps:
+    desc: Installe les collections épinglées (requirements.yml) dans .collections/
+    sources: [requirements.yml]
+    generates: [.collections/ansible_collections/**/MANIFEST.json]
+    cmds:
+      - ansible-galaxy collection install -r requirements.yml -p .collections
+
+  host:
+    desc: Configure l'hôte Proxmox (ARC ZFS, sysctl, DNAT de repli, exporters, Alloy)
+    deps: [deps]
+    preconditions:
+      - sh: test -f {{.INVENTORY}}
+        msg: "Inventaire {{.INVENTORY}} absent : lancer d'abord tofu (stack 00-host-network / 20-services-lxc)."
+    cmds:
+      - ansible-playbook -i {{.INVENTORY}} playbooks/host.yml {{.CLI_ARGS}}
+
+  services:
+    desc: Déploie les services LXC (edge, netbird, warpgate, authentik, monitoring)
+    deps: [deps]
+    preconditions:
+      - sh: test -f {{.INVENTORY}}
+        msg: "Inventaire {{.INVENTORY}} absent : lancer d'abord tofu (stack 20-services-lxc)."
+    cmds:
+      - ansible-playbook -i {{.INVENTORY}} playbooks/services.yml {{.CLI_ARGS}}
+
+  syntax:
+    desc: ansible-playbook --syntax-check sur l'inventaire d'exemple
+    deps: [deps]
+    cmds:
+      - for: { var: PLAYBOOKS }
+        cmd: ansible-playbook --syntax-check -i {{.EXAMPLE_INVENTORY}} {{.ITEM}}
+
+  lint:
+    desc: ansible-lint (profil production) + syntax-check, sans contact avec le serveur
+    deps: [deps]
+    cmds:
+      - "{{.ANSIBLE_LINT}}"
+      - task: syntax

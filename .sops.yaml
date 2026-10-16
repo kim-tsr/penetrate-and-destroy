@@ -1,0 +1,28 @@
+# Configuration SOPS + age. Les secrets sont COMMITÉS CHIFFRÉS ; aucune clé privée n'est dans le repo (docs/SECRETS.md).
+#
+# Deux sortes de destinataires (recipients age), à renseigner UNE FOIS avec `task secrets:keys` (génère les clés hors
+# repo, remplace les deux CHANGEME ci-dessous et affiche les clés publiques) :
+#   - operator : clé de l'opérateur (~/.config/sops/age/keys.txt). Déchiffre tout (secrets/, gitops/, infra/).
+#                Plusieurs opérateurs : ajouter une ligne `- &operator2 age1...` et la lister dans les règles.
+#   - cluster  : clé du cluster (~/.config/pad/cluster.agekey), injectée dans ArgoCD (Secret sops-age) pour ksops.
+#                Ne déchiffre QUE gitops/** (jamais secrets/ : jetons Proxmox, OVH, etc. restent hors du cluster).
+# Après tout changement de recipient : `task secrets:update-keys` (sops updatekeys sur chaque *.sops.yaml).
+#
+# path_regex couvre les emplacements réels :
+#   secrets/*.sops.yaml                      secrets d'infra (ansible community.sops, tofu carlpett/sops, bootstrap)
+#   gitops/**/*.sops.yaml                    Secrets Kubernetes (ksops) : seuls data/stringData sont chiffrés
+#   infra/**/*.sops.{yaml,json}              éventuels fichiers locaux à une stack
+keys:
+  - &operator age1CHANGEMEoperatorpublickey
+  - &cluster age1CHANGEMEclusterpublickey
+creation_rules:
+  - path_regex: (^|/)secrets/.*\.sops\.ya?ml$
+    key_groups:
+      - age: [*operator]
+  - path_regex: (^|/)gitops/.*\.sops\.ya?ml$
+    encrypted_regex: ^(data|stringData)$
+    key_groups:
+      - age: [*operator, *cluster]
+  - path_regex: (^|/)infra/.*\.sops\.(ya?ml|json)$
+    key_groups:
+      - age: [*operator]

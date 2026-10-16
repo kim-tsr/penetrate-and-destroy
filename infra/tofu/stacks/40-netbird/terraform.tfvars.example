@@ -1,0 +1,14 @@
+# Copier en terraform.tfvars. Aucun secret ici : la passphrase du state passe par TF_VAR_state_passphrase.
+
+# setup_key_type           = "one-off"
+# setup_key_expiry_seconds = 604800
+# routing_peer_metric      = 100
+
+# Ports TCP ouverts au staff vers BASTION ; vide = flow_ports.warpgate du contrat (2222, 8888).
+# staff_bastion_ports = []
+
+# Rôle de l'utilisateur de service netbird-sync.
+# netbird_sync_role = "admin"
+
+# true = tofu porte l'IdP Authentik + groupes JWT (sinon rôle ansible netbird-server).
+# manage_identity_provider = false

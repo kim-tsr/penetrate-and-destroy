@@ -1,0 +1,46 @@
+# Géré par Ansible (rôle netbird-server).
+name: netbird
+services:
+  dashboard:
+    image: {{ netbird_server_dashboard_image }}
+    container_name: netbird-dashboard
+    restart: unless-stopped
+    env_file:
+      - ./dashboard.env
+    ports:
+      - "{{ netbird_server_dashboard_port }}:80"
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: {{ netbird_server_dashboard_memory_limit }}
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "2"
+
+  netbird-server:
+    image: {{ netbird_server_image }}
+    container_name: netbird-server
+    restart: unless-stopped
+    command: ["--config", "/etc/netbird/config.yaml"]
+    ports:
+      # HTTP/h2c (management, signal, relay, API, OAuth2) : joint par l'edge uniquement (règle OPNsense DMZ).
+      - "{{ netbird_server_http_port }}:80"
+      # STUN (UDP) : exposé publiquement (contrat wan.public_ports).
+      - "{{ netbird_server_stun_port }}:{{ netbird_server_stun_port }}/udp"
+      # Métriques Prometheus : scrapées par le monitoring.
+      - "{{ netbird_server_metrics_port }}:{{ netbird_server_metrics_port }}"
+    volumes:
+      - netbird_data:/var/lib/netbird
+      - ./config.yaml:/etc/netbird/config.yaml:ro
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: {{ netbird_server_memory_limit }}
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+volumes:
+  netbird_data:

@@ -1,0 +1,87 @@
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha2
+kind: ProxmoxMachineTemplate
+metadata:
+  name: pad-prod-cp
+spec:
+  template:
+    spec:
+      sourceNode: pve # contracts: host.node
+      templateID: 299 # contracts: kubernetes.talos_template.vmid (talos-v1.11.3-template, stack tofu 15-talos-image)
+      full: true
+      format: raw # local-zfs (zfspool) n'accepte que raw
+      storage: local-zfs # contracts: host.datastore_vm
+      vmIDRange: { start: 300, end: 399 } # contracts: kubernetes.vmid_range
+      numSockets: 1
+      numCores: 2 # contracts: kubernetes.control_plane.cores
+      memoryMiB: 2560 # contracts: kubernetes.control_plane.memory_mb
+      disks:
+        bootVolume: { disk: scsi0, sizeGb: 20 } # contracts: kubernetes.control_plane.disk_gb
+      tags: [pad, talos, pad-prod, control-plane]
+      checks:
+        skipCloudInitStatus: true # Talos n'exécute pas cloud-init (il lit seulement la datasource nocloud)
+      metadataSettings:
+        providerIDInjection: true
+      network:
+        networkDevices:
+          - name: net0
+            bridge: vmbr2 # contracts: host.zones_bridge
+            vlan: 60 # contracts: zones.prod.vlan
+            model: virtio
+            defaultIPv4: true # pool ProxmoxCluster.ipv4Config (IPs control plane)
+---
+apiVersion: controlplane.cluster.x-k8s.io/v1alpha3
+kind: TalosControlPlane
+metadata:
+  name: pad-prod-cp
+spec:
+  version: v1.34.1 # contracts: kubernetes.kubernetes_version
+  replicas: 1 # contracts: kubernetes.control_plane.replicas
+  infrastructureTemplate:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1alpha2
+    kind: ProxmoxMachineTemplate
+    name: pad-prod-cp
+  controlPlaneConfig:
+    controlplane:
+      generateType: controlplane
+      talosVersion: v1.11.3 # contracts: kubernetes.talos_version
+      strategicPatches:
+        - |
+          machine:
+            install:
+              disk: /dev/sda
+              # contracts: kubernetes.talos_installer_image (schematic qemu-guest-agent)
+              image: factory.talos.dev/nocloud-installer/ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515:v1.11.3
+            network:
+              interfaces:
+                # IP statique fournie par CAPMOX (datasource nocloud) ; on ajoute la VIP de l'API.
+                - deviceSelector: { physical: true }
+                  vip:
+                    ip: 10.20.60.5 # contracts: kubernetes.control_plane_endpoint
+            kubelet:
+              extraArgs:
+                rotate-server-certificates: "true" # certificats serveur kubelet signés (approver ci-dessous)
+                cloud-provider: external # providerID posé par proxmox-cloud-controller-manager (mode capmox)
+              nodeIP:
+                validSubnets: [10.20.60.0/24] # contracts: zones.prod.cidr
+            nodeLabels:
+              pad.io/pool: control-plane
+              pad.io/zone: prod
+            features:
+              kubePrism: { enabled: true, port: 7445 } # utilisé par Cilium (k8sServiceHost localhost:7445)
+          cluster:
+            externalCloudProvider:
+              enabled: true
+            network:
+              cni: { name: none } # Cilium installé par bootstrap puis géré par ArgoCD
+              podSubnets: [10.244.0.0/16] # contracts: kubernetes.pod_cidr
+              serviceSubnets: [10.96.0.0/12] # contracts: kubernetes.service_cidr
+            proxy:
+              disabled: true # kube-proxy remplacé par Cilium (kubeProxyReplacement)
+            apiServer:
+              certSANs: [10.20.60.5]
+            allowSchedulingOnControlPlanes: false
+            extraManifests:
+              # Approbation des CSR "kubelet-serving" (rotate-server-certificates) puis metrics-server.
+              - https://raw.githubusercontent.com/alex1989hu/kubelet-serving-cert-approver/v0.12.1/deploy/standalone-install.yaml
+              - https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.9.0/components.yaml

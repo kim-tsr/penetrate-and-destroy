@@ -1,0 +1,55 @@
+# CA interne `pad-internal-ca` : racine auto-signée -> Certificate CA -> ClusterIssuer de type CA.
+# Sert aux certificats internes (mTLS inter-services, webhooks). Les hostnames publics/internes de `domain`
+# utilisent `letsencrypt-ovh` (créé par le chart cert-manager-webhook-ovh).
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: pad-selfsigned
+  labels:
+    app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/component: issuer
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: pad-internal-ca
+  namespace: cert-manager
+  labels:
+    app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/component: internal-ca
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  isCA: true
+  commonName: pad-internal-ca
+  subject:
+    organizations: [penetrate-and-destroy] # contracts: project
+  secretName: pad-internal-ca
+  duration: 87600h # 10 ans
+  renewBefore: 8760h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  issuerRef:
+    name: pad-selfsigned
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: pad-internal-ca
+  labels:
+    app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/component: issuer
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  ca:
+    secretName: pad-internal-ca

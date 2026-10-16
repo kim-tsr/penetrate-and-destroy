@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: netbird-sync
+  labels:
+    app.kubernetes.io/name: netbird-sync
+    app.kubernetes.io/part-of: penetrate-and-destroy
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: netbird-sync
+  labels:
+    app.kubernetes.io/name: netbird-sync
+rules:
+  - apiGroups: [""]
+    resources: [services, namespaces]
+    verbs: [get, list, watch]
+  # Finalizer pad.io/netbird-sync sur les Services d'instances.
+  - apiGroups: [""]
+    resources: [services]
+    verbs: [patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: netbird-sync
+  labels:
+    app.kubernetes.io/name: netbird-sync
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: netbird-sync
+subjects:
+  - kind: ServiceAccount
+    name: netbird-sync
+    namespace: netbird-sync

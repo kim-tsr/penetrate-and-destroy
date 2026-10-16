@@ -1,0 +1,6 @@
+# Appliqué par bootstrap/ (`kubectl apply -k gitops/bootstrap`) une fois ArgoCD installé.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - root.yaml

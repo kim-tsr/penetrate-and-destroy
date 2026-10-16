@@ -1,0 +1,80 @@
+---
+# Le jeton API de pve-exporter est créé sur l'hôte et n'en sort jamais (pas de secret SOPS à gérer).
+- name: Installer prometheus-pve-exporter (paquet Debian)
+  ansible.builtin.apt:
+    name: prometheus-pve-exporter
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Lister les utilisateurs Proxmox
+  ansible.builtin.command: pveum user list --output-format json
+  register: host_tuning_pve_users
+  changed_when: false
+
+- name: Créer l'utilisateur Proxmox de l'exporter
+  ansible.builtin.command: >-
+    pveum user add {{ host_tuning_pve_exporter_user }} --comment "PenetrateAndDestroy pve-exporter (lecture seule)"
+  when: host_tuning_pve_exporter_user not in (host_tuning_pve_users.stdout | from_json | map(attribute='userid'))
+  changed_when: true
+
+- name: Donner le rôle PVEAuditor à l'exporter
+  ansible.builtin.command: pveum acl modify / --users {{ host_tuning_pve_exporter_user }} --roles PVEAuditor
+  when: host_tuning_pve_exporter_user not in (host_tuning_pve_users.stdout | from_json | map(attribute='userid'))
+  changed_when: true
+
+- name: Vérifier la présence de la configuration de l'exporter
+  ansible.builtin.stat:
+    path: /etc/prometheus/pve.yml
+  register: host_tuning_pve_config
+
+- name: Recréer le jeton API (configuration absente)
+  when: not host_tuning_pve_config.stat.exists
+  block:
+    - name: Supprimer un éventuel jeton orphelin
+      ansible.builtin.command: >-
+        pveum user token remove {{ host_tuning_pve_exporter_user }} {{ host_tuning_pve_exporter_token }}
+      register: host_tuning_token_rm
+      changed_when: host_tuning_token_rm.rc == 0
+      failed_when: false
+
+    - name: Créer le jeton API sans séparation de privilèges
+      ansible.builtin.command: >-
+        pveum user token add {{ host_tuning_pve_exporter_user }} {{ host_tuning_pve_exporter_token }}
+        --privsep 0 --output-format json
+      register: host_tuning_token
+      changed_when: true
+      no_log: true
+
+    - name: Écrire la configuration de pve-exporter
+      ansible.builtin.copy:
+        dest: /etc/prometheus/pve.yml
+        owner: root
+        group: prometheus
+        mode: "0640"
+        content: |
+          # Géré par Ansible (rôle host-tuning)
+          default:
+            user: {{ host_tuning_pve_exporter_user }}
+            token_name: {{ host_tuning_pve_exporter_token }}
+            token_value: {{ (host_tuning_token.stdout | from_json).value }}
+            verify_ssl: false
+      no_log: true
+      notify: Redémarrer pve-exporter
+
+- name: Configurer l'écoute de pve-exporter (IP MGMT uniquement)
+  ansible.builtin.copy:
+    dest: /etc/default/prometheus-pve-exporter
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Géré par Ansible (rôle host-tuning)
+      ARGS="--config.file /etc/prometheus/pve.yml --web.listen-address {{ host_tuning_exporter_ip }}:{{ host_tuning_pve_exporter_port }}"
+  notify: Redémarrer pve-exporter
+
+- name: Activer pve-exporter
+  ansible.builtin.systemd_service:
+    name: prometheus-pve-exporter
+    enabled: true
+    state: started

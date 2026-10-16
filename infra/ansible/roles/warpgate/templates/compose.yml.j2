@@ -1,0 +1,25 @@
+# Géré par Ansible (rôle warpgate).
+name: warpgate
+services:
+  warpgate:
+    image: {{ warpgate_image }}
+    container_name: warpgate
+    restart: unless-stopped
+    ports:
+      - "{{ warpgate_ssh_port }}:{{ warpgate_ssh_port }}"
+      - "{{ warpgate_https_port }}:{{ warpgate_https_port }}"
+    volumes:
+      - ./data:/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    mem_limit: {{ warpgate_memory_limit }}
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"

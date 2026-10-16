@@ -1,0 +1,77 @@
+# proxmox-csi-plugin chart 0.5.12.
+# La config (URL API + token) vient d'un Secret existant, chiffré SOPS (cf. README.md) : jamais dans ce fichier.
+existingConfigSecret: proxmox-csi-config # clé config.yaml
+existingConfigSecretKey: config.yaml
+
+replicaCount: 1
+logVerbosityLevel: 2
+
+# Le namespace csi-proxmox est géré par gitops/platform/namespaces (PSS privileged pour le node plugin).
+createNamespace: false
+
+storageClass:
+  - name: pad-zfs
+    storage: local-zfs # contracts: host.datastore_vm
+    reclaimPolicy: Delete
+    fstype: ext4
+    ssd: true
+    cache: none
+    annotations:
+      storageclass.kubernetes.io/is-default-class: "true"
+    # Region = nom du node Proxmox, zone = idem (single-node) ; posés par le CCM / labels topology.
+    allowedTopologies:
+      - matchLabelExpressions:
+          - key: topology.kubernetes.io/region
+            values: ["pve"] # contracts: host.node
+          - key: topology.kubernetes.io/zone
+            values: ["pve"] # contracts: host.node
+
+controller:
+  nodeSelector: {}
+  plugin:
+    resources:
+      requests: { cpu: 10m, memory: 24Mi }
+      limits: { memory: 64Mi }
+  attacher:
+    resources:
+      requests: { cpu: 10m, memory: 16Mi }
+      limits: { memory: 48Mi }
+  provisioner:
+    resources:
+      requests: { cpu: 10m, memory: 16Mi }
+      limits: { memory: 48Mi }
+  resizer:
+    resources:
+      requests: { cpu: 10m, memory: 16Mi }
+      limits: { memory: 48Mi }
+
+# Le contrôleur reste sur le pool platform ; le node plugin (DaemonSet) tourne sur tous les nodes,
+# y compris le pool challenges (taint pad.io/pool=challenges:NoSchedule).
+nodeSelector:
+  pad.io/pool: platform # contracts: kubernetes.pools.platform
+
+node:
+  nodeSelector: {}
+  plugin:
+    resources:
+      requests: { cpu: 10m, memory: 24Mi }
+      limits: { memory: 64Mi }
+  driverRegistrar:
+    resources:
+      requests: { cpu: 10m, memory: 16Mi }
+      limits: { memory: 32Mi }
+  tolerations:
+    - key: pad.io/pool
+      operator: Exists
+      effect: NoSchedule
+    - key: node.kubernetes.io/unschedulable
+      operator: Exists
+      effect: NoSchedule
+    - key: node.kubernetes.io/disk-pressure
+      operator: Exists
+      effect: NoSchedule
+
+livenessprobe:
+  resources:
+    requests: { cpu: 10m, memory: 16Mi }
+    limits: { memory: 32Mi }

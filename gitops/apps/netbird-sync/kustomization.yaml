@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: netbird-sync # contracts: namespaces.netbird_sync
+resources:
+  - namespace.yaml
+  - rbac.yaml
+  - deployment.yaml
+  - servicemonitor.yaml
+  - networkpolicy.yaml
+generators:
+  # Secret `netbird-sync` (chiffré SOPS) : secret.sops.yaml, créé par `task secrets:init` (cf. docs/SECRETS.md).
+  - secret-generator.yaml

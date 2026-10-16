@@ -1,0 +1,102 @@
+# Initialisation idempotente de Garage (hook PostSync, rejoué à chaque sync) :
+#   1. layout mono-nœud (zone dc1, 18GB) si aucun layout n'est appliqué ;
+#   2. buckets ctfd-uploads et backups (créés seulement s'ils n'existent pas) ;
+#   3. clé d'accès "pad-apps" : IMPORTÉE (`garage key import`) depuis le Secret garage-s3-credentials, fourni par ksops
+#      (secret-s3.sops.yaml, généré par `task secrets:init` et identique à AWS_* du Secret CTFd). Ce Job ne crée aucun
+#      Secret. Droits minimaux : lecture + écriture sur les deux buckets uniquement (pas owner).
+# La CLI garage v2 (`/garage`, image scratch sans shell) est exécutée via `kubectl exec garage-0` : elle lit
+# /etc/garage.toml (rpc_secret + node id) dans le pod, aucun secret n'est donc exposé au Job.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: garage-init
+  namespace: storage
+  labels:
+    app.kubernetes.io/name: garage-init
+    app.kubernetes.io/part-of: platform
+    pad.io/zone: prod
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 6
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: garage-init
+        app.kubernetes.io/part-of: platform
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: garage-init
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: init
+          image: docker.io/alpine/k8s:1.34.1@sha256:ec714df3813b5405292860f8a1c55c5727bf8c33c88992f1e981efad8065547f
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              NS=storage
+              POD=garage-0
+              KEY_NAME=pad-apps
+              BUCKETS="ctfd-uploads backups" # contracts: apps.ctfd.upload_bucket apps.ctfd.backup_bucket
+              g() { kubectl -n "$NS" exec "$POD" -c garage -- /garage "$@"; }
+
+              kubectl -n "$NS" wait --for=condition=Ready "pod/$POD" --timeout=300s
+              # Le RPC démarre un peu après l'API admin : attendre que la CLI réponde.
+              i=0
+              until g status >/dev/null 2>&1; do
+                i=$((i + 1))
+                [ "$i" -lt 30 ] || { echo "garage ne répond pas" >&2; exit 1; }
+                sleep 5
+              done
+
+              # 1. Layout (version 0 = aucun nœud avec un rôle).
+              if g layout show | grep -q 'Current cluster layout version: 0'; then
+                NODE_ID=$(g node id -q | cut -d@ -f1 | cut -c1-16)
+                g layout assign -z dc1 -c 18GB "$NODE_ID"
+                g layout apply --version 1
+              fi
+
+              # 2. Buckets.
+              for b in $BUCKETS; do
+                g bucket info "$b" >/dev/null 2>&1 || g bucket create "$b"
+              done
+
+              # 3. Clé S3 importée (idempotent : testée par son identifiant, jamais par son nom).
+              echo "$AK" | grep -Eq '^GK[0-9a-f]{24}$' || { echo "access_key_id invalide (attendu GK + 24 hex)" >&2; exit 1; }
+              echo "$SK" | grep -Eq '^[0-9a-f]{64}$' || { echo "secret_access_key invalide (attendu 64 hex)" >&2; exit 1; }
+              g key info "$AK" >/dev/null 2>&1 || g key import -n "$KEY_NAME" --yes "$AK" "$SK"
+              for b in $BUCKETS; do
+                g bucket allow --read --write --key "$AK" "$b"
+              done
+              echo "garage initialisé"
+          env:
+            - name: HOME
+              value: /tmp
+            - name: AK
+              valueFrom: { secretKeyRef: { name: garage-s3-credentials, key: access_key_id } }
+            - name: SK
+              valueFrom: { secretKeyRef: { name: garage-s3-credentials, key: secret_access_key } }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Mi

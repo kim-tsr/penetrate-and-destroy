@@ -1,0 +1,28 @@
+# Un seul ScaledObject KEDA pour le Deployment ctfd (cpu + utilisateurs actifs), pas de HPA séparé.
+# La métrique ctfd_active_users{window="5m"} est exposée par le plugin metrics_exporter ; elle est
+# identique sur tous les pods (calculée depuis la base), d'où le max().
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: ctfd
+  namespace: ctfd
+  labels:
+    app.kubernetes.io/name: ctfd
+    app.kubernetes.io/part-of: ctfd
+spec:
+  scaleTargetRef:
+    name: ctfd
+  minReplicaCount: 2
+  maxReplicaCount: 4
+  cooldownPeriod: 300
+  triggers:
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "70"
+    - type: prometheus
+      metadata:
+        serverAddress: http://10.20.50.10:8428 # contracts: monitoring.remote_write (VictoriaMetrics)
+        query: max(ctfd_active_users{window="5m"})
+        threshold: "100" # utilisateurs actifs par réplica
+        ignoreNullValues: "true"

@@ -1,0 +1,85 @@
+---
+- name: Charger les secrets Authentik (SOPS)
+  community.sops.load_vars:
+    file: "{{ authentik_secrets_file }}"
+    name: authentik_secrets
+  no_log: true
+  delegate_to: localhost
+  become: false
+
+- name: Créer les répertoires d'Authentik
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ authentik_dir }}", mode: "0750" }
+    - { path: "{{ authentik_blueprints_dir }}", mode: "0755" }
+    - { path: "{{ authentik_backup_dir }}", mode: "0700" }
+
+- name: Déposer les blueprints de branding
+  ansible.builtin.copy:
+    src: blueprints/
+    dest: "{{ authentik_blueprints_dir }}/"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Écrire le fichier d'environnement (secrets)
+  ansible.builtin.template:
+    src: authentik.env.j2
+    dest: "{{ authentik_dir }}/.env"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  register: authentik_env
+
+- name: Écrire le compose Authentik
+  ansible.builtin.template:
+    src: compose.yml.j2
+    dest: "{{ authentik_dir }}/compose.yml"
+    owner: root
+    group: root
+    mode: "0640"
+  register: authentik_compose
+
+- name: Démarrer Authentik
+  community.docker.docker_compose_v2:
+    project_src: "{{ authentik_dir }}"
+    state: present
+    pull: missing
+    recreate: "{{ 'always' if (authentik_env is changed or authentik_compose is changed) else 'auto' }}"
+    wait: true
+    wait_timeout: 300
+
+- name: Installer le script de sauvegarde pg_dump
+  ansible.builtin.template:
+    src: authentik-backup.sh.j2
+    dest: /usr/local/sbin/authentik-backup
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Installer les unités systemd de sauvegarde
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - authentik-backup.service
+    - authentik-backup.timer
+  notify: Recharger systemd (authentik)
+
+- name: Appliquer les changements systemd avant d'activer le timer
+  ansible.builtin.meta: flush_handlers
+
+- name: Activer le timer de sauvegarde
+  ansible.builtin.systemd_service:
+    name: authentik-backup.timer
+    enabled: true
+    state: started

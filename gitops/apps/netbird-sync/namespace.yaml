@@ -1,0 +1,11 @@
+# contracts: namespaces.netbird_sync
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: netbird-sync
+  labels:
+    pad.io/zone: prod
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

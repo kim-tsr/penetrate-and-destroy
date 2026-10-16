@@ -1,0 +1,63 @@
+---
+# Alertes sécurité : CrowdSec, Authentik, Kyverno, NetBird.
+# Les connexions échouées Authentik et les blocages OPNsense ne sont pas des métriques Prometheus aujourd'hui :
+# ils sont visualisés via Loki dans le dashboard sécurité (voir le rapport de monitoring pour les manques).
+groups:
+  - name: pad-security
+    rules:
+      - alert: CrowdSecAlertsBurst
+        expr: sum(increase(cs_alerts[15m])) > 50
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pic d'alertes CrowdSec ({{ $value | humanize }} en 15 min)"
+          description: "Le moteur CrowdSec détecte une vague de scénarios déclenchés (scan, brute-force ou attaque ciblée sur l'edge)."
+          runbook_url: docs/runbooks/crowdsec.md
+
+      - alert: CrowdSecDecisionsHigh
+        expr: sum(cs_active_decisions{action="ban"}) > 500
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "Plus de 500 bannissements CrowdSec actifs"
+          description: "{{ $value | humanize }} décisions de ban actives : attaque en cours ou liste communautaire trop large."
+          runbook_url: docs/runbooks/crowdsec.md
+
+      - alert: CrowdSecNoMetrics
+        expr: absent(cs_active_decisions)
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Les métriques CrowdSec sont absentes"
+          description: "Aucune métrique cs_* reçue depuis 15 minutes : la protection de l'edge n'est plus supervisée."
+          runbook_url: docs/runbooks/crowdsec.md
+
+      - alert: AuthentikServerErrors
+        expr: sum(increase(django_http_responses_total_by_status_total{job="authentik", status=~"5.."}[10m])) > 10
+        labels:
+          severity: warning
+        annotations:
+          summary: "Authentik renvoie des erreurs 5xx"
+          description: "{{ $value | humanize }} réponses 5xx en 10 minutes : l'authentification des joueurs et du staff est dégradée."
+          runbook_url: docs/runbooks/authentik.md
+
+      - alert: KyvernoPolicyViolations
+        expr: sum by (policy_name, resource_namespace) (increase(kyverno_policy_results_total{rule_result="fail"}[15m])) > 0
+        labels:
+          severity: info
+        annotations:
+          summary: "Violations Kyverno de la politique {{ $labels.policy_name }}"
+          description: "{{ $value | humanize }} violation(s) dans {{ $labels.resource_namespace }} sur 15 minutes (mode audit ou rejet en enforce)."
+          runbook_url: docs/runbooks/kyverno.md
+
+      - alert: KyvernoMetricsMissing
+        expr: absent(kyverno_policy_results_total)
+        for: 30m
+        labels:
+          severity: info
+        annotations:
+          summary: "Les métriques Kyverno sont absentes"
+          description: "Aucune série kyverno_policy_results_total depuis 30 minutes (aucune évaluation ou contrôleur non scrapé)."
+          runbook_url: docs/runbooks/kyverno.md

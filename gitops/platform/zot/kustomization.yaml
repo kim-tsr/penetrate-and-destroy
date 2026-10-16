@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Les Secrets zot-htpasswd et zot-metrics-basic-auth sont déchiffrés par ksops (créés par `task secrets:init`, cf. docs/SECRETS.md).
+resources:
+  - application.yaml
+generators:
+  - secret-generator.yaml

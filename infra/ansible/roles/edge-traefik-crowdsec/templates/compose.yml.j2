@@ -1,0 +1,62 @@
+# Géré par Ansible (rôle edge-traefik-crowdsec)
+name: pad-edge
+
+services:
+  traefik:
+    image: {{ edge_traefik_crowdsec_traefik_image }}
+    restart: unless-stopped
+    env_file: ./traefik.env
+    ports:
+      - "{{ edge_traefik_crowdsec_http_port }}:80"
+      - "{{ edge_traefik_crowdsec_https_port }}:443"
+      - "{{ edge_traefik_crowdsec_listen_ip }}:{{ edge_traefik_crowdsec_traefik_metrics_port }}:8082"
+    volumes:
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      - ./traefik/acme:/acme
+      - ./traefik/plugins:/plugins-storage
+      - ./logs/traefik:/var/log/traefik
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      crowdsec:
+        condition: service_started
+
+  crowdsec:
+    image: {{ edge_traefik_crowdsec_crowdsec_image }}
+    restart: unless-stopped
+    env_file: ./crowdsec.env
+    environment:
+      COLLECTIONS: "{{ edge_traefik_crowdsec_collections | join(' ') }}"
+    ports:
+      - "{{ edge_traefik_crowdsec_listen_ip }}:{{ edge_traefik_crowdsec_crowdsec_metrics_port }}:6060"
+    volumes:
+      - crowdsec-config:/etc/crowdsec
+      - crowdsec-data:/var/lib/crowdsec/data
+      - ./crowdsec/acquis.d/traefik.yaml:/etc/crowdsec/acquis.d/traefik.yaml:ro
+      - ./crowdsec/acquis.d/appsec.yaml:/etc/crowdsec/acquis.d/appsec.yaml:ro
+      - ./crowdsec/config.yaml.local:/etc/crowdsec/config.yaml.local:ro
+      - ./logs/traefik:/var/log/traefik:ro
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "cscli", "lapi", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  crowdsec-config:
+  crowdsec-data:

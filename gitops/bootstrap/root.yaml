@@ -1,0 +1,170 @@
+# Racine GitOps (app-of-apps) : appliquée une seule fois par `task bootstrap:gitops`, puis auto-gérée.
+# - AppProjects : platform (socle), apps (applicatif CTF), cluster (objets Cluster API).
+# - Application `root` : synchronise gitops/platform (kustomization listant les Applications du socle).
+# - ApplicationSet `apps` (sync-wave 10) : une Application par dossier gitops/apps/*.
+# Toutes les valeurs viennent de infra/contracts.yaml (commentaires `# contracts:`).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: pad-gitops
+spec:
+  description: Socle de la plateforme (CNI, cert-manager, ingress, ArgoCD, opérateurs, observabilité)
+  sourceRepos:
+    - https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+    # Registres de charts Helm autorisés (à compléter à chaque nouveau chart du socle).
+    - https://helm.cilium.io
+    - https://charts.jetstack.io
+    - https://aureq.github.io/cert-manager-webhook-ovh
+    - https://traefik.github.io/charts
+    - https://argoproj.github.io/argo-helm
+    - https://prometheus-community.github.io/helm-charts
+    - https://kyverno.github.io/kyverno/
+    - https://kedacore.github.io/charts
+    - https://kubernetes.github.io/autoscaler
+    - https://kubernetes-sigs.github.io/external-dns/
+    - https://helm.mariadb.com/mariadb-operator
+    - https://valkey.io/valkey-helm/
+    - https://zotregistry.dev/helm-charts
+    - https://grafana.github.io/helm-charts
+    - https://git.deuxfleurs.fr/Deuxfleurs/garage.git
+    - ghcr.io/sergelogvinov/charts
+  destinations:
+    - { server: https://kubernetes.default.svc, namespace: kube-system }
+    - { server: https://kubernetes.default.svc, namespace: argocd }
+    - { server: https://kubernetes.default.svc, namespace: cert-manager }
+    - { server: https://kubernetes.default.svc, namespace: traefik }
+    - { server: https://kubernetes.default.svc, namespace: cluster-autoscaler }
+    - { server: https://kubernetes.default.svc, namespace: csi-proxmox }
+    - { server: https://kubernetes.default.svc, namespace: external-dns }
+    - { server: https://kubernetes.default.svc, namespace: keda }
+    - { server: https://kubernetes.default.svc, namespace: kyverno }
+    - { server: https://kubernetes.default.svc, namespace: mariadb-operator }
+    - { server: https://kubernetes.default.svc, namespace: observability } # contracts: namespaces.monitoring_agents
+    - { server: https://kubernetes.default.svc, namespace: registry } # contracts: namespaces.registry
+    - { server: https://kubernetes.default.svc, namespace: storage } # contracts: namespaces.storage
+    # Providers Cluster API (gitops/platform/capi-providers)
+    - { server: https://kubernetes.default.svc, namespace: capi-system }
+    - { server: https://kubernetes.default.svc, namespace: cabpt-system }
+    - { server: https://kubernetes.default.svc, namespace: cacppt-system }
+    - { server: https://kubernetes.default.svc, namespace: capmox-system }
+    - { server: https://kubernetes.default.svc, namespace: capi-ipam-in-cluster-system }
+  # Le socle porte des CRDs, Namespaces, ClusterRoles, webhooks, etc.
+  clusterResourceWhitelist:
+    - { group: "*", kind: "*" }
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: apps
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: pad-gitops
+spec:
+  description: Applications CTF (ctfd, frontend, chall-manager, netbird-sync)
+  sourceRepos:
+    - https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+  destinations:
+    - { server: https://kubernetes.default.svc, namespace: ctfd } # contracts: namespaces.ctfd
+    - { server: https://kubernetes.default.svc, namespace: frontend } # contracts: namespaces.frontend
+    - { server: https://kubernetes.default.svc, namespace: chall-manager } # contracts: namespaces.chall_manager
+    - { server: https://kubernetes.default.svc, namespace: netbird-sync } # contracts: namespaces.netbird_sync
+  # Uniquement les ressources cluster-scoped que les apps doivent porter : leur Namespace (gitops/apps/*/namespace.yaml,
+  # Delete=false) et le RBAC de chall-manager.
+  clusterResourceWhitelist:
+    - { group: "", kind: Namespace }
+    - { group: rbac.authorization.k8s.io, kind: ClusterRole }
+    - { group: rbac.authorization.k8s.io, kind: ClusterRoleBinding }
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: cluster
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: pad-gitops
+spec:
+  description: Objets Cluster API du cluster pad-prod (auto-hébergé)
+  sourceRepos:
+    - https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+  destinations:
+    - { server: https://kubernetes.default.svc, namespace: pad-cluster } # contracts: kubernetes.capi_namespace
+  clusterResourceWhitelist:
+    - { group: "", kind: Namespace }
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: pad-gitops
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+    targetRevision: main # contracts: git.branch
+    path: gitops/platform
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff: { duration: 15s, factor: 2, maxDuration: 5m }
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: apps
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: pad-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+        revision: main # contracts: git.branch
+        directories:
+          - path: gitops/apps/*
+  template:
+    metadata:
+      name: "{{ .path.basename }}"
+      labels:
+        app.kubernetes.io/part-of: pad-apps
+      annotations:
+        argocd.argoproj.io/sync-wave: "10"
+    spec:
+      project: apps
+      source:
+        repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+        targetRevision: main # contracts: git.branch
+        path: "{{ .path.path }}"
+      destination:
+        server: https://kubernetes.default.svc
+        # Convention : le dossier porte le nom du namespace (contracts: namespaces.*), créé par le namespace.yaml de l'app
+        # (le Namespace est autorisé dans le projet `apps`).
+        namespace: "{{ .path.basename }}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - ServerSideApply=true
+        retry:
+          limit: 10
+          backoff: { duration: 15s, factor: 2, maxDuration: 5m }

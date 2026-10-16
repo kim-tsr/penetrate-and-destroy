@@ -1,0 +1,9 @@
+// {{ ansible_managed }}
+// Uniquement les correctifs de sécurité Debian. Les paquets gelés (docker-ce, containerd.io, alloy) ne bougent pas.
+Unattended-Upgrade::Origins-Pattern {
+        "origin=Debian,codename=${distro_codename}-security,label=Debian-Security";
+};
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+Unattended-Upgrade::Remove-Unused-Dependencies "true";
+Unattended-Upgrade::Automatic-Reboot "{{ base_hardening_unattended_reboot | ternary('true', 'false') }}";
+Unattended-Upgrade::SyslogEnable "true";

@@ -1,0 +1,21 @@
+---
+# Source unique de vérité : infra/contracts.yaml, exposé sous la variable `pad`.
+# playbook_dir = infra/ansible/playbooks -> racine du repo trois niveaux au-dessus.
+pad_repo_root: "{{ playbook_dir | dirname | dirname | dirname }}"
+pad_contracts_file: "{{ pad_repo_root }}/infra/contracts.yaml"
+pad: "{{ lookup('ansible.builtin.file', pad_contracts_file) | from_yaml }}"
+
+# Secrets SOPS d'infra : secrets/<role>.sops.yaml (chargés par community.sops.load_vars dans chaque rôle).
+pad_secrets_dir: "{{ pad_repo_root }}/secrets"
+
+# Valeurs de site fournies par l'opérateur (secrets/site.sops.yaml, modèle : secrets/site.example.yaml) : accès SSH à l'hôte,
+# IP publique. Évaluées à l'usage seulement : un playbook qui n'en a pas besoin ne déchiffre rien.
+pad_site: "{{ lookup('community.sops.sops', pad_secrets_dir ~ '/site.sops.yaml') | from_yaml }}"
+
+# Raccourcis dérivés du contrat.
+pad_domain: "{{ pad.domain }}"
+pad_fqdn: "{{ dict(pad.hostnames | dict2items | map(attribute='key') | zip(pad.hostnames.values() | map('regex_replace', '$', '.' ~ pad.domain))) }}"
+pad_authentik_url: "https://{{ pad_fqdn.auth }}"
+# Endpoints OIDC Authentik d'une application (slug = client_id du contrat, créé par tofu 30-authentik).
+pad_authentik_issuer_tpl: "{{ pad_authentik_url }}/application/o/%s/"
+pad_compose_root: /opt/pad

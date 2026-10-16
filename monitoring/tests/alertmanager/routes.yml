@@ -1,0 +1,15 @@
+---
+# Tests de routage Alertmanager (amtool config routes test) : labels d'une alerte -> récepteurs attendus.
+- labels: { alertname: Watchdog, severity: none }
+  receivers: [watchdog]
+- labels: { alertname: InstanceDown, severity: critical, instance: "10.0.0.1:9100" }
+  receivers: [pad-critical]
+- labels: { alertname: DiskFull, severity: warning, instance: "10.0.0.1:9100" }
+  receivers: [pad-warning]
+- labels: { alertname: ZfsArcHitRatioLow, severity: info }
+  receivers: [pad-info]
+- labels: { alertname: Inconnue, severity: none }
+  receivers: [pad-null]
+# Une alerte sans sévérité tombe sur le récepteur par défaut (jamais perdue).
+- labels: { alertname: SansSeverite }
+  receivers: [pad-warning]

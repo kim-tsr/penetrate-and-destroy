@@ -1,0 +1,30 @@
+---
+# Toutes les versions déployées par Ansible, épinglées. Digests vérifiés avec `crane digest` (2026-10-16).
+# Renovate : le preset ":pinDigests" maintient les couples tag@sha256 ci-dessous.
+pad_images:
+  traefik: docker.io/library/traefik:v3.7.15@sha256:de7431ff85f306b709256819aaacd153e189ee25f8e86bb895aef1becbacf628
+  crowdsec: docker.io/crowdsecurity/crowdsec:v1.8.1@sha256:0f2523fa61ef507f15d953045cface490cc880670c62f2755ced17524107f71a
+  netbird_server: docker.io/netbirdio/netbird-server:0.81.0@sha256:e37e8ca1a6a18b979be0f987299969b402782579806cdeda5b8cda61098a073f
+  netbird_dashboard: docker.io/netbirdio/dashboard:v2.95.0@sha256:3d6adfee19dd8d34d795af51daee69d27d2081d2076a5a304cfdd14acc67d6f4
+  coturn: docker.io/coturn/coturn:4.18.0@sha256:bbefd3e1fdfdc0d58770fe01b581fd8b00d9f3a5580d00acb77cf719a6bc78e3
+  authentik: ghcr.io/goauthentik/server:2026.8.4@sha256:e7226ae116dac5aa0a5643803e735b010038f492c401e08e16b3bf1ac54c090c
+  postgres: docker.io/library/postgres:16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+  warpgate: ghcr.io/warp-tech/warpgate:0.29.2@sha256:259922c0b65199e9a0178ace0a0f70a547e2fe4641632a5d1dc19916f06660c1
+  victoriametrics: docker.io/victoriametrics/victoria-metrics:v1.154.0@sha256:4bd592341587d669b7f57d54bbb82bd21ac8675f4e24234b7703a7c0f85197d8
+  vmalert: docker.io/victoriametrics/vmalert:v1.154.0@sha256:f11d77f9ff68dfd63c871d0e59ae7b479f9c3fd0e8a685fef690fb88b794d938
+  alertmanager: docker.io/prom/alertmanager:v0.34.1@sha256:e9733bafb1bdef9b00e25a21f8f99dc26a22224bf16641ad754d1649f4c3357a
+  loki: docker.io/grafana/loki:3.7.8@sha256:1107dd5274e0ada47e42472b7a7e71f3b2a2fe878878108f3e2f9e51528f0193
+  tempo: docker.io/grafana/tempo:3.1.0@sha256:3076b8dcdfb32fd6bc5ccef85e7b7313e6199b9cb84366257fc17ecb696db5fd
+  grafana: docker.io/grafana/grafana:13.2.4@sha256:dbbc38ea21103cefb50396340cd88afec779c7e070b0a7bf5a75b4ce46651d3f
+  uptime_kuma: docker.io/louislam/uptime-kuma:2.5.6@sha256:9912da7d7d9b6ddc0c2d904beb84d24689c1ed9c33b81419eb9008663a92a329
+
+# Paquets apt (Debian 13 trixie). Les paquets Docker sont mis en hold après installation.
+pad_apt_versions:
+  docker_ce: "5:29.9.1-1~debian.13~trixie"
+  containerd: "2.4.2-2~debian.13~trixie"
+  docker_compose_plugin: "5.6.0-1~debian.13~trixie"
+  alloy: "1.20.1-1"
+
+# Plugin Traefik (téléchargé au démarrage depuis plugins.traefik.io).
+pad_traefik_plugins:
+  crowdsec_bouncer: v1.7.1   # github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin

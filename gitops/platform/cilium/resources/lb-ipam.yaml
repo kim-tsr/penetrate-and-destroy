@@ -1,0 +1,79 @@
+# Pools LB-IPAM + annonces L2 Cilium.
+# Cilium choisit le pool par serviceSelector : un Service LoadBalancer reçoit une IP du pool dont le selector
+# correspond à son label `pad.io/lb-pool: <nom du pool>` (contracts: kubernetes.lb_pool_label).
+---
+apiVersion: cilium.io/v2
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: ingress
+  labels:
+    app.kubernetes.io/name: cilium
+    app.kubernetes.io/component: lb-ipam
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  blocks:
+    - start: 10.20.60.200 # contracts: kubernetes.lb_pools.ingress[0]
+      stop: 10.20.60.220 # contracts: kubernetes.lb_pools.ingress[1]
+  serviceSelector:
+    matchLabels:
+      pad.io/lb-pool: ingress # contracts: kubernetes.lb_pool_label
+---
+apiVersion: cilium.io/v2
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: instances
+  labels:
+    app.kubernetes.io/name: cilium
+    app.kubernetes.io/component: lb-ipam
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  blocks:
+    - start: 10.20.70.100 # contracts: kubernetes.lb_pools.instances[0]
+      stop: 10.20.70.199 # contracts: kubernetes.lb_pools.instances[1]
+  serviceSelector:
+    matchLabels:
+      pad.io/lb-pool: instances # contracts: kubernetes.lb_pool_label
+---
+# Les IPs de LB doivent être annoncées (ARP) depuis un nœud situé dans le bon VLAN :
+# ingress => nœuds zone prod (VLAN 60), instances => nœuds zone challenges (VLAN 70).
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: ingress
+  labels:
+    app.kubernetes.io/name: cilium
+    app.kubernetes.io/component: l2-announcements
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  serviceSelector:
+    matchLabels:
+      pad.io/lb-pool: ingress # contracts: kubernetes.lb_pool_label
+  nodeSelector:
+    matchLabels:
+      pad.io/zone: prod
+  interfaces:
+    - ^e.* # eth0 / ens18 (NIC virtio unique des VMs Talos)
+  loadBalancerIPs: true
+---
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: instances
+  labels:
+    app.kubernetes.io/name: cilium
+    app.kubernetes.io/component: l2-announcements
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  serviceSelector:
+    matchLabels:
+      pad.io/lb-pool: instances # contracts: kubernetes.lb_pool_label
+  nodeSelector:
+    matchLabels:
+      pad.io/zone: challenges
+  interfaces:
+    - ^e.*
+  loadBalancerIPs: true

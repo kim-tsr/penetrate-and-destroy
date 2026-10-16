@@ -1,0 +1,81 @@
+---
+# Table nftables dédiée (ip pad_nat), chargée par une unité systemd propre : on n'utilise PAS nftables.service,
+# dont /etc/nftables.conf commence par "flush ruleset" et effacerait les règles du pare-feu Proxmox.
+- name: Activer le routage IPv4 (mode nat)
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: "1"
+    sysctl_file: /etc/sysctl.d/91-pad-nat.conf
+    state: present
+    reload: true
+  when: host_tuning_wan_mode == 'nat'
+
+- name: Installer nftables
+  ansible.builtin.apt:
+    name: nftables
+    state: present
+  when: host_tuning_wan_mode == 'nat'
+
+- name: Créer le répertoire des règles PAD
+  ansible.builtin.file:
+    path: /etc/pad
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Déployer les règles DNAT
+  ansible.builtin.template:
+    src: pad-nat.nft.j2
+    dest: /etc/pad/nat.nft
+    owner: root
+    group: root
+    mode: "0640"
+    validate: nft -c -f %s
+  when: host_tuning_wan_mode == 'nat'
+  notify: Recharger pad-nat
+
+- name: Déployer l'unité systemd pad-nat
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/pad-nat.service
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Géré par Ansible (rôle host-tuning)
+      [Unit]
+      Description=PenetrateAndDestroy - DNAT de repli vers OPNsense (wan.mode=nat)
+      After=network-online.target pve-firewall.service proxmox-firewall.service
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/usr/sbin/nft -f /etc/pad/nat.nft
+      ExecStop=-/usr/sbin/nft delete table ip pad_nat
+
+      [Install]
+      WantedBy=multi-user.target
+  register: host_tuning_nat_unit
+  when: host_tuning_wan_mode == 'nat'
+
+- name: Activer pad-nat
+  ansible.builtin.systemd_service:
+    name: pad-nat
+    enabled: true
+    state: started
+    daemon_reload: "{{ host_tuning_nat_unit is changed }}"
+  when: host_tuning_wan_mode == 'nat'
+
+- name: Lister les unités systemd (mode routed_ip)
+  ansible.builtin.service_facts:
+  when: host_tuning_wan_mode != 'nat'
+
+- name: Désactiver pad-nat hors mode nat (retire la table)
+  ansible.builtin.systemd_service:
+    name: pad-nat
+    enabled: false
+    state: stopped
+  when:
+    - host_tuning_wan_mode != 'nat'
+    - "'pad-nat.service' in ansible_facts.services"

@@ -1,0 +1,46 @@
+# ArgoCD (chart argo-cd 10.10.5) : auto-géré après le bootstrap (installé une première fois par bootstrap/).
+# Sources : (1) chart Helm épinglé, (2) ce repo en `$values`.
+# Secrets attendus dans le namespace argocd (hors Git, ou chiffrés SOPS via ksops) :
+#   - sops-age     : clé age privée du cluster (clé `keys.txt`), créée au bootstrap -> déchiffrement ksops
+#   - argocd-oidc  : clé `clientSecret` du client Authentik `pad-argocd` (label app.kubernetes.io/part-of=argocd)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd
+    app.kubernetes.io/part-of: pad-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: platform
+  sources:
+    - repoURL: https://argoproj.github.io/argo-helm
+      chart: argo-cd
+      targetRevision: 10.10.5
+      helm:
+        releaseName: argocd
+        valueFiles:
+          - $values/gitops/platform/argocd/values.yaml
+    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+      targetRevision: main # contracts: git.branch
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 10
+      backoff: { duration: 15s, factor: 2, maxDuration: 5m }
+  ignoreDifferences:
+    # Secret généré/muté au runtime (mot de passe admin, clé de signature serveur).
+    - kind: Secret
+      name: argocd-secret
+      jqPathExpressions: [.data]

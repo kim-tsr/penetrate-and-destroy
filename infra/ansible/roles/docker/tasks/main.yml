@@ -1,0 +1,61 @@
+---
+- name: Installer les prérequis du dépôt Docker
+  ansible.builtin.apt:
+    name: "{{ docker_prerequisites }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Déclarer le dépôt apt Docker
+  ansible.builtin.deb822_repository:
+    name: docker
+    types: [deb]
+    uris: "{{ docker_apt_uri }}"
+    suites: ["{{ docker_apt_suite }}"]
+    components: [stable]
+    signed_by: "{{ docker_apt_key_url }}"
+    state: present
+  register: docker_repo
+
+- name: Installer Docker CE, containerd et le plugin compose (versions épinglées)
+  ansible.builtin.apt:
+    name: "{{ item.name }}={{ item.version }}"
+    state: present
+    update_cache: "{{ docker_repo is changed }}"
+    allow_downgrade: true
+  loop: "{{ docker_packages }}"
+  loop_control:
+    label: "{{ item.name }}"
+  notify: Redémarrer docker
+
+- name: Geler les versions des paquets Docker
+  ansible.builtin.dpkg_selections:
+    name: "{{ item.name }}"
+    selection: hold
+  loop: "{{ docker_packages }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Créer le répertoire de configuration de Docker
+  ansible.builtin.file:
+    path: /etc/docker
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Déployer daemon.json
+  ansible.builtin.template:
+    src: daemon.json.j2
+    dest: /etc/docker/daemon.json
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Redémarrer docker
+
+- name: Activer et démarrer containerd et Docker
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop: [containerd, docker]

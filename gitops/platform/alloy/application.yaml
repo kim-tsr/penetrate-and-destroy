@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: alloy
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: alloy
+    app.kubernetes.io/part-of: platform
+    pad.io/zone: prod
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  sources:
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: alloy
+      targetRevision: 1.13.1
+      helm:
+        releaseName: alloy
+        valueFiles:
+          - $values/gitops/platform/alloy/values.yaml
+    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+      targetRevision: main # contracts: git.branch
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability # contracts: namespaces.monitoring_agents
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

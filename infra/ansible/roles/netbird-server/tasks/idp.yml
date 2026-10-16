@@ -1,0 +1,56 @@
+---
+- name: Lister les fournisseurs d'identité NetBird
+  ansible.builtin.uri:
+    url: "{{ netbird_server_api_url }}/identity-providers"
+    headers:
+      Authorization: "Token {{ netbird_server_api_token }}"
+    return_content: true
+  register: netbird_server_idps
+  changed_when: false
+  no_log: true
+
+- name: Créer le connecteur OIDC Authentik
+  ansible.builtin.uri:
+    url: "{{ netbird_server_api_url }}/identity-providers"
+    method: POST
+    headers:
+      Authorization: "Token {{ netbird_server_api_token }}"
+    body_format: json
+    body:
+      type: oidc
+      name: "{{ netbird_server_authentik_name }}"
+      issuer: "{{ netbird_server_authentik_issuer }}"
+      client_id: "{{ netbird_server_authentik_client_id }}"
+      client_secret: "{{ netbird_server_authentik_client_secret }}"
+  when: netbird_server_idps.json | selectattr('name', 'equalto', netbird_server_authentik_name) | list | length == 0
+  no_log: true
+
+- name: Récupérer le compte NetBird
+  ansible.builtin.uri:
+    url: "{{ netbird_server_api_url }}/accounts"
+    headers:
+      Authorization: "Token {{ netbird_server_api_token }}"
+    return_content: true
+  register: netbird_server_accounts
+  changed_when: false
+  no_log: true
+
+- name: Activer la synchronisation des groupes JWT
+  ansible.builtin.uri:
+    url: "{{ netbird_server_api_url }}/accounts/{{ netbird_server_accounts.json[0].id }}"
+    method: PUT
+    headers:
+      Authorization: "Token {{ netbird_server_api_token }}"
+    body_format: json
+    body:
+      settings: "{{ netbird_server_accounts.json[0].settings | combine(netbird_server_jwt_settings) }}"
+  vars:
+    netbird_server_jwt_settings:
+      jwt_groups_enabled: "{{ netbird_server_jwt_groups_enabled }}"
+      jwt_groups_claim_name: "{{ netbird_server_jwt_groups_claim }}"
+      jwt_allow_groups: "{{ netbird_server_jwt_allow_groups }}"
+  when: >-
+    netbird_server_accounts.json[0].settings.jwt_groups_enabled | default(false) != netbird_server_jwt_groups_enabled
+    or netbird_server_accounts.json[0].settings.jwt_groups_claim_name | default('') != netbird_server_jwt_groups_claim
+    or (netbird_server_accounts.json[0].settings.jwt_allow_groups | default([]) | sort) != (netbird_server_jwt_allow_groups | sort)
+  no_log: true

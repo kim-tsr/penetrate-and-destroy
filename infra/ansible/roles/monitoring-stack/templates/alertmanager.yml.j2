@@ -1,0 +1,106 @@
+# Géré par Ansible (rôle monitoring-stack). Contient des secrets : ne pas committer.
+# Sévérités émises par les règles (monitoring/rules/*.yml) : critical, warning, info, none (Watchdog uniquement).
+{% set secrets = monitoring_secrets %}
+{% set webhook_default = secrets.discord_webhook_url %}
+{% set webhook_info = secrets.discord_webhook_url_info | default(webhook_default) %}
+global:
+  smtp_smarthost: {{ secrets.smtp_smarthost | to_json }}
+  smtp_from: {{ secrets.smtp_from | to_json }}
+  smtp_auth_username: {{ secrets.smtp_username | to_json }}
+  smtp_auth_password: {{ secrets.smtp_password | to_json }}
+  smtp_require_tls: true
+
+templates:
+  - /etc/alertmanager/templates/*.tmpl
+
+route:
+  receiver: pad-warning
+  group_by: [alertname, instance, namespace]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    # Alerte de test permanente : heartbeat externe (Uptime Kuma, mode push) ; jamais Discord ni e-mail.
+    - matchers: ['alertname="Watchdog"']
+      receiver: watchdog
+      group_wait: 0s
+      group_interval: 1m
+      repeat_interval: 5m
+    # Toute autre alerte sans sévérité exploitable est ignorée côté notification (visible dans l'UI).
+    - matchers: ['severity="none"']
+      receiver: pad-null
+    - matchers: ['severity="critical"']
+      receiver: pad-critical
+      group_wait: 15s
+      group_interval: 3m
+      repeat_interval: 1h
+    - matchers: ['severity="warning"']
+      receiver: pad-warning
+      repeat_interval: 4h
+    - matchers: ['severity="info"']
+      receiver: pad-info
+      group_interval: 30m
+      repeat_interval: 24h
+
+receivers:
+  - name: pad-null
+  - name: watchdog
+{% if secrets.uptime_kuma_watchdog_token is defined and secrets.uptime_kuma_watchdog_token %}
+    webhook_configs:
+      # Moniteur "push" d'Uptime Kuma (réseau docker du compose). Kuma 2.x accepte aussi le POST.
+      - url: {{ ('http://uptime-kuma:3001/api/push/' ~ secrets.uptime_kuma_watchdog_token ~ '?status=up&msg=watchdog') | to_json }}
+        send_resolved: false
+{% endif %}
+  - name: pad-critical
+    discord_configs:
+      - webhook_url: {{ webhook_default | to_json }}
+        title: '{% raw %}{{ template "pad.discord.title" . }}{% endraw %}'
+        message: '{% raw %}{{ template "pad.discord.message" . }}{% endraw %}'
+        send_resolved: true
+    email_configs:
+      - to: {{ secrets.smtp_to | to_json }}
+        headers:
+          Subject: '{% raw %}{{ template "pad.email.subject" . }}{% endraw %}'
+        text: '{% raw %}{{ template "pad.email.text" . }}{% endraw %}'
+        send_resolved: true
+  - name: pad-warning
+    discord_configs:
+      - webhook_url: {{ webhook_default | to_json }}
+        title: '{% raw %}{{ template "pad.discord.title" . }}{% endraw %}'
+        message: '{% raw %}{{ template "pad.discord.message" . }}{% endraw %}'
+        send_resolved: true
+  - name: pad-info
+    discord_configs:
+      - webhook_url: {{ webhook_info | to_json }}
+        title: '{% raw %}{{ template "pad.discord.title" . }}{% endraw %}'
+        message: '{% raw %}{{ template "pad.discord.message" . }}{% endraw %}'
+        send_resolved: false
+
+inhibit_rules:
+  # Une cible down masque les autres alertes de la même instance.
+  - source_matchers: ['alertname="InstanceDown"']
+    target_matchers: ['severity=~"warning|info"']
+    equal: [instance]
+  # Routeur OPNsense HS : les zones sont coupées, les InstanceDown/DockerDaemonDown en cascade sont du bruit.
+  - source_matchers: ['alertname="OpnsenseDown"']
+    target_matchers: ['alertname=~"InstanceDown|DockerDaemonDown"']
+  # La variante critique masque la variante d'avertissement du même objet.
+  - source_matchers: ['alertname="DiskCritical"']
+    target_matchers: ['alertname=~"DiskFull|DiskWillFillIn24h"']
+    equal: [instance, mountpoint]
+  - source_matchers: ['alertname="PveStorageCritical"']
+    target_matchers: ['alertname="PveStorageHigh"']
+    equal: [id]
+  - source_matchers: ['alertname="CertExpiryCritical"']
+    target_matchers: ['alertname="CertExpiry"']
+    equal: [instance, cn]
+  # Un composant arrêté explique l'absence ou la péremption de ses métriques et les erreurs applicatives associées.
+  - source_matchers: ['alertname="CtfdDeploymentDown"']
+    target_matchers: ['alertname=~"CtfdMetricsMissing|CtfdMetricsStale|FrontendCtfdSlow"']
+  - source_matchers: ['alertname="ChallManagerDeploymentDown"']
+    target_matchers: ['alertname=~"ChallManagerErrorRate|CtfdInstancesDrift"']
+  - source_matchers: ['alertname="NetbirdSyncDeploymentDown"']
+    target_matchers: ['alertname="NetbirdSyncErrors"']
+  # Plus de télémétrie cluster : les alertes Kubernetes déjà actives ne sont plus fiables.
+  - source_matchers: ['alertname="ClusterMetricsMissing"']
+    target_matchers: ['alertname=~"Kube.*|ArgoCD.*|HpaMaxedOut|ClusterAutoscaler.*"']

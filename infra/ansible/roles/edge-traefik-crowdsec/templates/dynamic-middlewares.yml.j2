@@ -1,0 +1,57 @@
+# Géré par Ansible (rôle edge-traefik-crowdsec) - middlewares (contient la clé du bouncer : mode 0600)
+http:
+  middlewares:
+    security-headers:
+      headers:
+        stsSeconds: {{ edge_traefik_crowdsec_hsts_seconds }}
+        stsIncludeSubdomains: true
+        stsPreload: true
+        forceSTSHeader: true
+        frameDeny: true
+        contentTypeNosniff: true
+        referrerPolicy: strict-origin-when-cross-origin
+        contentSecurityPolicy: {{ edge_traefik_crowdsec_csp | to_json }}
+        customResponseHeaders:
+          Server: ""
+          X-Powered-By: ""
+
+    rate-limit:
+      rateLimit:
+        average: {{ edge_traefik_crowdsec_rate_limit.average }}
+        burst: {{ edge_traefik_crowdsec_rate_limit.burst }}
+        period: {{ edge_traefik_crowdsec_rate_limit.period }}
+
+    rate-limit-vpn:
+      rateLimit:
+        average: {{ edge_traefik_crowdsec_rate_limit_vpn.average }}
+        burst: {{ edge_traefik_crowdsec_rate_limit_vpn.burst }}
+        period: {{ edge_traefik_crowdsec_rate_limit_vpn.period }}
+
+    # Bouncer CrowdSec : décisions LAPI en mode live + WAF AppSec.
+    crowdsec-bouncer:
+      plugin:
+        crowdsec-bouncer:
+          enabled: true
+          crowdsecMode: live
+          crowdsecLapiScheme: http
+          crowdsecLapiHost: "crowdsec:{{ edge_traefik_crowdsec_lapi_port }}"
+          crowdsecLapiKey: {{ edge_traefik_crowdsec_secrets.crowdsec_bouncer_key | to_json }}
+          crowdsecAppsecEnabled: true
+          crowdsecAppsecHost: "crowdsec:{{ edge_traefik_crowdsec_appsec_port }}"
+          crowdsecAppsecFailureBlock: true
+          crowdsecAppsecUnreachableBlock: false
+          clientTrustedIPs: {{ edge_traefik_crowdsec_trusted_cidrs | to_json }}
+
+    edge-default:
+      chain:
+        middlewares:
+          - crowdsec-bouncer@file
+          - rate-limit@file
+          - security-headers@file
+
+    edge-vpn:
+      chain:
+        middlewares:
+          - crowdsec-bouncer@file
+          - rate-limit-vpn@file
+          - security-headers@file

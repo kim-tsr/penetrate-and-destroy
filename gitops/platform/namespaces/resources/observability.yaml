@@ -1,0 +1,94 @@
+# Namespace observability : PSS privileged, NetworkPolicy Cilium default-deny + autorisations minimales.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observability
+  labels:
+    pad.io/zone: prod
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false
+---
+# Base commune : tout endpoint du namespace est sélectionné (=> default-deny en entrée ET en sortie),
+# puis on autorise : trafic intra-namespace, DNS (kube-dns), API Kubernetes, scrape depuis observability.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-baseline
+  namespace: observability
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: observability
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: observability # contracts: namespaces.monitoring_agents
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: observability
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: ANY }
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toEntities: [kube-apiserver]
+---
+# Alloy : scrape des ServiceMonitors/PodMonitors de tous les namespaces + envoi vers la stack MONITORING.
+# Les namespaces cibles autorisent déjà l'entrée depuis `observability` (default-deny-baseline) ; sans ces règles de
+# sortie, le default-deny ci-dessus bloquerait le scrape et le remote_write. S'ajoute à la baseline (union des règles).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: alloy-egress-scrape
+  namespace: observability
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: alloy
+  egress:
+    # Pods du cluster (ArgoCD, KEDA, Kyverno, cert-manager, Traefik, cluster-autoscaler, MariaDB operator, Valkey,
+    # Garage, Zot, CTFd...) : uniquement les ports de métriques connus.
+    # 3903 Garage, 5000 Zot, 8000 Kyverno/CTFd, 8080 KEDA/mariadb-operator/kube-state-metrics,
+    # 8082-8085 ArgoCD/cluster-autoscaler, 9100 Traefik/node-exporter, 9104 exporter MariaDB,
+    # 9121 exporter Valkey, 9402 cert-manager.
+    - toEndpoints:
+        - {}
+      toPorts:
+        - ports:
+            - { port: "3903", protocol: TCP }
+            - { port: "5000", protocol: TCP }
+            - { port: "8000", protocol: TCP }
+            - { port: "8080", protocol: TCP }
+            - { port: "8082", endPort: 8085, protocol: TCP }
+            - { port: "9100", protocol: TCP }
+            - { port: "9104", protocol: TCP }
+            - { port: "9121", protocol: TCP }
+            - { port: "9402", protocol: TCP }
+    # Pods en hostNetwork (agent/operator Cilium 9962-9966, node-exporter 9100) et kubelet (10250 : /metrics et
+    # /metrics/cadvisor du nœud local) : joints via l'IP du nœud.
+    - toEntities: [host, remote-node]
+      toPorts:
+        - ports:
+            - { port: "9100", protocol: TCP }
+            - { port: "10250", protocol: TCP }
+            - { port: "9962", endPort: 9966, protocol: TCP }
+    # Stack MONITORING (VictoriaMetrics, Loki, Tempo OTLP gRPC).
+    - toCIDR:
+        - 10.20.50.10/32 # contracts: monitoring.remote_write (hôte monitoring)
+      toPorts:
+        - ports:
+            - { port: "8428", protocol: TCP } # contracts: ports.monitoring.victoriametrics
+            - { port: "3100", protocol: TCP } # contracts: ports.monitoring.loki
+            - { port: "4317", protocol: TCP } # contracts: ports.monitoring.otlp_grpc

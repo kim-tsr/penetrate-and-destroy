@@ -1,0 +1,23 @@
+name: XOR Warmup
+author: orgas
+category: crypto
+description: |
+  Un message a été chiffré avec une clé très courte. Le flag commence par `PAD{`.
+type: dynamic
+extra:
+  initial: 300
+  decay: 20
+  minimum: 100
+  function: logarithmic
+flags:
+  - type: static
+    content: "PAD{x0r_k3y_is_4_byt3s_l0ng}"
+    data: case_sensitive
+files:
+  - cipher.bin
+hints:
+  - content: "Le début du flag est connu : récupérez la clé."
+    cost: 20
+tags: [xor, warmup]
+state: hidden
+version: "0.1"

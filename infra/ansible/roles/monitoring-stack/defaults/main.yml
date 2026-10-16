@@ -1,0 +1,38 @@
+---
+monitoring_stack_dir: "{{ pad_compose_root }}/monitoring"
+monitoring_stack_secrets_file: "{{ pad_secrets_dir }}/monitoring.sops.yaml"
+
+# Images : tag@sha256 centralisés dans group_vars/all/versions.yml.
+monitoring_stack_images: "{{ pad_images }}"
+
+# Rétentions.
+monitoring_stack_vm_retention: 30d
+monitoring_stack_loki_retention: 336h   # 14 jours
+monitoring_stack_tempo_retention: 336h  # 14 jours
+
+# Intervalle de scrape global de vmagent (intégré à VictoriaMetrics).
+monitoring_stack_scrape_interval: 30s
+
+# Grafana : OIDC Authentik (client_id = contrat identity.oidc_clients.grafana, slug identique).
+monitoring_stack_grafana_url: "https://{{ pad_fqdn.grafana }}"
+monitoring_stack_grafana_oidc_client_id: "{{ pad.identity.oidc_clients.grafana }}"
+monitoring_stack_grafana_admin_groups: [infra-admins, ctf-admins]
+
+# Dashboards Grafana et règles vmalert : sources versionnées dans monitoring/ (copiées sur le LXC, supprimées si retirées du dépôt).
+monitoring_stack_dashboards_src: "{{ pad_repo_root }}/monitoring/dashboards/"
+monitoring_stack_rules_src: "{{ pad_repo_root }}/monitoring/rules/"
+
+# Préfixe des runbook_url (chemins relatifs docs/runbooks/*.md dans les règles) pour les notifications Alertmanager.
+monitoring_stack_runbook_base_url: "{{ pad.git.repo | regex_replace('\\.git$', '') }}/blob/{{ pad.git.branch }}/"
+
+# GID du groupe "nogroup" lu par Alertmanager (utilisateur nobody) pour sa configuration contenant des secrets.
+monitoring_stack_alertmanager_gid: 65534
+
+# Sondes Uptime Kuma déclaratives (monitoring/uptime-kuma/monitors.yml) appliquées depuis le contrôleur Ansible.
+# Désactivé par défaut : requiert `pip install -r monitoring/uptime-kuma/requirements.txt` sur le contrôleur et un accès
+# réseau du contrôleur vers Uptime Kuma (zone MONITORING, port ports.monitoring.uptime_kuma).
+monitoring_stack_uptime_kuma_sync: false
+monitoring_stack_uptime_kuma_url: "http://{{ pad.services.monitoring.ip }}:{{ pad.ports.monitoring.uptime_kuma }}"
+monitoring_stack_uptime_kuma_monitors_file: "{{ pad_repo_root }}/monitoring/uptime-kuma/monitors.yml"
+monitoring_stack_uptime_kuma_sync_script: "{{ pad_repo_root }}/monitoring/uptime-kuma/sync.py"
+monitoring_stack_uptime_kuma_python: python3

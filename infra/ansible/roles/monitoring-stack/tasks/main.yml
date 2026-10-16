@@ -1,0 +1,164 @@
+---
+- name: Charger les secrets de monitoring (SOPS)
+  community.sops.load_vars:
+    file: "{{ monitoring_stack_secrets_file }}"
+    name: monitoring_secrets
+  no_log: true
+  delegate_to: localhost
+  become: false
+
+- name: Créer les répertoires de la stack
+  ansible.builtin.file:
+    path: "{{ monitoring_stack_dir }}/{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - ""
+    - config
+    - config/victoriametrics
+    - config/vmalert
+    - config/vmalert/rules
+    - config/alertmanager
+    - config/alertmanager/templates
+    - config/loki
+    - config/tempo
+    - config/grafana
+    - config/grafana/provisioning
+    - config/grafana/provisioning/datasources
+    - config/grafana/provisioning/dashboards
+    - config/grafana/dashboards
+
+- name: Écrire les fichiers de configuration
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ monitoring_stack_dir }}/{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - { src: compose.yml.j2, dest: compose.yml }
+    - { src: scrape.yml.j2, dest: config/victoriametrics/scrape.yml }
+    - { src: loki.yml.j2, dest: config/loki/loki.yml }
+    - { src: tempo.yml.j2, dest: config/tempo/tempo.yml }
+    - { src: grafana-datasources.yml.j2, dest: config/grafana/provisioning/datasources/datasources.yml }
+    - { src: grafana-dashboards.yml.j2, dest: config/grafana/provisioning/dashboards/dashboards.yml }
+    - { src: alertmanager-pad.tmpl.j2, dest: config/alertmanager/templates/pad.tmpl }
+  loop_control:
+    label: "{{ item.dest }}"
+  register: monitoring_stack_config
+
+- name: Écrire la configuration d'Alertmanager (secrets)
+  ansible.builtin.template:
+    src: alertmanager.yml.j2
+    dest: "{{ monitoring_stack_dir }}/config/alertmanager/alertmanager.yml"
+    owner: root
+    group: "{{ monitoring_stack_alertmanager_gid }}"
+    mode: "0640"
+  no_log: true
+  register: monitoring_stack_alertmanager
+
+- name: Écrire le fichier d'environnement (secrets)
+  ansible.builtin.template:
+    src: monitoring.env.j2
+    dest: "{{ monitoring_stack_dir }}/.env"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  register: monitoring_stack_env
+
+# Règles recording/alerting : source unique monitoring/rules/ du dépôt (validées par monitoring/scripts/check.sh).
+- name: Lister les règles vmalert du dépôt
+  ansible.builtin.find:
+    paths: "{{ monitoring_stack_rules_src }}"
+    patterns: "*.yml"
+  delegate_to: localhost
+  become: false
+  register: monitoring_stack_rules_src_files
+
+- name: Déposer les règles vmalert
+  ansible.builtin.copy:
+    src: "{{ item.path }}"
+    dest: "{{ monitoring_stack_dir }}/config/vmalert/rules/{{ item.path | basename }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ monitoring_stack_rules_src_files.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  register: monitoring_stack_rules
+
+- name: Lister les règles vmalert déployées
+  ansible.builtin.find:
+    paths: "{{ monitoring_stack_dir }}/config/vmalert/rules"
+    patterns: "*.yml"
+  register: monitoring_stack_rules_deployed
+
+- name: Retirer les règles vmalert supprimées du dépôt
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ monitoring_stack_rules_deployed.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when: (item.path | basename) not in (monitoring_stack_rules_src_files.files | map(attribute='path') | map('basename') | list)
+  register: monitoring_stack_rules_removed
+
+- name: Rechercher les dashboards du dépôt
+  ansible.builtin.find:
+    paths: "{{ monitoring_stack_dashboards_src }}"
+    patterns: "*.json"
+  delegate_to: localhost
+  become: false
+  failed_when: false
+  register: monitoring_stack_dashboards_src_files
+
+- name: Déposer les dashboards Grafana
+  ansible.builtin.copy:
+    src: "{{ item.path }}"
+    dest: "{{ monitoring_stack_dir }}/config/grafana/dashboards/{{ item.path | basename }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ monitoring_stack_dashboards_src_files.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  register: monitoring_stack_dashboards
+
+- name: Lister les dashboards déployés
+  ansible.builtin.find:
+    paths: "{{ monitoring_stack_dir }}/config/grafana/dashboards"
+    patterns: "*.json"
+  register: monitoring_stack_dashboards_deployed
+
+- name: Retirer les dashboards supprimés du dépôt
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ monitoring_stack_dashboards_deployed.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when: >-
+    (item.path | basename) not in
+    (monitoring_stack_dashboards_src_files.files | default([]) | map(attribute='path') | map('basename') | list)
+  register: monitoring_stack_dashboards_removed
+
+- name: Démarrer la stack de monitoring
+  community.docker.docker_compose_v2:
+    project_src: "{{ monitoring_stack_dir }}"
+    state: present
+    pull: missing
+    recreate: >-
+      {{ 'always' if (monitoring_stack_config is changed or monitoring_stack_alertmanager is changed
+      or monitoring_stack_env is changed or monitoring_stack_rules is changed
+      or monitoring_stack_rules_removed is changed
+      or monitoring_stack_dashboards is changed or monitoring_stack_dashboards_removed is changed)
+      else 'auto' }}
+    wait: true
+    wait_timeout: 300
+
+- name: Synchroniser les sondes Uptime Kuma
+  ansible.builtin.include_tasks: uptime-kuma.yml
+  when: monitoring_stack_uptime_kuma_sync | bool

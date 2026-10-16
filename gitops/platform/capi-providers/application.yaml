@@ -1,0 +1,61 @@
+# Providers Cluster API (core, CABPT, CACPPT, CAPMOX, IPAM in-cluster) : controllers qui gèrent les VMs du cluster pad-prod
+# depuis pad-prod lui-même (auto-hébergé, après `clusterctl move`). Manifests rendus par
+# bootstrap/scripts/render-providers.sh à partir des versions du contrat (infra/contracts.yaml -> kubernetes.capi.*) ; voir README.md.
+#
+# Garde-fous (cette Application porte l'état du cluster lui-même) :
+# - sync-wave -4 : après cert-manager (-7, Certificates/Issuers et injection des caBundle) et Cilium (-9),
+#   avant cluster-autoscaler (-3, provider clusterapi : lit les CRDs CAPI) et Application `cluster-prod` (wave 5, projet cluster) ;
+# - prune désactivé (CRDs en Delete=false/Prune=false, Namespaces en Delete=false : cf. manifests/kustomization.yaml) ;
+# - pas de finalizer resources-finalizer : supprimer l'Application ne supprime pas les controllers ;
+# - Prune=false sur l'Application elle-même : l'Application `root` (prune: true) ne la supprime jamais ;
+# - Server-Side Apply (CRDs > 262144 octets) : adopte sans les recréer les objets posés par `clusterctl init`.
+# Le Secret capmox-manager-credentials n'est pas rendu : il est créé par `clusterctl init` (bootstrap/scripts/capi-common.sh)
+# et n'est jamais pruné ici.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: capi-providers
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: capi-providers
+    app.kubernetes.io/part-of: pad-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-4"
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+    targetRevision: main # contracts: git.branch
+    path: gitops/platform/capi-providers/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    # Indicatif : chaque ressource porte son namespace (capi-system, cabpt-system, cacppt-system, capmox-system,
+    # capi-ipam-in-cluster-system), tous autorisés par le projet platform.
+    namespace: capi-system
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      # Certificate/Issuer (cert-manager) et Provider (CRD créée par `clusterctl init`) peuvent manquer au dry-run.
+      - SkipDryRunOnMissingResource=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff: { duration: 15s, factor: 2, maxDuration: 5m }
+  ignoreDifferences:
+    # caBundle injecté par cert-manager (cainjector, annotation cert-manager.io/inject-ca-from).
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      jqPathExpressions:
+        - ".webhooks[]?.clientConfig.caBundle"
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      jqPathExpressions:
+        - ".webhooks[]?.clientConfig.caBundle"
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      jqPathExpressions:
+        - ".spec.conversion.webhook.clientConfig.caBundle"

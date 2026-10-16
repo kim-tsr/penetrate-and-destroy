@@ -1,0 +1,3 @@
+# Chart prometheus-operator-crds : CRDs uniquement, aucun pod. Aucune surcharge nécessaire ;
+# le fichier existe pour le multi-source ($values) et pour les futures options du chart.
+{}

@@ -1,0 +1,122 @@
+---
+- name: Charger les secrets SOPS de l'edge
+  community.sops.load_vars:
+    file: "{{ edge_traefik_crowdsec_secrets_file }}"
+    name: edge_traefik_crowdsec_secrets
+  no_log: true
+
+- name: Vérifier la présence des secrets requis
+  ansible.builtin.assert:
+    that:
+      - edge_traefik_crowdsec_secrets.ovh_application_key is defined
+      - edge_traefik_crowdsec_secrets.ovh_application_secret is defined
+      - edge_traefik_crowdsec_secrets.ovh_consumer_key is defined
+      - edge_traefik_crowdsec_secrets.crowdsec_bouncer_key is defined
+    quiet: true
+  no_log: true
+
+- name: Installer logrotate
+  ansible.builtin.apt:
+    name: logrotate
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Créer les répertoires de l'edge
+  ansible.builtin.file:
+    path: "{{ edge_traefik_crowdsec_dir }}/{{ item.path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "", mode: "0750" }
+    - { path: traefik, mode: "0750" }
+    - { path: traefik/dynamic, mode: "0750" }
+    - { path: traefik/acme, mode: "0700" }
+    - { path: traefik/plugins, mode: "0750" }
+    - { path: logs, mode: "0750" }
+    - { path: logs/traefik, mode: "0750" }
+    - { path: crowdsec, mode: "0750" }
+    - { path: crowdsec/acquis.d, mode: "0750" }
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Déployer les fichiers d'environnement (secrets)
+  ansible.builtin.template:
+    src: "{{ item }}.env.j2"
+    dest: "{{ edge_traefik_crowdsec_dir }}/{{ item }}.env"
+    owner: root
+    group: root
+    mode: "0600"
+  loop: [traefik, crowdsec]
+  no_log: true
+  notify:
+    - Redémarrer traefik
+    - Redémarrer crowdsec
+
+- name: Déployer la configuration statique de Traefik
+  ansible.builtin.template:
+    src: traefik.yml.j2
+    dest: "{{ edge_traefik_crowdsec_dir }}/traefik/traefik.yml"
+    owner: root
+    group: root
+    mode: "0640"
+  notify: Redémarrer traefik
+
+- name: Déployer la configuration dynamique de Traefik (routers)
+  ansible.builtin.template:
+    src: dynamic-routers.yml.j2
+    dest: "{{ edge_traefik_crowdsec_dir }}/traefik/dynamic/routers.yml"
+    owner: root
+    group: root
+    mode: "0640"
+
+- name: Déployer la configuration dynamique de Traefik (middlewares, clé du bouncer)
+  ansible.builtin.template:
+    src: dynamic-middlewares.yml.j2
+    dest: "{{ edge_traefik_crowdsec_dir }}/traefik/dynamic/middlewares.yml"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+- name: Déployer la configuration CrowdSec
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ edge_traefik_crowdsec_dir }}/crowdsec/{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - { src: crowdsec-config.yaml.local.j2, dest: config.yaml.local }
+    - { src: crowdsec-acquis-traefik.yaml.j2, dest: acquis.d/traefik.yaml }
+    - { src: crowdsec-acquis-appsec.yaml.j2, dest: acquis.d/appsec.yaml }
+  loop_control:
+    label: "{{ item.dest }}"
+  notify: Redémarrer crowdsec
+
+- name: Déployer la rotation des logs d'accès Traefik
+  ansible.builtin.template:
+    src: logrotate-traefik.j2
+    dest: /etc/logrotate.d/pad-edge-traefik
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Déployer le fichier compose
+  ansible.builtin.template:
+    src: compose.yml.j2
+    dest: "{{ edge_traefik_crowdsec_dir }}/compose.yml"
+    owner: root
+    group: root
+    mode: "0640"
+  register: edge_traefik_crowdsec_compose
+
+- name: Démarrer la stack edge (Traefik + CrowdSec)
+  community.docker.docker_compose_v2:
+    project_src: "{{ edge_traefik_crowdsec_dir }}"
+    files: [compose.yml]
+    state: present
+    pull: missing
+    remove_orphans: true

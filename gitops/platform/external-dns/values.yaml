@@ -1,0 +1,45 @@
+# external-dns chart 1.23.0, provider OVH.
+# DÉSACTIVÉ par défaut : les enregistrements DNS publics sont gérés par OpenTofu/OPNsense (edge).
+# Pour l'activer : replicaCount: 1, renseigner domainFilters et fournir le Secret `external-dns-ovh` (README.md).
+replicaCount: 0
+
+provider:
+  name: ovh
+
+# Un seul domaine géré, jamais toute la zone OVH du compte.
+domainFilters:
+  - CHANGEME.example.net # contracts: domain
+
+sources:
+  - service
+  - ingress
+
+policy: upsert-only # ne supprime jamais d'enregistrement existant
+registry: txt
+txtOwnerId: pad-prod # contracts: kubernetes.cluster_name
+interval: 5m
+logFormat: json
+logLevel: info
+
+env:
+  - name: OVH_ENDPOINT
+    value: ovh-eu # contracts: acme.ovh_endpoint
+  - name: OVH_APPLICATION_KEY
+    valueFrom:
+      secretKeyRef: { name: external-dns-ovh, key: application_key }
+  - name: OVH_APPLICATION_SECRET
+    valueFrom:
+      secretKeyRef: { name: external-dns-ovh, key: application_secret }
+  - name: OVH_CONSUMER_KEY
+    valueFrom:
+      secretKeyRef: { name: external-dns-ovh, key: consumer_key }
+
+nodeSelector:
+  pad.io/pool: platform # contracts: kubernetes.pools.platform
+
+resources:
+  requests: { cpu: 10m, memory: 32Mi }
+  limits: { memory: 64Mi }
+
+serviceMonitor:
+  enabled: false

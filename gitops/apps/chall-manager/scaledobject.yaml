@@ -1,0 +1,22 @@
+# Un seul ScaledObject KEDA par Deployment (pas de HPA séparé).
+# maxReplicaCount: 1 tant que le stockage est RWO (cf. deployment.yaml) : le ScaledObject
+# porte le déclencheur CPU et le plafond ; monter max (et déployer etcd + PVC RWX) pour scaler.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: chall-manager
+  namespace: chall-manager
+  labels:
+    app.kubernetes.io/name: chall-manager
+    app.kubernetes.io/part-of: chall-manager
+spec:
+  scaleTargetRef:
+    name: chall-manager
+  minReplicaCount: 1
+  maxReplicaCount: 1
+  cooldownPeriod: 300
+  triggers:
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "70"

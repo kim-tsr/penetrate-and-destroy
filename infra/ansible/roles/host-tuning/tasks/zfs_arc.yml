@@ -1,0 +1,22 @@
+---
+- name: Persister la limite de l'ARC ZFS
+  ansible.builtin.copy:
+    dest: /etc/modprobe.d/zfs.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Géré par Ansible (rôle host-tuning) - contracts: host.zfs_arc_max_bytes
+      options zfs zfs_arc_max={{ host_tuning_zfs_arc_max }}
+  notify: Régénérer l'initramfs
+
+- name: Lire la limite ARC courante
+  ansible.builtin.slurp:
+    src: /sys/module/zfs/parameters/zfs_arc_max
+  register: host_tuning_arc_current
+
+- name: Appliquer la limite ARC à chaud
+  ansible.builtin.shell:
+    cmd: "printf '%s' {{ host_tuning_zfs_arc_max | quote }} > /sys/module/zfs/parameters/zfs_arc_max"
+  when: (host_tuning_arc_current.content | b64decode | trim) != (host_tuning_zfs_arc_max | string)
+  changed_when: true

@@ -1,0 +1,21 @@
+#!/usr/sbin/nft -f
+# {{ ansible_managed }}
+# DNAT de repli (wan.mode = nat) : IP publique de l'hôte -> WAN OPNsense sur le transit {{ pad.wan.transit_cidr }}.
+# Idempotent : la table est recréée à chaque chargement, sans toucher aux autres tables (pare-feu Proxmox).
+table ip pad_nat
+delete table ip pad_nat
+
+table ip pad_nat {
+  chain prerouting {
+    type nat hook prerouting priority dstnat; policy accept;
+{% for p in pad.wan.public_ports %}
+    iifname "{{ pad.host.wan_bridge }}" ip daddr {{ pad_site.wan.ip }} {{ p.proto }} dport {{ p.port }} dnat to {{ host_tuning_transit_router_ip }} comment "{{ p.proto }}/{{ p.port }} -> {{ p.to }}"
+{% endfor %}
+  }
+
+  chain postrouting {
+    type nat hook postrouting priority srcnat; policy accept;
+    # Sortie internet de la plateforme (OPNsense NATe déjà les zones derrière son WAN de transit).
+    oifname "{{ pad.host.wan_bridge }}" ip saddr {{ pad.wan.transit_cidr }} masquerade
+  }
+}

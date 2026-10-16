@@ -1,0 +1,35 @@
+# Application ArgoCD : proxmox-csi-plugin (volumes persistants sur ZFS Proxmox). Chart OCI épinglé.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: proxmox-csi
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: proxmox-csi-plugin
+    app.kubernetes.io/part-of: pad-platform
+    pad.io/zone: prod
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: platform
+  sources:
+    - repoURL: ghcr.io/sergelogvinov/charts # OCI (sans le préfixe oci://)
+      chart: proxmox-csi-plugin
+      targetRevision: 0.5.12
+      helm:
+        releaseName: proxmox-csi
+        valueFiles:
+          - $values/gitops/platform/proxmox-csi/values.yaml
+    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+      targetRevision: main # contracts: git.branch
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: csi-proxmox
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 5
+      backoff: { duration: 10s, factor: 2, maxDuration: 3m }

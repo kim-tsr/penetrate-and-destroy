@@ -1,0 +1,65 @@
+# cert-manager v1.21.2 + webhook DNS-01 OVH 0.9.18 + ClusterIssuers (pad-internal-ca, letsencrypt-ovh).
+# Sources : (1) chart cert-manager, (2) chart cert-manager-webhook-ovh (crée ClusterIssuer letsencrypt-ovh),
+# (3) ce repo en `$values`, (4) ressources (CA interne `pad-internal-ca`).
+# Les Secrets (ovh-credentials) sont fournis chiffrés SOPS (ksops) : voir resources/ovh-credentials.example.yaml.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: cert-manager
+    app.kubernetes.io/part-of: pad-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-7"
+spec:
+  project: platform
+  sources:
+    - repoURL: https://charts.jetstack.io
+      chart: cert-manager
+      targetRevision: v1.21.2
+      helm:
+        releaseName: cert-manager
+        valueFiles:
+          - $values/gitops/platform/cert-manager/values.yaml
+    - repoURL: https://aureq.github.io/cert-manager-webhook-ovh
+      chart: cert-manager-webhook-ovh
+      targetRevision: 0.9.18
+      helm:
+        releaseName: cert-manager-webhook-ovh
+        valueFiles:
+          - $values/gitops/platform/cert-manager/values-webhook-ovh.yaml
+    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+      targetRevision: main # contracts: git.branch
+      ref: values
+    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+      targetRevision: main # contracts: git.branch
+      path: gitops/platform/cert-manager/resources
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      # ClusterIssuer / Certificate : leurs CRDs arrivent avec le chart cert-manager dans la même synchronisation.
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 10
+      backoff: { duration: 15s, factor: 2, maxDuration: 5m }
+  ignoreDifferences:
+    # caBundle injecté par cainjector
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      jqPathExpressions:
+        - ".webhooks[]?.clientConfig.caBundle"
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      jqPathExpressions:
+        - ".webhooks[]?.clientConfig.caBundle"
+    - group: apiregistration.k8s.io
+      kind: APIService
+      jqPathExpressions:
+        - ".spec.caBundle"

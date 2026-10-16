@@ -1,0 +1,100 @@
+# RBAC de chall-manager : il crée un namespace par instance (inst-*) puis y déploie
+# Deployment/Service/NetworkPolicy via Pulumi. Les namespaces étant cluster-scoped et RBAC ne
+# filtrant pas par préfixe, les droits sont posés en ClusterRole minimal (aucun accès aux Secrets,
+# ConfigMaps, RBAC...) et la ValidatingAdmissionPolicy ci-dessous interdit toute écriture hors inst-*.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: chall-manager
+  namespace: chall-manager
+  labels:
+    app.kubernetes.io/name: chall-manager
+    app.kubernetes.io/part-of: chall-manager
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pad:chall-manager-instances
+  labels:
+    app.kubernetes.io/name: chall-manager
+    app.kubernetes.io/part-of: chall-manager
+rules:
+  - apiGroups: [""]
+    resources: [namespaces, services]
+    verbs: [create, get, list, watch, update, patch, delete]
+  - apiGroups: ["apps"]
+    resources: [deployments]
+    verbs: [create, get, list, watch, update, patch, delete]
+  - apiGroups: ["networking.k8s.io"]
+    resources: [networkpolicies]
+    verbs: [create, get, list, watch, update, patch, delete]
+  # Lecture seule : attente de disponibilité des Deployments/Services par Pulumi.
+  - apiGroups: ["apps"]
+    resources: [replicasets]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [pods, endpoints]
+    verbs: [get, list, watch]
+  - apiGroups: ["", "events.k8s.io"]
+    resources: [events]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pad:chall-manager-instances
+  labels:
+    app.kubernetes.io/name: chall-manager
+    app.kubernetes.io/part-of: chall-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pad:chall-manager-instances
+subjects:
+  - kind: ServiceAccount
+    name: chall-manager
+    namespace: chall-manager
+---
+# Garde-fou : le ServiceAccount de chall-manager ne peut écrire que dans les namespaces inst-*
+# (et créer des namespaces PSS restricted uniquement).
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: pad-chall-manager-inst-only
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: [CREATE, UPDATE, DELETE]
+        resources: [namespaces, services]
+      - apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        operations: [CREATE, UPDATE, DELETE]
+        resources: [deployments]
+      - apiGroups: ["networking.k8s.io"]
+        apiVersions: ["v1"]
+        operations: [CREATE, UPDATE, DELETE]
+        resources: [networkpolicies]
+  matchConditions:
+    - name: from-chall-manager
+      expression: "request.userInfo.username == 'system:serviceaccount:chall-manager:chall-manager'"
+  validations:
+    - expression: "(request.resource.resource == 'namespaces' ? request.name : request.namespace).startsWith('inst-')" # contracts: namespaces.instances_prefix
+      message: "chall-manager ne peut écrire que dans les namespaces inst-*"
+    - expression: >-
+        request.resource.resource != 'namespaces' || request.operation == 'DELETE' ||
+        (has(object.metadata.labels) &&
+        object.metadata.labels['pod-security.kubernetes.io/enforce'] == 'restricted')
+      message: "les namespaces d'instance doivent porter pod-security.kubernetes.io/enforce=restricted"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: pad-chall-manager-inst-only
+spec:
+  policyName: pad-chall-manager-inst-only
+  validationActions: [Deny, Audit]

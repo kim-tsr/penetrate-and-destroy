@@ -1,0 +1,236 @@
+---
+# Alertes d'infrastructure : cibles, hôtes (LXC, Proxmox, OPNsense), Docker, Proxmox/ZFS, certificats.
+# runbook_url : chemin relatif à la racine du dépôt (préfixé par l'URL du dépôt par les templates Alertmanager).
+groups:
+  - name: pad-instances
+    rules:
+      - alert: InstanceDown
+        expr: up{job!~"kubelet|cadvisor"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Cible {{ $labels.instance }} injoignable"
+          description: "Le job {{ $labels.job }} ne répond plus au scrape depuis plus de 5 minutes."
+          runbook_url: docs/runbooks/instance-down.md
+
+      - alert: OpnsenseDown
+        expr: up{job="node", role="router"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Le routeur OPNsense ne répond plus"
+          description: "Plus de métriques de {{ $labels.host }} depuis 2 minutes : toutes les zones peuvent être coupées (les InstanceDown en cascade sont inhibées)."
+          runbook_url: docs/runbooks/opnsense-down.md
+
+  - name: pad-hosts
+    rules:
+      - alert: DiskFull
+        expr: instance:node_filesystem_free:ratio < 0.10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disque presque plein sur {{ $labels.instance }}"
+          description: "Moins de 10 % d'espace libre sur {{ $labels.mountpoint }} ({{ $labels.instance }})."
+          runbook_url: docs/runbooks/host-disk.md
+
+      - alert: DiskCritical
+        expr: instance:node_filesystem_free:ratio < 0.03
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Disque quasi saturé sur {{ $labels.instance }}"
+          description: "Moins de 3 % d'espace libre sur {{ $labels.mountpoint }} ({{ $labels.instance }})."
+          runbook_url: docs/runbooks/host-disk.md
+
+      - alert: DiskWillFillIn24h
+        expr: |
+          predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|devtmpfs|fuse.*"}[6h], 24 * 3600) < 0
+            and instance:node_filesystem_free:ratio < 0.4
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disque plein dans moins de 24 h sur {{ $labels.instance }}"
+          description: "La tendance des 6 dernières heures épuise {{ $labels.mountpoint }} ({{ $labels.instance }}) d'ici 24 heures."
+          runbook_url: docs/runbooks/host-disk.md
+
+      - alert: HighMemory
+        expr: instance:node_memory_used:ratio > 0.90
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Mémoire presque saturée sur {{ $labels.instance }}"
+          description: "Moins de 10 % de mémoire disponible sur {{ $labels.instance }} depuis 10 minutes."
+          runbook_url: docs/runbooks/host-resources.md
+
+      - alert: HighCpu
+        expr: instance:node_cpu_used:ratio5m > 0.90
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU saturé sur {{ $labels.instance }}"
+          description: "Plus de 90 % de CPU utilisé sur {{ $labels.instance }} depuis 15 minutes."
+          runbook_url: docs/runbooks/host-resources.md
+
+      - alert: OomKillDetected
+        expr: increase(node_vmstat_oom_kill[10m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "OOM killer déclenché sur {{ $labels.instance }}"
+          description: "Le noyau a tué un processus par manque de mémoire sur {{ $labels.instance }} (10 dernières minutes)."
+          runbook_url: docs/runbooks/host-resources.md
+
+      - alert: ClockSkew
+        expr: abs(node_timex_offset_seconds) > 0.05 and node_timex_sync_status == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Horloge désynchronisée sur {{ $labels.instance }}"
+          description: "Décalage de {{ $value | humanize }} s sur {{ $labels.instance }} sans synchronisation NTP (OIDC et TOTP sensibles à la dérive)."
+          runbook_url: docs/runbooks/host-resources.md
+
+  - name: pad-docker
+    rules:
+      - alert: DockerDaemonDown
+        expr: up{job="docker"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "dockerd injoignable sur {{ $labels.host }}"
+          description: "Les métriques du démon Docker de {{ $labels.host }} ne sont plus scrapées : les conteneurs du LXC sont probablement arrêtés."
+          runbook_url: docs/runbooks/docker-lxc.md
+
+      - alert: DockerHealthchecksFailing
+        expr: rate(engine_daemon_health_checks_failed_total[10m]) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Healthchecks Docker en échec sur {{ $labels.host }}"
+          description: "Des healthchecks de conteneurs échouent en continu sur {{ $labels.host }}."
+          runbook_url: docs/runbooks/docker-lxc.md
+
+  - name: pad-proxmox
+    rules:
+      - alert: PveNodeDown
+        expr: pve_up{id=~"node/.+"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Le nœud Proxmox {{ $labels.id }} est indisponible"
+          description: "pve-exporter signale le nœud {{ $labels.id }} hors ligne."
+          runbook_url: docs/runbooks/proxmox-host.md
+
+      - alert: PveGuestDown
+        expr: |
+          (pve_up{id=~"(qemu|lxc)/.+"} == 0)
+            * on (id) group_left (name, type) pve_guest_info
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "L'invité Proxmox {{ $labels.name }} ({{ $labels.id }}) est arrêté"
+          description: "La VM ou le LXC {{ $labels.name }} n'est pas en cours d'exécution depuis 5 minutes."
+          runbook_url: docs/runbooks/proxmox-guest-down.md
+
+      - alert: PveStorageHigh
+        expr: pad:pve_storage_used:ratio > 0.80
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Stockage Proxmox {{ $labels.id }} rempli à {{ $value | humanizePercentage }}"
+          description: "Le datastore {{ $labels.id }} dépasse 80 % d'utilisation."
+          runbook_url: docs/runbooks/proxmox-storage.md
+
+      - alert: PveStorageCritical
+        expr: pad:pve_storage_used:ratio > 0.90
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Stockage Proxmox {{ $labels.id }} presque plein ({{ $value | humanizePercentage }})"
+          description: "Le datastore {{ $labels.id }} dépasse 90 % : les créations de VM/LXC et les snapshots vont échouer."
+          runbook_url: docs/runbooks/proxmox-storage.md
+
+      - alert: PveHostMemoryHigh
+        expr: pve_memory_usage_bytes{id=~"node/.+"} / pve_memory_size_bytes{id=~"node/.+"} > 0.92
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Mémoire de l'hôte Proxmox {{ $labels.id }} à {{ $value | humanizePercentage }}"
+          description: "L'hôte approche de la saturation mémoire (ZFS ARC compris) : risque d'OOM sur les invités."
+          runbook_url: docs/runbooks/proxmox-host.md
+
+      - alert: ZfsPoolNotOnline
+        expr: node_zfs_zpool_state{state!="online"} == 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Pool ZFS {{ $labels.zpool }} en état {{ $labels.state }} sur {{ $labels.instance }}"
+          description: "Le pool {{ $labels.zpool }} n'est plus online (dégradé, défaillant ou suspendu)."
+          runbook_url: docs/runbooks/proxmox-storage.md
+
+      - alert: ZfsArcHitRatioLow
+        expr: pad:zfs_arc_hit_ratio:rate5m < 0.70 and rate(node_zfs_arc_hits[5m]) > 100
+        for: 30m
+        labels:
+          severity: info
+        annotations:
+          summary: "Taux de réussite du cache ZFS ARC bas ({{ $value | humanizePercentage }})"
+          description: "L'ARC (plafonné par host.zfs_arc_max_bytes) est trop petit pour la charge actuelle sur {{ $labels.instance }}."
+          runbook_url: docs/runbooks/proxmox-storage.md
+
+  - name: pad-certificates
+    rules:
+      - alert: CertExpiry
+        expr: (traefik_tls_certs_not_after - time()) < 14 * 24 * 3600
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Certificat TLS proche de l'expiration"
+          description: "Un certificat servi par Traefik ({{ $labels.instance }}, cn={{ $labels.cn }}) expire dans moins de 14 jours."
+          runbook_url: docs/runbooks/certificates.md
+
+      - alert: CertExpiryCritical
+        expr: (traefik_tls_certs_not_after - time()) < 3 * 24 * 3600
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Certificat TLS expirant sous 3 jours"
+          description: "Le certificat Traefik cn={{ $labels.cn }} ({{ $labels.instance }}) expire dans moins de 3 jours : le renouvellement ACME est en échec."
+          runbook_url: docs/runbooks/certificates.md
+
+      - alert: CertManagerCertExpiry
+        expr: (certmanager_certificate_expiration_timestamp_seconds - time()) < 14 * 24 * 3600
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Certificat cert-manager proche de l'expiration"
+          description: "Le certificat {{ $labels.namespace }}/{{ $labels.name }} expire dans moins de 14 jours."
+          runbook_url: docs/runbooks/certificates.md
+
+      - alert: CertManagerCertNotReady
+        expr: certmanager_certificate_ready_status{condition="False"} == 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Certificat {{ $labels.namespace }}/{{ $labels.name }} non prêt"
+          description: "cert-manager n'arrive pas à émettre ou renouveler {{ $labels.namespace }}/{{ $labels.name }} (challenge DNS-01 OVH ?)."
+          runbook_url: docs/runbooks/certificates.md

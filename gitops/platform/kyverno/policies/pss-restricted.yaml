@@ -1,0 +1,26 @@
+# Pod Security Standards "restricted" en Enforce sur les namespaces d'instances de challenges et chall-manager.
+# contracts: namespaces.instances_prefix (inst-), namespaces.chall_manager
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: pss-restricted
+  annotations:
+    policies.kyverno.io/title: Pod Security Standards restricted
+    policies.kyverno.io/category: Pod Security Standards (Restricted)
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/description: >-
+      Applique le profil PSS restricted (dernière version) aux pods des namespaces inst-* et chall-manager.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: restricted
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+              namespaces: ["inst-*", "chall-manager"]
+      validate:
+        podSecurity:
+          level: restricted
+          version: latest

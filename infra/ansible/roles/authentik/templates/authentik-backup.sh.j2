@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Géré par Ansible (rôle authentik). Sauvegarde logique quotidienne de PostgreSQL.
+set -euo pipefail
+umask 077
+
+backup_dir={{ authentik_backup_dir }}
+stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+tmp="${backup_dir}/.authentik-${stamp}.sql.gz.part"
+final="${backup_dir}/authentik-${stamp}.sql.gz"
+
+trap 'rm -f "${tmp}"' EXIT
+
+docker compose --project-directory {{ authentik_dir }} exec -T postgresql \
+  pg_dump --username={{ authentik_postgres_user }} --dbname={{ authentik_postgres_db }} --no-owner --clean --if-exists \
+  | gzip -9 > "${tmp}"
+
+gzip -t "${tmp}"
+mv "${tmp}" "${final}"
+trap - EXIT
+
+find "${backup_dir}" -maxdepth 1 -name 'authentik-*.sql.gz' -type f -mtime +{{ authentik_backup_retention_days }} -delete
+echo "sauvegarde écrite : ${final}"

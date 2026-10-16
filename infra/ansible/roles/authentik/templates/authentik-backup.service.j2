@@ -1,0 +1,11 @@
+# Géré par Ansible (rôle authentik)
+[Unit]
+Description=Sauvegarde pg_dump d'Authentik
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/authentik-backup
+Nice=10
+IOSchedulingClass=idle

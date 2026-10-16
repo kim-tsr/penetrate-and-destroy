@@ -1,0 +1,11 @@
+# Manifests locaux de l'Application garage : RBAC minimal (exec dans garage-0) + Job d'initialisation (hook PostSync).
+# Le Secret garage-rpc-secret (voir ../secret-rpc.example.yaml) est fourni par un générateur ksops *.sops.yaml
+# à ajouter ici une fois la clé age disponible.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: storage
+
+resources:
+  - rbac.yaml
+  - job-init.yaml

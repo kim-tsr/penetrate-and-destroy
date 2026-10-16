@@ -1,0 +1,9 @@
+# Scénario chall-manager générique PenetrateAndDestroy (une instance = un namespace inst-<identity>).
+# Packagé en OCI par build.sh : seuls Pulumi.yaml et le binaire `main` sont poussés
+# (chall-manager n'a donc pas besoin de toolchain Go ni de recompiler).
+name: pad-k8s-instance
+description: Instance de challenge PAD (namespace dédié, LoadBalancer Cilium, NetworkPolicy default-deny)
+runtime:
+  name: go
+  options:
+    binary: ./main

@@ -1,0 +1,104 @@
+version: "3"
+
+# Orchestration de bout en bout. Chaque phase est idempotente.
+# Prérequis : `nix develop`, secrets déchiffrables (SOPS_AGE_KEY_FILE), secrets/proxmox.sops.yaml et secrets/site.sops.yaml remplis.
+# Première fois : task secrets:keys && task secrets:init (puis compléter ce que task secrets:pending liste) ; docs/SECRETS.md.
+
+vars:
+  STATE: "{{.ROOT_DIR}}/.state"
+  STACKS: "{{.ROOT_DIR}}/infra/tofu/stacks"
+  ANSIBLE: "{{.ROOT_DIR}}/infra/ansible"
+
+env:
+  TF_IN_AUTOMATION: "1"
+
+includes:
+  tofu: { taskfile: ./infra/tofu/Taskfile.yml, dir: ./infra/tofu, optional: true }
+  ansible: { taskfile: ./infra/ansible/Taskfile.yml, dir: ./infra/ansible, optional: true }
+  bootstrap: { taskfile: ./bootstrap/Taskfile.yml, dir: ./bootstrap, optional: true }
+  apps: { taskfile: ./apps/Taskfile.yml, dir: ./apps, optional: true }
+  secrets: { taskfile: ./scripts/Taskfile.secrets.yml, dir: . }
+
+tasks:
+  default:
+    cmds: [task --list]
+
+  up:
+    desc: Reconstruit toute la plateforme de zéro (idempotent)
+    cmds:
+      - mkdir -p {{.STATE}}
+      - task: tofu:apply-stack
+        vars: { STACK: 00-host-network }
+      - task: ansible:host
+      - task: tofu:apply-stack
+        vars: { STACK: 10-router }
+      - task: tofu:apply-stack
+        vars: { STACK: 15-talos-image }
+      - task: tofu:apply-stack
+        vars: { STACK: 60-opnsense-rules }
+      - task: tofu:apply-stack
+        vars: { STACK: 20-services-lxc }
+      - task: ansible:services
+      - task: tofu:apply-stack
+        vars: { STACK: 30-authentik }
+      - task: bootstrap:cluster
+      - task: bootstrap:gitops
+      - task: tofu:apply-stack
+        vars: { STACK: 40-netbird }
+      - task: tofu:apply-stack
+        vars: { STACK: 50-warpgate }
+      - task: tofu:apply-stack
+        vars: { STACK: 70-dns }
+      - task: verify
+
+  destroy:
+    desc: "Détruit tout sauf l'hôte Proxmox (confirmation explicite : taper destroy, ou PAD_CONFIRM_DESTROY=destroy)"
+    cmds:
+      - "{{.ROOT_DIR}}/scripts/confirm-destroy.sh"
+      - task: bootstrap:destroy
+      - for: [70-dns, 50-warpgate, 40-netbird, 30-authentik, 20-services-lxc, 60-opnsense-rules, 15-talos-image, 10-router, 00-host-network]
+        task: tofu:destroy-stack
+        vars: { STACK: "{{.ITEM}}" }
+
+  site:node:
+    desc: "Nom du nœud Proxmox si différent de « pve » : task site:node -- <nom> (contrat + manifests gitops marqués host.node)"
+    cmds:
+      - "{{.ROOT_DIR}}/scripts/site-node.sh {{.CLI_ARGS}}"
+
+  rebuild:
+    desc: destroy puis up, chronométré
+    cmds:
+      - task: destroy
+      - cmd: date +%s > {{.STATE}}/rebuild.start
+      - task: up
+      - cmd: echo "Rebuild en $(( $(date +%s) - $(cat {{.STATE}}/rebuild.start) ))s"
+
+  backup:
+    desc: "Sauvegarde MariaDB (CTFd) + buckets Garage en local, puis S3 externe si configuré (scripts/backup.sh)"
+    cmds:
+      - "{{.ROOT_DIR}}/scripts/backup.sh {{.CLI_ARGS}}"
+
+  restore:
+    desc: "Restaure MariaDB et/ou Garage depuis une sauvegarde, avec confirmation (scripts/restore.sh)"
+    cmds:
+      - "{{.ROOT_DIR}}/scripts/restore.sh {{.CLI_ARGS}}"
+
+  e2e:
+    desc: "Pile e2e locale (docker compose) + smoke tests ; task e2e -- down pour arrêter"
+    cmds:
+      - "{{.ROOT_DIR}}/tests/e2e/run.sh {{.CLI_ARGS}}"
+
+  load:
+    desc: "Test de charge k6 (PAD_PROFILE=smoke, load ou stress ; voir tests/load/README.md)"
+    cmds:
+      - k6 run {{.CLI_ARGS}} {{.ROOT_DIR}}/tests/load/pad.js
+
+  verify:
+    desc: Smoke tests post-déploiement (endpoints, SSO, ArgoCD, matrice de flux)
+    cmds:
+      - "{{.ROOT_DIR}}/scripts/verify.sh"
+
+  lint:
+    desc: Toutes les vérifications statiques (identiques à la CI)
+    cmds:
+      - "{{.ROOT_DIR}}/scripts/lint.sh"

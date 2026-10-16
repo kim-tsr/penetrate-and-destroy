@@ -1,0 +1,59 @@
+# Géré par Ansible (rôle authentik). Pas de Redis : sessions, cache et tâches passent par PostgreSQL.
+name: authentik
+
+x-authentik: &authentik
+  image: {{ authentik_image }}
+  restart: unless-stopped
+  env_file: .env
+  security_opt:
+    - no-new-privileges:true
+  environment:
+    AUTHENTIK_POSTGRESQL__HOST: postgresql
+    AUTHENTIK_POSTGRESQL__NAME: {{ authentik_postgres_db }}
+    AUTHENTIK_POSTGRESQL__USER: {{ authentik_postgres_user }}
+    AUTHENTIK_LOG_LEVEL: {{ authentik_log_level }}
+    AUTHENTIK_LISTEN__METRICS: 0.0.0.0:9300
+    AUTHENTIK_DISABLE_UPDATE_CHECK: "true"
+    AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
+    AUTHENTIK_DISABLE_STARTUP_ANALYTICS: "true"
+  volumes:
+    - {{ authentik_blueprints_dir }}:/blueprints/custom:ro
+    - media:/media
+  depends_on:
+    postgresql:
+      condition: service_healthy
+
+services:
+  postgresql:
+    image: {{ authentik_postgres_image }}
+    restart: unless-stopped
+    env_file: .env
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      POSTGRES_DB: {{ authentik_postgres_db }}
+      POSTGRES_USER: {{ authentik_postgres_user }}
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d {{ authentik_postgres_db }} -U {{ authentik_postgres_user }}"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  server:
+    <<: *authentik
+    command: server
+    ports:
+      # contracts: ports.authentik.https / ports.authentik.metrics
+      - "{{ authentik_https_port }}:9443"
+      - "{{ authentik_metrics_port }}:9300"
+
+  worker:
+    <<: *authentik
+    command: worker
+
+volumes:
+  database:
+  media:

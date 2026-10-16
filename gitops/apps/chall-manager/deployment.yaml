@@ -1,0 +1,191 @@
+# chall-manager v0.6.6 (ctfer-io/chall-manager). Pas de chart Helm officiel : le déploiement
+# officiel est un programme Pulumi (deploy/), ses ressources sont reprises ici en manifests.
+#
+# Mono-réplica : l'état (stacks Pulumi, cache OCI, plugins Pulumi) vit sur un PVC RWO `pad-zfs`
+# (pas de stockage RWX dans le socle). Passer à plusieurs réplicas exige un PVC RWX + etcd pour
+# les verrous (ETCD_ENDPOINT/ETCD_USERNAME/ETCD_PASSWORD) ; voir scaledobject.yaml.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: chall-manager-data
+  namespace: chall-manager
+  labels:
+    app.kubernetes.io/name: chall-manager
+    app.kubernetes.io/part-of: chall-manager
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: pad-zfs
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chall-manager
+  namespace: chall-manager
+  labels: &labels
+    app.kubernetes.io/name: chall-manager
+    app.kubernetes.io/component: api
+    app.kubernetes.io/part-of: chall-manager
+    app.kubernetes.io/version: v0.6.6
+    pad.io/zone: prod
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # PVC RWO
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: chall-manager
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels: *labels
+    spec:
+      serviceAccountName: chall-manager
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: chall-manager
+          image: docker.io/ctferio/chall-manager:v0.6.6@sha256:34b5ca4b9e02db171cd58f148f927c0955c106427e97e4525e0376c2512c3959
+          ports:
+            - name: grpc
+              containerPort: 8080
+          env:
+            - { name: PORT, value: "8080" }
+            - { name: DIR, value: /etc/chall-manager }
+            - { name: LOG_LEVEL, value: info }
+            - { name: SWAGGER, value: "false" }
+            # HOME/PULUMI_HOME/CACHE sur le PVC : plugins Pulumi et scénarios OCI survivent au redémarrage.
+            - { name: HOME, value: /etc/chall-manager/home }
+            - { name: PULUMI_HOME, value: /etc/chall-manager/home/.pulumi }
+            - { name: PULUMI_BACKEND_URL, value: file:///etc/chall-manager/pulumi-backend }
+            - { name: PULUMI_SKIP_UPDATE_CHECK, value: "true" }
+            - { name: PULUMI_AUTOMATION_API_SKIP_VERSION_CHECK, value: "true" }
+            - { name: CACHE, value: /etc/chall-manager/home/.cache/chall-manager }
+            # Télémétrie OTLP gRPC vers Tempo/collecteur du LXC monitoring.
+            - { name: OTEL_SERVICE_NAME, value: chall-manager }
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "dns://10.20.50.10:4317" } # contracts: monitoring.otlp_grpc
+            - { name: OTEL_EXPORTER_OTLP_PROTOCOL, value: grpc }
+            - { name: OTEL_EXPORTER_OTLP_INSECURE, value: "true" }
+            # Paramètres du scénario générique (défauts = contrat ; hérités par le programme Pulumi).
+            - { name: PAD_LB_POOL, value: instances } # contracts: kubernetes.lb_pools.instances
+            - { name: PAD_LB_POOL_LABEL, value: pad.io/lb-pool } # contracts: kubernetes.lb_pool_label
+            - { name: PAD_FROM_CIDRS, value: "10.20.70.10/32,100.64.0.0/10" } # contracts: netbird.routing_peer_ip, netbird.overlay_cidr
+            # Registre OCI (Zot) des scénarios : identifiants facultatifs (pull anonyme sinon).
+            - name: OCI_USERNAME
+              valueFrom:
+                secretKeyRef: { name: chall-manager-oci, key: username, optional: true }
+            - name: OCI_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: chall-manager-oci, key: password, optional: true }
+          readinessProbe:
+            httpGet: { path: /healthcheck, port: grpc }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthcheck, port: grpc }
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 6
+          startupProbe:
+            httpGet: { path: /healthcheck, port: grpc }
+            periodSeconds: 5
+            failureThreshold: 30
+          resources:
+            requests: { cpu: 200m, memory: 512Mi }
+            limits: { cpu: "1", memory: 1Gi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - { name: data, mountPath: /etc/chall-manager }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: chall-manager-data
+        - name: tmp
+          emptyDir: {}
+      terminationGracePeriodSeconds: 60
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chall-manager
+  namespace: chall-manager
+  labels:
+    app.kubernetes.io/name: chall-manager
+    app.kubernetes.io/part-of: chall-manager
+spec:
+  selector:
+    app.kubernetes.io/name: chall-manager
+    app.kubernetes.io/component: api
+  ports:
+    - name: grpc
+      port: 8080 # contracts: apps.chall_manager.service
+      targetPort: grpc
+---
+# Janitor : supprime les instances expirées (mode cron recommandé, une exécution par minute).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: chall-manager-janitor
+  namespace: chall-manager
+  labels:
+    app.kubernetes.io/name: chall-manager-janitor
+    app.kubernetes.io/part-of: chall-manager
+spec:
+  schedule: "*/1 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 120
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 300
+      ttlSecondsAfterFinished: 600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: chall-manager-janitor
+            app.kubernetes.io/component: janitor
+            app.kubernetes.io/part-of: chall-manager
+            app.kubernetes.io/version: v0.6.6
+            pad.io/zone: prod
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: janitor
+              image: docker.io/ctferio/chall-manager-janitor:v0.6.6@sha256:69ee55e6ad10f25b6c454c70b4de49350c82e5dde9c681a3e1c3ac623a6e0970
+              env:
+                - { name: URL, value: "chall-manager.chall-manager.svc.cluster.local:8080" } # contracts: apps.chall_manager.service
+                - { name: LOG_LEVEL, value: info }
+                - { name: OTEL_SERVICE_NAME, value: chall-manager-janitor }
+                - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "dns://10.20.50.10:4317" } # contracts: monitoring.otlp_grpc
+                - { name: OTEL_EXPORTER_OTLP_PROTOCOL, value: grpc }
+                - { name: OTEL_EXPORTER_OTLP_INSECURE, value: "true" }
+              resources:
+                requests: { cpu: 10m, memory: 32Mi }
+                limits: { cpu: 100m, memory: 64Mi }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]

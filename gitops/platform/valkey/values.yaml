@@ -1,0 +1,86 @@
+# Valkey 9.1.2 standalone (cache/sessions CTFd). Service : valkey.storage.svc.cluster.local:6379
+image:
+  registry: docker.io
+  repository: valkey/valkey
+  tag: 9.1.2@sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd
+
+# Standalone : pas de réplique.
+replica:
+  enabled: false
+
+# Persistance (RDB/AOF) sur la StorageClass ZFS du cluster.
+dataStorage:
+  enabled: true
+  requestedSize: 2Gi
+  className: pad-zfs
+  accessModes: [ReadWriteOnce]
+
+# Authentification : mot de passe de l'utilisateur "default" lu depuis le Secret valkey-auth
+# (clé "default"), chiffré SOPS en prod : voir secret.example.yaml.
+auth:
+  enabled: true
+  usersExistingSecret: valkey-auth
+  aclUsers:
+    default:
+      permissions: "~* &* +@all"
+      passwordKey: default
+
+# Pas de redémarrage à chaud avec un RWO : recréation du pod.
+deploymentStrategy: Recreate
+
+# Politique d'éviction : `noeviction`. Cette instance unique porte des garde-fous de sécurité
+# (nonces anti-rejeu `pad:sso:nonce:*`, compteurs de rate limit `rl:*` / `pad:rl:*`, verrous, cache de
+# tokens) : sous `allkeys-lru` (ou `volatile-lru`, toutes ces clés ayant un TTL), un afflux de clés
+# banales évincerait nonces et compteurs et permettrait rejeu et contournement des limites.
+# Une base ou une instance séparée n'y change rien (maxmemory/éviction sont par instance) ; une
+# seconde instance coûterait un StatefulSet, un Secret et des NetworkPolicies de plus pour un
+# volume ridicule. Contrepartie assumée : à saturation, les écritures échouent (OOM) au lieu
+# d'évincer ; CTFd (cache.add du nonce) et le BFF (limiteurs de join/flags) échouent alors en FERMÉ.
+# Condition : toute clé écrite par CTFd et le BFF porte un TTL (cache Flask-Caching timeout 300 s par
+# défaut, nonces 2x la fenêtre HMAC, `rl:*` = fenêtre, tokens = TTL du token). Dimensionnement : la
+# charge normale tient en quelques Mo ; alerter sur used_memory / maxmemory > 80 %.
+valkeyConfig: |
+  maxmemory 192mb
+  maxmemory-policy noeviction
+  appendonly yes
+  appendfsync everysec
+
+valkeyLogLevel: notice
+
+resources:
+  requests: { cpu: 50m, memory: 128Mi }
+  limits: { cpu: 500m, memory: 256Mi }
+initResources:
+  requests: { cpu: 10m, memory: 16Mi }
+  limits: { cpu: 100m, memory: 64Mi }
+
+readinessProbe:
+  enabled: true
+
+metrics:
+  enabled: true
+  exporter:
+    image:
+      registry: ghcr.io
+      repository: oliver006/redis_exporter
+      tag: v1.79.0@sha256:67e175f144212fe5796b3134dae1f3db33782b57dc53f7c6f5d938f8f70d9754
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      runAsUser: 59000
+      capabilities:
+        drop: [ALL]
+      seccompProfile:
+        type: RuntimeDefault
+    resources:
+      requests: { cpu: 10m, memory: 24Mi }
+      limits: { cpu: 100m, memory: 64Mi }
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+
+podLabels:
+  app.kubernetes.io/part-of: platform
+commonLabels:
+  pad.io/zone: prod

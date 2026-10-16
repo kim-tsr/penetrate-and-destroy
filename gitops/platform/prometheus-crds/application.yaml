@@ -1,0 +1,37 @@
+# CRDs prometheus-operator seules (ServiceMonitor, PodMonitor, PrometheusRule, Probe, ScrapeConfig...), sans opérateur :
+# les monitors sont lus par Alloy. Wave -10 : avant tout composant qui en crée.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prometheus-crds
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: prometheus-crds
+    app.kubernetes.io/part-of: platform
+    pad.io/zone: prod
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: prometheus-operator-crds
+      targetRevision: 32.0.1
+      helm:
+        releaseName: prometheus-crds
+        valueFiles:
+          - $values/gitops/platform/prometheus-crds/values.yaml
+    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+      targetRevision: main # contracts: git.branch
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: observability # contracts: namespaces.monitoring_agents (CRDs cluster-scoped : namespace indicatif)
+  syncPolicy:
+    automated:
+      prune: false # ne jamais supprimer les CRDs (et donc les CR) automatiquement
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true # CRDs volumineuses : l'annotation last-applied dépasserait 256 Ko

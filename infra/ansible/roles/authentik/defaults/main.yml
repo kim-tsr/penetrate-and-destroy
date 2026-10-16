@@ -1,0 +1,24 @@
+---
+authentik_dir: "{{ pad_compose_root }}/authentik"
+authentik_secrets_file: "{{ pad_secrets_dir }}/authentik.sops.yaml"
+
+# Images : tag@sha256 centralisés dans group_vars/all/versions.yml.
+authentik_image: "{{ pad_images.authentik }}"
+authentik_postgres_image: "{{ pad_images.postgres }}"
+
+# Ports publiés (contrat : ports.authentik). HTTPS 443 de l'hôte -> 9443 du conteneur ; métriques sur 9300.
+authentik_https_port: "{{ pad.ports.authentik.https }}"
+authentik_metrics_port: "{{ pad.ports.authentik.metrics }}"
+
+authentik_log_level: info
+authentik_postgres_db: authentik
+authentik_postgres_user: authentik
+
+# Sauvegarde quotidienne pg_dump (compressée), purge au-delà de la rétention.
+authentik_backup_dir: /var/backups/authentik
+authentik_backup_retention_days: 7
+authentik_backup_on_calendar: "*-*-* 03:15:00"
+authentik_backup_randomized_delay: 15min
+
+# Branding : blueprints copiés depuis files/blueprints/ vers authentik_dir/blueprints (montés dans /blueprints/custom).
+authentik_blueprints_dir: "{{ authentik_dir }}/blueprints"

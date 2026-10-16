@@ -1,0 +1,26 @@
+# /api/metrics du front (prom-client), protégé par Authorization: Bearer <METRICS_TOKEN>.
+# Inclut pad_frontend_active_sessions (trigger KEDA) et les métriques HTTP / CTFd / flags.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: frontend
+  namespace: frontend
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: frontend
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: frontend
+  namespaceSelector:
+    matchNames: [frontend]
+  endpoints:
+    - port: http
+      path: /api/metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      authorization:
+        type: Bearer
+        credentials:
+          name: frontend-secrets
+          key: METRICS_TOKEN

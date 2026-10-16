@@ -1,0 +1,25 @@
+---
+host_tuning_zfs_arc_max: "{{ pad.host.zfs_arc_max_bytes | int }}"
+
+host_tuning_sysctl:
+  vm.swappiness: 10
+  vm.max_map_count: 262144
+  # Docker dans les LXC (nesting/keyctl) : quotas de clés et inotify par conteneur.
+  kernel.keys.maxkeys: 2000
+  kernel.keys.maxbytes: 2000000
+  fs.inotify.max_user_watches: 1048576
+  fs.inotify.max_user_instances: 8192
+  net.core.somaxconn: 4096
+  net.ipv4.conf.all.rp_filter: 1
+
+# DNAT de repli (wan.mode == nat) : ports publics de l'hôte -> OPNsense sur le transit vmbr1.
+host_tuning_wan_mode: "{{ pad.wan.mode }}"
+host_tuning_transit_prefix: "{{ pad.wan.transit_cidr.split('/')[0].split('.')[:3] | join('.') }}"
+host_tuning_transit_host_ip: "{{ host_tuning_transit_prefix }}.{{ (pad.wan.transit_cidr.split('/')[0].split('.')[3] | int) + 1 }}"
+host_tuning_transit_router_ip: "{{ host_tuning_transit_prefix }}.{{ (pad.wan.transit_cidr.split('/')[0].split('.')[3] | int) + 2 }}"
+
+# Exporters de l'hôte : liés à l'IP MGMT (jamais sur l'IP publique de vmbr0).
+host_tuning_exporter_ip: "{{ pad.monitoring.host_target }}"
+host_tuning_pve_exporter_port: "{{ pad.monitoring.exporters.pve }}"
+host_tuning_pve_exporter_user: pve-exporter@pve
+host_tuning_pve_exporter_token: monitoring

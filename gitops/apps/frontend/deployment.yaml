@@ -1,0 +1,152 @@
+# Front Next.js (image apps/frontend/Dockerfile, sortie standalone). `replicas` volontairement absent :
+# géré par l'unique ScaledObject KEDA (scaledobject.yaml), jamais par un HPA séparé.
+# Rootfs en lecture seule : seuls /tmp et le cache Next (/app/.next/cache) sont inscriptibles (emptyDir).
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: frontend
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: frontend
+spec:
+  selector:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/component: web
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: frontend
+  labels: &labels
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/component: web
+    app.kubernetes.io/part-of: frontend
+    app.kubernetes.io/version: 0.1.0
+    pad.io/zone: prod
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: frontend
+      app.kubernetes.io/component: web
+  template:
+    metadata:
+      labels: *labels
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 30
+      nodeSelector:
+        pad.io/pool: platform # contracts: kubernetes.pools.platform
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: frontend
+              app.kubernetes.io/component: web
+      containers:
+        - name: frontend
+          # TODO(renovate) : remplacer le tag par `tag@sha256:<digest>` dès le premier build signé (scripts/build-image.sh).
+          image: ghcr.io/kim-tsr/pad-frontend:0.1.0
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - { name: NODE_ENV, value: production }
+            - { name: PORT, value: "3000" }
+            - { name: LOG_LEVEL, value: info }
+            # --- Auth.js / OIDC Authentik (contracts: identity.oidc_clients.frontend, hostnames.auth/front + domain) ---
+            - { name: AUTH_URL, value: "https://ctf.CHANGEME.example.net" } # contracts: hostnames.front + domain
+            - { name: AUTH_TRUST_HOST, value: "true" }
+            - { name: AUTH_AUTHENTIK_ID, value: pad-frontend } # contracts: identity.oidc_clients.frontend
+            - { name: AUTH_AUTHENTIK_ISSUER, value: "https://auth.CHANGEME.example.net/application/o/pad-frontend/" } # contracts: hostnames.auth + domain
+            - name: AUTH_SECRET
+              valueFrom: { secretKeyRef: { name: frontend-secrets, key: AUTH_SECRET } }
+            - name: AUTH_AUTHENTIK_SECRET
+              valueFrom: { secretKeyRef: { name: frontend-secrets, key: AUTH_AUTHENTIK_SECRET } }
+            # --- BFF -> CTFd (plugin sso_bridge : HMAC partagé avec PAD_SSO_SHARED_SECRET côté CTFd) ---
+            - { name: CTFD_URL, value: "http://ctfd.ctfd.svc.cluster.local:8000" } # contracts: apps.ctfd.service
+            - name: PAD_SSO_SHARED_SECRET
+              valueFrom: { secretKeyRef: { name: frontend-secrets, key: PAD_SSO_SHARED_SECRET } }
+            # --- Valkey partagé : rate limiting, sessions actives (KEDA), cache de tokens CTFd ---
+            - name: VALKEY_URL # redis://:<mot de passe>@valkey.storage.svc.cluster.local:6379 (contracts: apps.valkey)
+              valueFrom: { secretKeyRef: { name: frontend-secrets, key: VALKEY_URL } }
+            # --- Métriques (jeton Bearer attendu par /api/metrics) ---
+            - name: METRICS_TOKEN
+              valueFrom: { secretKeyRef: { name: frontend-secrets, key: METRICS_TOKEN } }
+            # --- NetBird : guide d'onboarding et état du tunnel (lecture seule) ---
+            - { name: NETBIRD_MANAGEMENT_URL, value: "https://vpn.CHANGEME.example.net" } # contracts: hostnames.vpn + domain
+            - { name: NETBIRD_API_URL, value: "https://vpn.CHANGEME.example.net/api" } # contracts: netbird.api_url
+            - name: NETBIRD_API_TOKEN
+              valueFrom: { secretKeyRef: { name: frontend-secrets, key: NETBIRD_API_TOKEN, optional: true } }
+            # --- Traces OTLP gRPC vers Tempo (contracts: monitoring.otlp_grpc) ---
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://10.20.50.10:4317" }
+            - { name: OTEL_SERVICE_NAME, value: pad-frontend }
+          readinessProbe:
+            httpGet: { path: /api/health, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet: { path: /api/health, port: http }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          startupProbe:
+            httpGet: { path: /api/health, port: http }
+            periodSeconds: 3
+            failureThreshold: 40
+          lifecycle:
+            # Laisse l'ingress retirer le pod avant l'arrêt (les flux SSE se reconnectent sur un autre pod).
+            preStop:
+              exec: { command: ["sleep", "5"] }
+          resources:
+            requests: { cpu: 100m, memory: 192Mi }
+            limits: { cpu: "1", memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+            - { name: next-cache, mountPath: /app/.next/cache }
+      volumes:
+        - name: tmp
+          emptyDir: { sizeLimit: 64Mi }
+        - name: next-cache
+          emptyDir: { sizeLimit: 128Mi }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frontend
+  namespace: frontend
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: frontend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: frontend
+      app.kubernetes.io/component: web

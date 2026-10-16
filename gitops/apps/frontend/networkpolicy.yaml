@@ -1,0 +1,89 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: frontend
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+# Front : entrée depuis le Traefik interne (trafic public relayé par l'edge) et le scrape (observability).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend-ingress
+  namespace: frontend
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: frontend
+      app.kubernetes.io/component: web
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability # contracts: namespaces.monitoring_agents
+      ports:
+        - { port: 3000, protocol: TCP }
+---
+# Front : sortie vers DNS, CTFd (BFF), Valkey, Authentik / NetBird (HTTPS) et Tempo (OTLP). chall-manager n'est
+# PAS appelé directement : les instances passent par le plugin CTFd chall_manager_bridge.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend-egress
+  namespace: frontend
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: frontend
+      app.kubernetes.io/component: web
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+    # CTFd (API headless)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ctfd # contracts: namespaces.ctfd
+      ports:
+        - { port: 8000, protocol: TCP } # contracts: apps.ctfd.service
+    # Valkey (ns storage)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: storage # contracts: namespaces.storage
+      ports:
+        - { port: 6379, protocol: TCP } # contracts: apps.valkey
+    # OIDC Authentik et API NetBird : noms publics (hostnames.auth, hostnames.vpn) servis par l'edge en HTTPS.
+    - to:
+        - ipBlock:
+            cidr: 10.20.20.10/32 # contracts: services.edge.ip (résolution interne des noms publics)
+      ports:
+        - { port: 443, protocol: TCP }
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16] # sortie HTTPS publique uniquement (résolution publique des noms)
+      ports:
+        - { port: 443, protocol: TCP }
+    # Traces OTLP gRPC (Tempo, LXC monitoring)
+    - to:
+        - ipBlock:
+            cidr: 10.20.50.10/32 # contracts: monitoring.otlp_grpc
+      ports:
+        - { port: 4317, protocol: TCP }

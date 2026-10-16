@@ -1,0 +1,37 @@
+# Cluster pad-prod (Cluster API + CAPMOX + Talos), auto-hébergé après `clusterctl move`.
+# - Appliqué une seule fois par `task bootstrap:cluster` (dans kind), puis géré par ArgoCD
+#   (Application `cluster-prod`, projet `cluster`, prune désactivé).
+# - Toutes les valeurs viennent de infra/contracts.yaml (commentaires `# contracts:`).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: pad-cluster # contracts: kubernetes.capi_namespace
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: pad-prod
+      app.kubernetes.io/managed-by: cluster-api
+      pad.io/zone: prod
+    includeSelectors: false
+
+patches:
+  # Garde-fous ArgoCD sur TOUS les objets Cluster API (Cluster, ProxmoxCluster, TalosControlPlane, MachineDeployments,
+  # templates, pools IPAM) : jamais supprimés ni prunés par ArgoCD. Supprimer un template encore référencé, ou le Cluster,
+  # détruit des VMs (dont celle qui héberge ArgoCD). Évolution d'un template : nouveau nom + mise à jour de la référence,
+  # puis nettoyage manuel de l'ancien ; destruction complète via `task bootstrap:destroy` uniquement.
+  - target:
+      group: ".*cluster\\.x-k8s\\.io"
+    patch: |-
+      apiVersion: v1
+      kind: Placeholder
+      metadata:
+        name: placeholder
+        annotations:
+          argocd.argoproj.io/sync-options: Delete=false,Prune=false
+
+resources:
+  - namespace.yaml
+  - cluster.yaml
+  - control-plane.yaml
+  - pool-platform.yaml
+  - pool-challenges.yaml

@@ -1,0 +1,306 @@
+# Grafana Alloy 1.20.1 (chart 1.13.1) en DaemonSet : agent unique de télémétrie du cluster.
+#   - métriques : ServiceMonitors/PodMonitors (répartis entre les agents par clustering) + kubelet/cAdvisor du nœud local
+#     -> VictoriaMetrics (contracts: monitoring.remote_write), label externe cluster=pad-prod ;
+#   - logs des pods du nœud local -> Loki (contracts: monitoring.loki_push) ;
+#   - OTLP (gRPC 4317 / HTTP 4318, Service alloy.observability) -> Tempo (contracts: monitoring.otlp_grpc).
+image:
+  registry: docker.io
+  repository: grafana/alloy
+  tag: v1.20.1
+  digest: sha256:2aa2099af76c0098d4af7a4d6e48f86cb66dc1a000222ad927a1c67c6542d13f
+
+# La CRD PodLogs n'est pas utilisée (logs collectés par découverte de pods).
+crds:
+  create: false
+
+controller:
+  type: daemonset
+  # Tous les nœuds, y compris le pool challenges (taint pad.io/pool=challenges:NoSchedule) et le control-plane.
+  tolerations:
+    - operator: Exists
+  podLabels:
+    pad.io/zone: prod
+  volumes:
+    extra:
+      - name: storage
+        emptyDir:
+          sizeLimit: 512Mi
+
+alloy:
+  stabilityLevel: generally-available
+  enableReporting: false
+  # Clustering : les cibles des ServiceMonitors/PodMonitors sont réparties entre les agents (pas de scrape en double).
+  clustering:
+    enabled: true
+  extraEnv:
+    - name: NODE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: spec.nodeName
+  extraPorts:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP
+  # rootfs en lecture seule : WAL du remote_write dans un emptyDir.
+  mounts:
+    extra:
+      - name: storage
+        mountPath: /tmp/alloy
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 473
+    runAsGroup: 473
+    capabilities:
+      drop: [ALL]
+    seccompProfile:
+      type: RuntimeDefault
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { cpu: 500m, memory: 320Mi }
+  configMap:
+    create: true
+    content: |
+      logging {
+        level  = "info"
+        format = "json"
+      }
+
+      // ---------------------------------------------------------------- Sorties
+      prometheus.remote_write "victoriametrics" {
+        endpoint {
+          url = "http://10.20.50.10:8428/api/v1/write" // contracts: monitoring.remote_write
+        }
+        external_labels = {
+          cluster = "pad-prod", // contracts: kubernetes.cluster_name
+        }
+      }
+
+      loki.write "loki" {
+        endpoint {
+          url = "http://10.20.50.10:3100/loki/api/v1/push" // contracts: monitoring.loki_push
+        }
+        external_labels = {
+          cluster = "pad-prod", // contracts: kubernetes.cluster_name
+        }
+      }
+
+      // ---------------------------------------------------------------- Métriques : monitors Prometheus Operator
+      // Les CRDs viennent de gitops/platform/prometheus-crds ; toutes les namespaces sont découvertes.
+      prometheus.operator.servicemonitors "all" {
+        forward_to = [prometheus.remote_write.victoriametrics.receiver]
+        clustering {
+          enabled = true
+        }
+        scrape {
+          default_scrape_interval = "30s"
+        }
+      }
+
+      prometheus.operator.podmonitors "all" {
+        forward_to = [prometheus.remote_write.victoriametrics.receiver]
+        clustering {
+          enabled = true
+        }
+        scrape {
+          default_scrape_interval = "30s"
+        }
+      }
+
+      // ---------------------------------------------------------------- Métriques : kubelet et cAdvisor du nœud local
+      // Scrape direct du kubelet (https://<IP du nœud>:10250), pas via /api/v1/nodes/<n>/proxy : la sous-ressource
+      // `nodes/proxy` ouvre toute l'API kubelet (dont exec) et n'est pas accordée par le chart, dont le ClusterRole
+      // n'a que `nodes/metrics` (suffisant : le kubelet autorise /metrics et /metrics/cadvisor sur cette seule ressource).
+      // Certificat serveur du kubelet signé par la CA du cluster (rotate-server-certificates + approver, cf. gitops/clusters/prod),
+      // SAN = IP du nœud : vérification TLS complète. Chaque agent ne scrape que son nœud.
+      discovery.kubernetes "local_node" {
+        role = "node"
+        selectors {
+          role  = "node"
+          field = "metadata.name=" + sys.env("NODE_NAME")
+        }
+      }
+
+      // __address__ = <InternalIP>:10250, fourni par la découverte de nœuds.
+      discovery.relabel "kubelet" {
+        targets = discovery.kubernetes.local_node.targets
+        rule {
+          source_labels = ["__meta_kubernetes_node_name"]
+          target_label  = "node"
+        }
+      }
+
+      prometheus.scrape "kubelet" {
+        job_name        = "kubelet"
+        targets         = discovery.relabel.kubelet.output
+        scheme          = "https"
+        metrics_path    = "/metrics"
+        scrape_interval = "30s"
+        honor_labels    = true
+        authorization {
+          type             = "Bearer"
+          credentials_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+        }
+        tls_config {
+          ca_file = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+        }
+        forward_to = [prometheus.remote_write.victoriametrics.receiver]
+      }
+
+      prometheus.relabel "cadvisor" {
+        forward_to = [prometheus.remote_write.victoriametrics.receiver]
+        // Séries coûteuses et peu utiles (budget de stockage VictoriaMetrics).
+        rule {
+          source_labels = ["__name__"]
+          regex         = "container_(tasks_state|network_tcp_usage_total|network_udp_usage_total|cpu_load_average_10s|memory_failures_total|blkio_device_usage_total)"
+          action        = "drop"
+        }
+      }
+
+      prometheus.scrape "cadvisor" {
+        job_name        = "cadvisor"
+        targets         = discovery.relabel.kubelet.output
+        scheme          = "https"
+        metrics_path    = "/metrics/cadvisor"
+        scrape_interval = "30s"
+        honor_labels    = true
+        authorization {
+          type             = "Bearer"
+          credentials_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+        }
+        tls_config {
+          ca_file = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+        }
+        forward_to = [prometheus.relabel.cadvisor.receiver]
+      }
+
+      // Métriques d'Alloy lui-même (une série par agent).
+      prometheus.exporter.self "alloy" {}
+
+      prometheus.scrape "alloy" {
+        job_name        = "alloy"
+        targets         = prometheus.exporter.self.alloy.targets
+        scrape_interval = "30s"
+        forward_to      = [prometheus.remote_write.victoriametrics.receiver]
+      }
+
+      // ---------------------------------------------------------------- Logs : pods du nœud local
+      discovery.kubernetes "local_pods" {
+        role = "pod"
+        selectors {
+          role  = "pod"
+          field = "spec.nodeName=" + sys.env("NODE_NAME")
+        }
+      }
+
+      discovery.relabel "pod_logs" {
+        targets = discovery.kubernetes.local_pods.targets
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label  = "container"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_node_name"]
+          target_label  = "node"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+          target_label  = "app"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_pod_container_name"]
+          separator     = "/"
+          target_label  = "job"
+        }
+      }
+
+      loki.source.kubernetes "pods" {
+        targets    = discovery.relabel.pod_logs.output
+        forward_to = [loki.write.loki.receiver]
+      }
+
+      // ---------------------------------------------------------------- OTLP : réception et forward
+      otelcol.receiver.otlp "default" {
+        grpc {
+          endpoint = "0.0.0.0:4317"
+        }
+        http {
+          endpoint = "0.0.0.0:4318"
+        }
+        output {
+          metrics = [otelcol.processor.transform.cluster.input]
+          logs    = [otelcol.processor.transform.cluster.input]
+          traces  = [otelcol.processor.transform.cluster.input]
+        }
+      }
+
+      // Attribut de ressource cluster sur tous les signaux OTLP.
+      otelcol.processor.transform "cluster" {
+        error_mode = "ignore"
+        metric_statements {
+          context    = "resource"
+          statements = ["set(attributes[\"cluster\"], \"pad-prod\")"] // contracts: kubernetes.cluster_name
+        }
+        log_statements {
+          context    = "resource"
+          statements = ["set(attributes[\"cluster\"], \"pad-prod\")"] // contracts: kubernetes.cluster_name
+        }
+        trace_statements {
+          context    = "resource"
+          statements = ["set(attributes[\"cluster\"], \"pad-prod\")"] // contracts: kubernetes.cluster_name
+        }
+        output {
+          metrics = [otelcol.processor.batch.default.input]
+          logs    = [otelcol.processor.batch.default.input]
+          traces  = [otelcol.processor.batch.default.input]
+        }
+      }
+
+      otelcol.processor.batch "default" {
+        output {
+          metrics = [otelcol.exporter.prometheus.default.input]
+          logs    = [otelcol.exporter.loki.default.input]
+          traces  = [otelcol.exporter.otlp.tempo.input]
+        }
+      }
+
+      otelcol.exporter.prometheus "default" {
+        forward_to = [prometheus.remote_write.victoriametrics.receiver]
+      }
+
+      otelcol.exporter.loki "default" {
+        forward_to = [loki.write.loki.receiver]
+      }
+
+      otelcol.exporter.otlp "tempo" {
+        client {
+          endpoint = "10.20.50.10:4317" // contracts: monitoring.otlp_grpc
+          tls {
+            insecure = true
+          }
+        }
+      }
+
+# Service ClusterIP alloy.observability : OTLP vers l'agent du nœud local uniquement.
+service:
+  enabled: true
+  internalTrafficPolicy: Local
+
+configReloader:
+  resources:
+    requests: { cpu: 10m, memory: 24Mi }
+    limits: { cpu: 50m, memory: 48Mi }

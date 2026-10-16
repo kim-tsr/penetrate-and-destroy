@@ -1,0 +1,75 @@
+---
+# Méta-supervision : la chaîne d'alerte et de collecte se surveille elle-même.
+groups:
+  - name: pad-meta
+    rules:
+      # Alerte de test toujours active : prouve que vmalert -> Alertmanager fonctionne. Alertmanager l'envoie vers
+      # le récepteur "watchdog" (heartbeat externe optionnel, ex. moniteur push d'Uptime Kuma) et jamais vers Discord/e-mail.
+      - alert: Watchdog
+        expr: vector(1)
+        labels:
+          severity: none
+        annotations:
+          summary: "Watchdog : la chaîne d'alerte fonctionne"
+          description: "Alerte permanente. Son absence côté heartbeat externe signifie que vmalert, Alertmanager ou la stack de monitoring est HS."
+          runbook_url: docs/runbooks/watchdog.md
+
+      - alert: VmalertRuleErrors
+        expr: increase(vmalert_alerting_rules_errors_total[10m]) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Erreurs d'évaluation de règles vmalert ({{ $labels.alertname }})"
+          description: "La règle {{ $labels.alertname }} du groupe {{ $labels.group }} échoue à l'évaluation."
+          runbook_url: docs/runbooks/monitoring-stack.md
+
+      - alert: VmalertNotifierErrors
+        expr: increase(vmalert_alerts_send_errors_total[10m]) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "vmalert n'arrive pas à joindre Alertmanager"
+          description: "Des alertes n'ont pas pu être envoyées à {{ $labels.addr }}."
+          runbook_url: docs/runbooks/monitoring-stack.md
+
+      - alert: AlertmanagerNotificationsFailing
+        expr: sum by (integration) (rate(alertmanager_notifications_failed_total[10m])) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Alertmanager n'arrive pas à notifier via {{ $labels.integration }}"
+          description: "Les notifications {{ $labels.integration }} (Discord ou e-mail) échouent : webhook ou SMTP à vérifier. Le canal restant peut suffire à être prévenu."
+          runbook_url: docs/runbooks/alertmanager-notifications.md
+
+      - alert: LokiServerErrors
+        expr: sum(rate(loki_request_duration_seconds_count{status_code=~"5.."}[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Loki renvoie des erreurs 5xx"
+          description: "Taux de 5xx de {{ $value | humanize }}/s sur l'API Loki : des logs sont perdus ou illisibles."
+          runbook_url: docs/runbooks/monitoring-stack.md
+
+      - alert: AlloyRemoteWriteFailing
+        expr: sum by (host) (rate(prometheus_remote_storage_samples_failed_total[5m])) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Alloy perd des métriques (remote_write en échec)"
+          description: "L'agent Alloy {{ $labels.host }} n'arrive pas à pousser ses métriques vers VictoriaMetrics."
+          runbook_url: docs/runbooks/alloy-telemetry.md
+
+      - alert: AlloyLogsDropped
+        expr: sum by (host) (rate(loki_write_dropped_entries_total[5m])) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Alloy perd des logs (envoi Loki en échec)"
+          description: "L'agent Alloy {{ $labels.host }} abandonne des lignes de logs vers Loki."
+          runbook_url: docs/runbooks/alloy-telemetry.md

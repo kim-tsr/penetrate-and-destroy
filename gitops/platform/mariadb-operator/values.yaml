@@ -1,0 +1,54 @@
+# mariadb-operator 26.10.1 : opérateur + webhook + cert-controller (certificats auto-gérés, pas de cert-manager).
+# Les CRDs sont gérées par l'Application mariadb-operator-crds (wave -5).
+crds:
+  enabled: false
+
+image:
+  repository: ghcr.io/mariadb-operator/mariadb-operator
+  tag: 26.10.1@sha256:37714fb240a53b2a496fd77d784879961b098bdbe0ef344ac7ba703ee3632017
+
+logLevel: INFO
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+
+# Namespace en PSS restricted : contexte de sécurité explicite pour les 3 composants.
+podSecurityContext: &podsc
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+securityContext: &sc
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+
+resources:
+  requests: { cpu: 25m, memory: 64Mi }
+  limits: { cpu: 250m, memory: 192Mi }
+
+webhook:
+  image:
+    repository: ghcr.io/mariadb-operator/mariadb-operator
+    tag: 26.10.1@sha256:37714fb240a53b2a496fd77d784879961b098bdbe0ef344ac7ba703ee3632017
+  serviceMonitor:
+    enabled: true
+  podSecurityContext: *podsc
+  securityContext: *sc
+  resources:
+    requests: { cpu: 10m, memory: 32Mi }
+    limits: { cpu: 100m, memory: 128Mi }
+
+certController:
+  image:
+    repository: ghcr.io/mariadb-operator/mariadb-operator
+    tag: 26.10.1@sha256:37714fb240a53b2a496fd77d784879961b098bdbe0ef344ac7ba703ee3632017
+  serviceMonitor:
+    enabled: true
+  podSecurityContext: *podsc
+  securityContext: *sc
+  resources:
+    requests: { cpu: 10m, memory: 32Mi }
+    limits: { cpu: 100m, memory: 128Mi }

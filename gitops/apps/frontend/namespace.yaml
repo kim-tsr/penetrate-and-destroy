@@ -1,0 +1,14 @@
+# Namespace de l'app (comme gitops/apps/ctfd) : l'Application `namespaces` du socle ne porte aujourd'hui
+# aucun namespace applicatif. À supprimer ici si le socle se met à créer `frontend`.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: frontend # contracts: namespaces.frontend
+  labels:
+    pad.io/zone: prod
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false

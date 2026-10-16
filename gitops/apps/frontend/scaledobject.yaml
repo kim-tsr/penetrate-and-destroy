@@ -1,0 +1,28 @@
+# UN SEUL ScaledObject KEDA pour le Deployment frontend (deux triggers : CPU + sessions actives), pas de HPA séparé
+# (KEDA crée et possède le HPA). `pad_frontend_active_sessions` est calculée depuis un ensemble partagé dans Valkey :
+# elle est identique sur chaque pod, d'où le max() et non un sum().
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: frontend
+  namespace: frontend
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: frontend
+spec:
+  scaleTargetRef:
+    name: frontend
+  minReplicaCount: 2
+  maxReplicaCount: 4
+  cooldownPeriod: 300
+  triggers:
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: "70"
+    - type: prometheus
+      metadata:
+        serverAddress: http://10.20.50.10:8428 # contracts: monitoring.remote_write (VictoriaMetrics)
+        query: max(pad_frontend_active_sessions{app="pad-frontend"})
+        threshold: "150" # sessions actives (5 min) par réplica
+        ignoreNullValues: "true"

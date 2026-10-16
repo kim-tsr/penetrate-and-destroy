@@ -1,0 +1,30 @@
+---
+# Format attendu de hosts.generated.yml, produit par tofu (stack 20-services-lxc).
+# ansible_host = IP du contrat (infra/contracts.yaml). Les noms d'hôtes sont aussi les noms de targets Warpgate
+# (mode PAD_ACCESS_MODE=bastion) : ne pas les renommer sans aligner la stack 50-warpgate.
+all:
+  children:
+    proxmox_host:
+      hosts:
+        pve:                             # contracts: host.node
+          ansible_host: "{{ pad_site.ssh_host }}"   # secrets/site.sops.yaml
+    edge:
+      hosts:
+        pad-edge:
+          ansible_host: 10.20.20.10      # contracts: services.edge.ip
+    netbird:
+      hosts:
+        pad-netbird:
+          ansible_host: 10.20.20.11      # contracts: services.netbird.ip
+    warpgate:
+      hosts:
+        pad-warpgate:
+          ansible_host: 10.20.30.10      # contracts: services.warpgate.ip
+    authentik:
+      hosts:
+        pad-authentik:
+          ansible_host: 10.20.40.10      # contracts: services.authentik.ip
+    monitoring:
+      hosts:
+        pad-monitoring:
+          ansible_host: 10.20.50.10      # contracts: services.monitoring.ip

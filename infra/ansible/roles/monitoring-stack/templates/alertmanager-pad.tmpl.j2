@@ -1,0 +1,30 @@
+{# Géré par Ansible (rôle monitoring-stack). Templates de notification Alertmanager (Go templates). #}
+{# runbook_url des règles = chemin relatif au dépôt ; on le préfixe ici par l'URL publique du dépôt. #}
+{% raw %}
+{{ define "pad.discord.title" -}}
+[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .GroupLabels.alertname }}
+{{- end }}
+
+{{ define "pad.alert.line" -}}
+**{{ .Labels.severity | toUpper }}** - {{ .Annotations.summary }}
+{{ .Annotations.description }}
+{{- if .Annotations.runbook_url }}
+Runbook : {% endraw %}{{ monitoring_stack_runbook_base_url }}{% raw %}{{ .Annotations.runbook_url }}
+{{- end }}
+{{- end }}
+
+{{ define "pad.discord.message" -}}
+{{ range .Alerts }}{{ template "pad.alert.line" . }}
+{{ end }}
+{{- end }}
+
+{{ define "pad.email.subject" -}}
+[PAD {{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .GroupLabels.alertname }}
+{{- end }}
+
+{{ define "pad.email.text" -}}
+{{ range .Alerts }}{{ template "pad.alert.line" . }}
+
+{{ end }}
+{{- end }}
+{% endraw %}

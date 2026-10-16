@@ -1,0 +1,71 @@
+# Bootstrap OPNsense par ISO de configuration
+
+OPNsense n'a ni cloud-init ni API avant sa première configuration. On lui fournit donc un `config.xml`
+complet au premier boot, via son **importer de configuration** (`opnsense-importer`). Ensuite, tout le
+filtrage est géré par OpenTofu (stack `60-opnsense-rules`, provider `browningluke/opnsense`) avec la clé
+API créée par ce `config.xml`.
+
+## Chaîne complète (stack `10-router`, module `infra/tofu/modules/opnsense-vm`)
+
+| Étape | Ressource tofu | Résultat |
+|---|---|---|
+| 1. Image système | `proxmox_virtual_environment_download_file.nano` | `OPNsense-<version>-nano-amd64.img.bz2` téléchargé par Proxmox, **sha256 vérifié** (valeur épinglée dans `stacks/10-router/variables.tf`, tirée de `OPNsense-<version>-checksums-amd64.sha256`), décompressé en `local:iso/opnsense-<version>-nano-amd64.img` |
+| 2. Rendu | `templatefile(config.xml.tmpl)` → `local_sensitive_file` | `.state/opnsense/<vm>/iso/conf/config.xml` (0600, hors Git) |
+| 3. ISO | `null_resource.config_iso` → `build-config-iso.sh` | `.state/opnsense/<vm>/<vm>-config-<sha12>.iso` : ISO 9660, volume `OPNCONF`, contenant **`/conf/config.xml`** |
+| 4. Upload | `proxmox_virtual_environment_file.config_iso` | `local:iso/<vm>-config-<sha12>.iso` (API HTTP Proxmox) |
+| 5. VM | `proxmox_virtual_environment_vm.this` | disque `scsi0` importé depuis l'image nano, ISO en `ide2` (→ `cd0` sous FreeBSD), `vtnet0` = WAN, `vtnet1` = trunk `vmbr2` |
+| 6. Import | `null_resource.import_config` → `import-config.sh` | frappes clavier via l'API Proxmox (`sendkey`) pour lancer l'importer et choisir `cd0` |
+
+### Comment l'importer trouve la config
+Au boot, `/usr/local/etc/rc` lance `opnsense-importer -b`. Pour chaque device proposé, l'importer
+détecte le type : UFS (`s1a`/`p3`), ZFS, MSDOS (`s1`/`p1`), sinon **cd9660**. Il monte le device et
+cherche **`<montage>/conf/config.xml`**, qu'il copie dans `/conf/config.xml`. L'ISO doit donc avoir
+`conf/config.xml` à sa racine, ce que fait `build-config-iso.sh`.
+
+L'importer n'est **pas automatique** : il affiche `Press any key to start the configuration importer`
+pendant environ 7 s, puis demande `Select device to import from`. `import-config.sh` tape donc
+`cd0<Entrée>` en boucle pendant une fenêtre de temps (voir les commentaires du script). C'est une
+méthode best-effort. En cas d'échec, OPNsense démarre avec sa config d'usine.
+
+### Procédure manuelle de secours (1 minute)
+1. `qm reset 200` sur l'hôte (ou Reset dans l'UI), puis ouvrir la console (noVNC, ou `qm terminal 200` en série).
+2. À `Press any key to start the configuration importer`, appuyer sur une touche.
+3. À `Select device to import from`, taper `cd0`, puis Entrée. Le boot continue avec la config importée.
+
+Pour réimporter une config modifiée : `tofu apply -replace=module.opnsense.proxmox_virtual_environment_vm.this`
+(recrée la VM). Un changement de `config.xml` seul produit un nouvel ISO, mais n'altère pas une VM
+déjà configurée (`ignore_changes = [cdrom]`).
+
+## Contenu de `config.xml.tmpl`
+- **Interfaces** : `wan` = `vtnet0`. En mode `routed_ip`, l'IP publique routée vers la VM est en /32 (MAC
+  dédiée portée par la NIC Proxmox si `wan.mac` est renseigné) et la passerelle `wan.gateway` de
+  `secrets/site.sops.yaml` est déclarée `fargw` (hors sous-réseau). En mode `nat`, c'est `.2/30` du transit, avec la passerelle `.1`. Les zones sont des
+  VLANs `vlan0.<tag>` sur `vtnet1` (MVC `<vlans>`, UUID déterministes) : la zone mgmt (VLAN 10) devient
+  `lan`, les autres `opt1` à `opt6` par VLAN croissant. Chaque zone a l'IP `.1` de son CIDR
+  (`contracts.yaml`).
+- **Unbound** est actif sur toutes les interfaces internes, avec DNSSEC. Les ACL suivent
+  automatiquement les réseaux des interfaces. Il n'y a pas de forwarder (résolution récursive).
+- **DHCP** est désactivé : toutes les adresses sont statiques.
+- **SSH** : clé uniquement, root autorisé, à l'écoute sur `lan` (mgmt) et l'interface bastion
+  seulement. Les clés viennent de `secrets/proxmox.sops.yaml` (`ssh.admin_public_keys`).
+- **GUI/API** : HTTPS sur `lan` (mgmt) uniquement. La règle anti-lockout implicite de `lan` permet au
+  provider tofu de joindre `https://10.20.10.1` depuis la zone mgmt (hôte `10.20.10.2`).
+- **root** : hash bcrypt `root_password_bcrypt`. La clé API est `api_key`, avec un secret stocké sous
+  forme de hash `crypt` SHA-512 (`api_secret_crypt`). Le provider utilise `api_key` et `api_secret` en clair.
+  Tout cela vient de `secrets/opnsense.sops.yaml` (voir `secrets/opnsense.example.yaml`).
+- **NAT sortant** : automatique (tous les réseaux internes derrière l'adresse WAN). Le provider ne
+  gère pas l'outbound NAT.
+- **Filtrage** : vide au bootstrap. Le blocage par défaut est journalisé (`nologdefaultblock` absent).
+
+## Sécurité
+- Le rendu et l'ISO contiennent des hashes et la clé API. Ils vivent dans `.state/` (ignoré par Git) et
+  sur `local:iso` du node. Après le bootstrap, on peut détacher le cdrom et supprimer l'ISO.
+- Le secret API en clair n'est jamais écrit dans l'ISO, seulement son hash.
+
+## Points à valider au premier déploiement
+- La fenêtre de temps de `import-config.sh` sur la console nano (VGA vs série). Le cas échéant, régler
+  `BOOT_DELAY` et `BOOT_WINDOW`.
+- Le nom des devices VLAN `vlan0.<tag>` accepté par OPNsense 25.7.
+- La connexion à `https://10.20.10.1` depuis le poste opérateur : tunnel SSH par l'hôte
+  (`ssh -L 8443:10.20.10.1:443 <utilisateur>@<hôte>`) ou route vers `10.20.10.0/24`. Ajuster
+  `opnsense_uri` dans `60-opnsense-rules`.

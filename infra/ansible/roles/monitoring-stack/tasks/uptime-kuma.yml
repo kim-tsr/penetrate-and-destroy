@@ -1,0 +1,24 @@
+---
+# Applique monitoring/uptime-kuma/monitors.yml sur Uptime Kuma (API Socket.IO, idempotent par nom).
+# Exécuté sur le contrôleur ; identifiants et jetons viennent de secrets/monitoring.sops.yaml.
+- name: Appliquer les sondes Uptime Kuma
+  ansible.builtin.command:
+    argv:
+      - "{{ monitoring_stack_uptime_kuma_python }}"
+      - "{{ monitoring_stack_uptime_kuma_sync_script }}"
+      - --url
+      - "{{ monitoring_stack_uptime_kuma_url }}"
+      - --contracts
+      - "{{ pad_contracts_file }}"
+      - --monitors
+      - "{{ monitoring_stack_uptime_kuma_monitors_file }}"
+  environment:
+    UPTIME_KUMA_USERNAME: "{{ monitoring_secrets.uptime_kuma_username }}"
+    UPTIME_KUMA_PASSWORD: "{{ monitoring_secrets.uptime_kuma_password }}"
+    UPTIME_KUMA_DISCORD_WEBHOOK: "{{ monitoring_secrets.discord_webhook_url }}"
+    UPTIME_KUMA_WATCHDOG_TOKEN: "{{ monitoring_secrets.uptime_kuma_watchdog_token | default('') }}"
+  delegate_to: localhost
+  become: false
+  no_log: true
+  register: monitoring_stack_uptime_kuma_result
+  changed_when: "'CHANGED' in monitoring_stack_uptime_kuma_result.stdout"

@@ -1,0 +1,37 @@
+# Géré par Ansible (rôle monitoring-stack).
+apiVersion: 1
+
+datasources:
+  - name: VictoriaMetrics
+    uid: victoriametrics
+    type: prometheus
+    access: proxy
+    url: http://victoriametrics:{{ pad.ports.monitoring.victoriametrics }}
+    isDefault: true
+    jsonData:
+      httpMethod: POST
+      timeInterval: {{ monitoring_stack_scrape_interval }}
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:{{ pad.ports.monitoring.loki }}
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:{{ pad.ports.monitoring.tempo_http }}
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: loki
+      tracesToMetrics:
+        datasourceUid: victoriametrics
+      serviceMap:
+        datasourceUid: victoriametrics
+  - name: Alertmanager
+    uid: alertmanager
+    type: alertmanager
+    access: proxy
+    url: http://alertmanager:{{ pad.ports.monitoring.alertmanager }}
+    jsonData:
+      implementation: prometheus

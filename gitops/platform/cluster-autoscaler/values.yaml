@@ -1,0 +1,57 @@
+# cluster-autoscaler chart 9.53.0 : provider Cluster API.
+# Le cluster pad-prod est auto-géré (après pivot) : les MachineDeployment sont dans le cluster lui-même,
+# accès in-cluster (pas de kubeconfig). Bornes des pools : annotations
+# cluster.x-k8s.io/cluster-api-autoscaler-node-group-{min,max}-size sur les MachineDeployment
+# (gitops/clusters/prod) ; seul le pool challenges en porte (1..3).
+cloudProvider: clusterapi
+clusterAPIMode: incluster-incluster
+
+autoDiscovery:
+  clusterName: pad-prod # contracts: kubernetes.cluster_name
+  namespace: pad-cluster # contracts: kubernetes.capi_namespace
+
+replicaCount: 1
+
+nodeSelector:
+  pad.io/pool: platform # contracts: kubernetes.pools.platform
+
+extraArgs:
+  logtostderr: true
+  stderrthreshold: info
+  v: 2
+  expander: least-waste
+  # Scale-down rapide adapté au CTF : une machine inutilisée 5 min est retirée.
+  scale-down-unneeded-time: 5m
+  scale-down-delay-after-add: 5m
+  scale-down-delay-after-delete: 1m
+  scale-down-utilization-threshold: "0.5"
+  balance-similar-node-groups: false
+
+resources:
+  requests: { cpu: 25m, memory: 96Mi }
+  limits: { memory: 256Mi }
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  runAsGroup: 65534
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+podDisruptionBudget:
+  maxUnavailable: 1
+
+# Métriques (/metrics sur le port 8085 du Service) lues par Alloy via ServiceMonitor (CRDs : prometheus-crds, wave -10).
+# `namespace` : le défaut du chart (monitoring) n'existe pas ici ; `selector: null` retire le label `release`
+# destiné à un Prometheus Operator.
+serviceMonitor:
+  enabled: true
+  namespace: cluster-autoscaler # = namespace de destination de l'Application
+  interval: 30s
+  selector: null

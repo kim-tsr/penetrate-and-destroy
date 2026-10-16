@@ -1,0 +1,59 @@
+# Middlewares de sécurité appliqués par défaut à l'entrypoint websecure (voir ../values.yaml).
+# Référencés ailleurs sous la forme `traefik-<nom>@kubernetescrd`.
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: security-headers
+  namespace: traefik
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/component: middleware
+spec:
+  headers:
+    stsSeconds: 63072000
+    stsIncludeSubdomains: true
+    stsPreload: true
+    forceSTSHeader: true
+    frameDeny: true
+    contentTypeNosniff: true
+    referrerPolicy: strict-origin-when-cross-origin
+    permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    customResponseHeaders:
+      X-Powered-By: ""
+      Server: ""
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: rate-limit
+  namespace: traefik
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/component: middleware
+spec:
+  rateLimit:
+    average: 200
+    burst: 400
+    period: 1s
+    sourceCriterion:
+      ipStrategy:
+        # Le trafic public arrive via le Traefik edge : on retient la première IP de X-Forwarded-For qui n'est pas l'edge.
+        excludedIPs:
+          - 10.20.20.10/32 # contracts: services.edge.ip
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: in-flight
+  namespace: traefik
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/component: middleware
+spec:
+  inFlightReq:
+    amount: 200
+    sourceCriterion:
+      ipStrategy:
+        excludedIPs:
+          - 10.20.20.10/32 # contracts: services.edge.ip

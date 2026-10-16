@@ -1,0 +1,73 @@
+---
+- name: Installer les prérequis du dépôt Grafana
+  ansible.builtin.apt:
+    name: [ca-certificates, gnupg]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Déclarer le dépôt apt Grafana
+  ansible.builtin.deb822_repository:
+    name: grafana
+    types: [deb]
+    uris: https://apt.grafana.com
+    suites: [stable]
+    components: [main]
+    signed_by: https://apt.grafana.com/gpg.key
+    state: present
+  register: alloy_repo
+
+- name: Installer Alloy (version épinglée)
+  ansible.builtin.apt:
+    name: "alloy={{ alloy_version }}"
+    state: present
+    update_cache: "{{ alloy_repo is changed }}"
+    allow_downgrade: true
+  notify: Redémarrer alloy
+
+- name: Geler la version d'Alloy
+  ansible.builtin.dpkg_selections:
+    name: alloy
+    selection: hold
+
+- name: Créer le groupe docker par anticipation (le paquet docker-ce le réutilise)
+  ansible.builtin.group:
+    name: docker
+    system: true
+    state: present
+  when: alloy_docker_enabled
+
+- name: Autoriser Alloy à lire le journal systemd
+  ansible.builtin.user:
+    name: alloy
+    groups: "{{ ['systemd-journal'] + (['docker'] if alloy_docker_enabled else []) }}"
+    append: true
+  notify: Redémarrer alloy
+
+- name: Configurer les arguments du service Alloy
+  ansible.builtin.copy:
+    dest: /etc/default/alloy
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Géré par Ansible (rôle alloy)
+      CONFIG_FILE="/etc/alloy/config.alloy"
+      CUSTOM_ARGS="--server.http.listen-addr={{ alloy_listen_address }} --disable-reporting"
+      RESTART_ON_UPGRADE=true
+  notify: Redémarrer alloy
+
+- name: Déployer la configuration Alloy
+  ansible.builtin.template:
+    src: config.alloy.j2
+    dest: /etc/alloy/config.alloy
+    owner: root
+    group: alloy
+    mode: "0640"
+  notify: Redémarrer alloy
+
+- name: Activer et démarrer Alloy
+  ansible.builtin.systemd_service:
+    name: alloy
+    enabled: true
+    state: started

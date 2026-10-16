@@ -1,0 +1,50 @@
+# Default-deny puis autorisations explicites (entrée + sortie).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: netbird-sync
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: netbird-sync
+  policyTypes: [Ingress, Egress]
+  ingress:
+    # Scrape des métriques depuis le namespace d'observabilité.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability # contracts: namespaces.monitoring_agents
+      ports:
+        - { port: 8080, protocol: TCP }
+  egress:
+    # DNS (kube-dns)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+    # API Kubernetes : nœuds control-plane (zone prod, Talos 6443)
+    - to:
+        - ipBlock:
+            cidr: 10.20.60.0/24 # contracts: zones.prod.cidr
+      ports:
+        - { port: 6443, protocol: TCP } # contracts: ports.kube_api
+    # API NetBird via l'edge (Traefik, DMZ) : 443 uniquement
+    - to:
+        - ipBlock:
+            cidr: 10.20.20.10/32 # contracts: services.edge.ip
+      ports:
+        - { port: 443, protocol: TCP } # contracts: ports.https

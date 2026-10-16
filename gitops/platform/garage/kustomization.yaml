@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Le Secret garage-rpc-secret est déchiffré par ksops depuis secret-rpc.sops.yaml (créé par `task secrets:init`,
+# cf. docs/SECRETS.md), ainsi que garage-s3-credentials (secret-s3.sops.yaml, clé S3 importée par le Job garage-init).
+resources:
+  - application.yaml
+generators:
+  - secret-generator.yaml

@@ -1,0 +1,40 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: zot
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: zot
+    app.kubernetes.io/part-of: platform
+    pad.io/zone: prod
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  sources:
+    - repoURL: https://zotregistry.dev/helm-charts
+      chart: zot
+      targetRevision: 0.1.128
+      helm:
+        releaseName: zot
+        valueFiles:
+          - $values/gitops/platform/zot/values.yaml
+    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+      targetRevision: main # contracts: git.branch
+      ref: values
+    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+      targetRevision: main # contracts: git.branch
+      path: gitops/platform/zot/resources # PodMonitor (un seul scrape par pod)
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: registry # contracts: namespaces.registry
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      # PodMonitor : CRD fournie par l'Application prometheus-crds (wave -10).
+      - SkipDryRunOnMissingResource=true

@@ -1,0 +1,42 @@
+---
+warpgate_dir: "{{ pad_compose_root }}/warpgate"
+warpgate_data_dir: "{{ warpgate_dir }}/data"
+warpgate_fqdn: "{{ pad_fqdn.bastion }}"
+
+# Image épinglée tag@sha256 (inventories/prod/group_vars/all/versions.yml).
+warpgate_image: "{{ pad_images.warpgate }}"
+# UID/GID de l'utilisateur "warpgate" dans l'image (ARG USER_ID=1000).
+warpgate_uid: 1000
+
+# Listeners (ports du contrat).
+warpgate_ssh_port: "{{ pad.ports.warpgate.ssh }}"
+warpgate_https_port: "{{ pad.ports.warpgate.https }}"
+# Port HTTPS externe vu par les navigateurs (edge Traefik, TLS re-chiffré vers Warpgate).
+warpgate_external_https_port: 443
+warpgate_memory_limit: 192m
+
+# SSO OIDC Authentik (client du contrat).
+warpgate_sso_name: authentik
+warpgate_sso_label: Authentik
+warpgate_sso_client_id: "{{ pad.identity.oidc_clients.warpgate }}"
+warpgate_sso_issuer: "{{ pad_authentik_issuer_tpl | format(warpgate_sso_client_id) }}"
+warpgate_sso_scopes: [openid, email, profile]
+# Claim Authentik listant les groupes, mappé vers les rôles Warpgate.
+warpgate_sso_groups_claim: groups
+# Groupe Authentik -> rôle d'administration Warpgate (rôle intégré "warpgate:admin").
+warpgate_sso_admin_group: infra-admins
+warpgate_admin_role: "warpgate:admin"
+# Groupe Authentik -> rôle d'accès Warpgate (à créer par la stack tofu 50-warpgate).
+warpgate_sso_role_mappings:
+  infra-admins: infra-admins
+# Politique d'authentification des utilisateurs créés par SSO : web = SSO ; SSH = approbation par lien web.
+warpgate_sso_default_credential_policy:
+  http: [sso]
+  ssh: [web]
+
+# Rétention des logs en base.
+warpgate_log_retention: 7d
+
+# Secrets chargés depuis SOPS (voir secrets/warpgate.example.yaml).
+warpgate_admin_password: ""
+warpgate_sso_client_secret: ""

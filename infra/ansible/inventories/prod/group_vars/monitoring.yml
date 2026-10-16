@@ -1,0 +1,3 @@
+---
+# Tempo écoute déjà sur 4317/4318 dans ce LXC : pas de récepteur OTLP local Alloy.
+alloy_otlp_receiver_enabled: false

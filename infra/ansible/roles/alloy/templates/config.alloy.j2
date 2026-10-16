@@ -1,0 +1,142 @@
+// {{ ansible_managed }}
+// Push uniquement vers le LXC monitoring (matrice de flux : toutes zones -> MONITORING = push).
+// Les exporters (node, pve, traefik...) sont scrapés par VictoriaMetrics, pas par Alloy.
+
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+// ---------- Sorties ----------
+loki.write "default" {
+  endpoint {
+    url = "{{ alloy_loki_push_url }}"
+  }
+  external_labels = {
+{% for k, v in alloy_external_labels.items() %}
+    {{ k }} = "{{ v }}",
+{% endfor %}
+  }
+}
+
+prometheus.remote_write "default" {
+  endpoint {
+    url = "{{ alloy_remote_write_url }}"
+  }
+  external_labels = {
+{% for k, v in alloy_external_labels.items() %}
+    {{ k }} = "{{ v }}",
+{% endfor %}
+  }
+}
+
+// ---------- Métriques d'Alloy lui-même ----------
+prometheus.exporter.self "alloy" { }
+
+prometheus.scrape "alloy" {
+  targets         = prometheus.exporter.self.alloy.targets
+  forward_to      = [prometheus.remote_write.default.receiver]
+  job_name        = "alloy"
+  scrape_interval = "60s"
+}
+
+// ---------- Journal systemd ----------
+loki.relabel "journal" {
+  forward_to = []
+
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unit"
+  }
+  rule {
+    source_labels = ["__journal_priority_keyword"]
+    target_label  = "level"
+  }
+  rule {
+    source_labels = ["__journal_syslog_identifier"]
+    target_label  = "syslog_identifier"
+  }
+}
+
+loki.source.journal "journal" {
+  forward_to    = [loki.write.default.receiver]
+  relabel_rules = loki.relabel.journal.rules
+  max_age       = "{{ alloy_journal_max_age }}"
+  labels        = { job = "journal" }
+}
+{% if alloy_docker_enabled %}
+
+// ---------- Conteneurs Docker : logs + métriques cAdvisor ----------
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "compose_project"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+}
+
+loki.source.docker "containers" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.docker.containers.targets
+  relabel_rules = discovery.relabel.containers.rules
+  forward_to    = [loki.write.default.receiver]
+  labels        = { job = "docker" }
+}
+
+prometheus.exporter.cadvisor "docker" {
+  docker_host      = "unix:///var/run/docker.sock"
+  docker_only      = true
+  storage_duration = "5m"
+}
+
+prometheus.scrape "cadvisor" {
+  targets         = prometheus.exporter.cadvisor.docker.targets
+  forward_to      = [prometheus.remote_write.default.receiver]
+  job_name        = "cadvisor"
+  scrape_interval = "30s"
+}
+{% endif %}
+{% if alloy_otlp_receiver_enabled %}
+
+// ---------- Traces : relais OTLP local -> Tempo ----------
+otelcol.receiver.otlp "local" {
+  grpc {
+    endpoint = "127.0.0.1:4317"
+  }
+  http {
+    endpoint = "127.0.0.1:4318"
+  }
+  output {
+    traces = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  output {
+    traces = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "{{ alloy_otlp_endpoint }}"
+    tls {
+      insecure = true
+    }
+  }
+}
+{% endif %}

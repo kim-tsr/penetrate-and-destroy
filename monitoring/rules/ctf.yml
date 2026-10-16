@@ -1,0 +1,145 @@
+---
+# Alertes applicatives CTF : CTFd (exporter maison), front Next.js, instances de challenges,
+# netbird-sync et chall-manager (métriques de spans générées par Tempo).
+groups:
+  - name: pad-ctfd
+    rules:
+      - alert: CtfdMetricsMissing
+        expr: absent(ctfd_metrics_generated_timestamp_seconds)
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Les métriques CTFd sont absentes"
+          description: "Le plugin metrics_exporter n'est plus scrapé depuis 15 minutes (CTFd arrêté, token PAD_METRICS_TOKEN invalide ou NetworkPolicy)."
+          runbook_url: docs/runbooks/ctfd.md
+
+      - alert: CtfdMetricsStale
+        expr: time() - max(ctfd_metrics_generated_timestamp_seconds) > 300
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Métriques CTFd figées depuis plus de 5 minutes"
+          description: "L'exporter répond mais ses données ne sont plus recalculées (base de données inaccessible ?)."
+          runbook_url: docs/runbooks/ctfd.md
+
+      - alert: CtfdDeploymentDown
+        expr: kube_deployment_status_replicas_available{namespace="ctfd", deployment="ctfd"} == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CTFd n'a plus aucun pod disponible"
+          description: "Le moteur CTFd est arrêté : plus de soumission de flags ni de scoreboard."
+          runbook_url: docs/runbooks/ctfd.md
+
+      - alert: CtfdIncorrectSubmissionsBurst
+        expr: pad:ctfd_submissions:rate5m{result="incorrect"} * 60 > 120
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Plus de 120 soumissions de flag incorrectes par minute"
+          description: "Forte rafale de mauvais flags ({{ $value | humanize }}/min) : brute-force probable ou problème de challenge."
+          runbook_url: docs/runbooks/ctfd.md
+
+      - alert: CtfEventPaused
+        expr: ctfd_event_state{state="paused"} == 1
+        for: 60m
+        labels:
+          severity: info
+        annotations:
+          summary: "L'événement CTF est en pause depuis plus d'une heure"
+          description: "ctfd_event_state indique « paused » depuis 60 minutes : vérifier que ce n'est pas un oubli."
+          runbook_url: docs/runbooks/ctfd.md
+
+  - name: pad-frontend
+    rules:
+      - alert: FrontendHigh5xxRatio
+        expr: pad:frontend_http_5xx_ratio:rate5m > 0.05 and sum(rate(pad_frontend_http_requests_total[5m])) > 0.2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Plus de 5 % d'erreurs 5xx sur le front"
+          description: "Taux de 5xx du front Next.js à {{ $value | humanizePercentage }} depuis 10 minutes."
+          runbook_url: docs/runbooks/frontend.md
+
+      - alert: FrontendCtfdSlow
+        expr: pad:frontend_ctfd_request_duration_seconds:p95_5m > 2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Les appels du BFF vers CTFd sont lents (p95 > 2 s)"
+          description: "p95 à {{ $value | humanizeDuration }} : CTFd ou sa base de données est sous tension."
+          runbook_url: docs/runbooks/frontend.md
+
+      - alert: FrontendMetricsMissing
+        expr: absent(pad_frontend_active_sessions)
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Les métriques du front sont absentes"
+          description: "Aucun pod du front n'expose pad_frontend_* (front arrêté, ServiceMonitor manquant ou scale-to-zero KEDA)."
+          runbook_url: docs/runbooks/frontend.md
+
+  - name: pad-instances
+    rules:
+      # Écart entre les instances connues de CTFd (pad_instances_active) et les namespaces inst-* du cluster.
+      - alert: CtfdInstancesDrift
+        expr: abs(pad:instances_active - pad:instances_namespaces) > 5
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Écart entre les instances de CTFd et celles du cluster"
+          description: "Écart de {{ $value | humanize }} entre les instances actives selon CTFd et les namespaces inst-* du cluster (instances orphelines ou janitor bloqué)."
+          runbook_url: docs/runbooks/instances.md
+
+      - alert: ChallManagerErrorRate
+        expr: |
+          sum(rate(traces_spanmetrics_calls_total{service="chall-manager", status_code="STATUS_CODE_ERROR"}[10m]))
+            / clamp_min(sum(rate(traces_spanmetrics_calls_total{service="chall-manager"}[10m])), 1e-9) > 0.2
+          and sum(rate(traces_spanmetrics_calls_total{service="chall-manager"}[10m])) > 0.01
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Plus de 20 % d'erreurs dans chall-manager"
+          description: "Les opérations chall-manager (création/suppression d'instances) échouent : {{ $value | humanizePercentage }} d'erreurs sur 10 minutes."
+          runbook_url: docs/runbooks/instances.md
+
+      - alert: ChallManagerDeploymentDown
+        expr: kube_deployment_status_replicas_available{namespace="chall-manager", deployment="chall-manager"} == 0
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "chall-manager n'a plus aucun pod disponible"
+          description: "Les joueurs ne peuvent plus lancer d'instances de challenges."
+          runbook_url: docs/runbooks/instances.md
+
+  - name: pad-netbird-sync
+    rules:
+      - alert: NetbirdSyncErrors
+        expr: rate(netbird_sync_reconcile_errors_total[10m]) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "netbird-sync échoue à réconcilier des instances"
+          description: "Des Services d'instances ne sont pas publiés dans NetBird : les joueurs ne joignent pas leurs instances (API NetBird, token ou RBAC)."
+          runbook_url: docs/runbooks/netbird-sync.md
+
+      - alert: NetbirdSyncDeploymentDown
+        expr: kube_deployment_status_replicas_available{namespace="netbird-sync", deployment="netbird-sync"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "netbird-sync n'a plus aucun pod disponible"
+          description: "Plus aucune synchronisation des instances de challenges vers NetBird."
+          runbook_url: docs/runbooks/netbird-sync.md

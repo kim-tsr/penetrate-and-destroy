@@ -1,0 +1,26 @@
+---
+base_hardening_packages:
+  - ca-certificates
+  - curl
+  - gnupg
+  - python3-debian          # requis par ansible.builtin.deb822_repository
+  - unattended-upgrades
+  - apt-listchanges
+  - prometheus-node-exporter
+
+# SSH : clé uniquement. root reste autorisé par clé (LXC jetables, clé injectée par tofu).
+base_hardening_ssh_permit_root_login: prohibit-password
+base_hardening_ssh_max_auth_tries: 3
+base_hardening_ssh_allow_tcp_forwarding: "no"
+
+# unattended-upgrades : correctifs de sécurité Debian uniquement, sans reboot automatique.
+base_hardening_unattended_reboot: false
+
+# journald : persistant, borné (les logs partent vers Loki via Alloy).
+base_hardening_journald_system_max_use: 512M
+base_hardening_journald_max_retention: 14day
+
+# node-exporter : écoute sur toutes les interfaces (MONITORING -> zones = scrape). L'hôte surcharge l'IP.
+base_hardening_node_exporter_listen: "0.0.0.0:{{ pad.monitoring.exporters.node }}"
+
+base_hardening_alloy_enabled: true

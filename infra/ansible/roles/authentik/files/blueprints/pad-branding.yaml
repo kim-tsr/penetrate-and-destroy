@@ -1,0 +1,47 @@
+# Blueprint de branding PenetrateAndDestroy (monté dans /blueprints/custom).
+# Palette : graphite #0E1116, ambre #FFB000.
+version: 1
+metadata:
+  name: PenetrateAndDestroy - Branding
+  labels:
+    blueprints.goauthentik.io/description: Titre, couleurs graphite/ambre de la marque par défaut
+entries:
+  - model: authentik_brands.brand
+    state: present
+    identifiers:
+      domain: authentik-default
+    attrs:
+      default: true
+      branding_title: PenetrateAndDestroy
+      branding_custom_css: |
+        :root,
+        :root[data-theme="dark"],
+        :root[data-theme="light"] {
+          --pad-graphite: #0E1116;
+          --pad-amber: #FFB000;
+          --ak-accent: #FFB000;
+          --pf-global--primary-color--100: #FFB000;
+          --pf-global--primary-color--200: #E69D00;
+          --pf-global--active-color--100: #FFB000;
+          --pf-global--link--Color: #FFB000;
+          --pf-global--link--Color--hover: #FFC640;
+          --pf-global--BackgroundColor--dark-100: #0E1116;
+          --pf-global--BackgroundColor--dark-200: #161B22;
+        }
+        body,
+        .pf-c-background-image,
+        .pf-c-login {
+          background-color: #0E1116;
+        }
+        .pf-c-login__main,
+        .pf-c-card {
+          background-color: #161B22;
+          color: #E6EDF3;
+        }
+        .pf-c-button.pf-m-primary {
+          background-color: #FFB000;
+          color: #0E1116;
+        }
+        .pf-c-button.pf-m-primary:hover {
+          background-color: #FFC640;
+        }

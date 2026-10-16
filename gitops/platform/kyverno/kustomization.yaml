@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Applications ArgoCD (namespace argocd). values.yaml est lu par ArgoCD via `$values`, pas par kustomize.
+resources:
+  - application.yaml
+  - application-policies.yaml

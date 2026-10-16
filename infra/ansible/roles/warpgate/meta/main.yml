@@ -1,0 +1,11 @@
+---
+galaxy_info:
+  author: penetrate-and-destroy
+  description: Warpgate (bastion SSH/HTTPS) en Docker Compose, SSO OIDC Authentik
+  license: MIT
+  min_ansible_version: "2.17"
+  platforms:
+    - name: Debian
+      versions: [all]
+dependencies:
+  - role: docker

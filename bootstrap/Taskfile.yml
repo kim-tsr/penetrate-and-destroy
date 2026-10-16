@@ -1,0 +1,30 @@
+version: "3"
+
+# Bootstrap du cluster : kind -> CAPI -> pivot -> ArgoCD. Inclus par le Taskfile racine (namespace `bootstrap:`).
+# Prérequis : `nix develop`, SOPS_AGE_KEY_FILE, secrets/proxmox.sops.yaml, secrets/github-deploy-key.sops.yaml.
+
+tasks:
+  cluster:
+    desc: kind éphémère -> clusterctl -> pad-prod -> Cilium -> pivot -> suppression de kind (reprenable)
+    cmds:
+      - bash {{.TASKFILE_DIR}}/scripts/cluster.sh
+
+  gitops:
+    desc: ArgoCD (helm), secrets sops-age et repo, Application root
+    cmds:
+      - bash {{.TASKFILE_DIR}}/scripts/gitops.sh
+
+  destroy:
+    desc: Détruit pad-prod (pivot inverse + delete Cluster, fallback API Proxmox avec confirmation)
+    cmds:
+      - bash {{.TASKFILE_DIR}}/scripts/destroy.sh
+
+  kubeconfig:
+    desc: Affiche les exports KUBECONFIG/TALOSCONFIG (régénère le kubeconfig si absent)
+    cmds:
+      - bash {{.TASKFILE_DIR}}/scripts/kubeconfig.sh
+
+  render-providers:
+    desc: Rend gitops/platform/capi-providers/manifests depuis les versions du contrat
+    cmds:
+      - bash {{.TASKFILE_DIR}}/scripts/render-providers.sh

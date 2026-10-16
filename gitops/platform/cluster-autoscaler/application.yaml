@@ -1,0 +1,35 @@
+# Application ArgoCD : cluster-autoscaler (provider Cluster API, cluster auto-géré).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-autoscaler
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: cluster-autoscaler
+    app.kubernetes.io/part-of: pad-platform
+    pad.io/zone: prod
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+spec:
+  project: platform
+  sources:
+    - repoURL: https://kubernetes.github.io/autoscaler
+      chart: cluster-autoscaler
+      targetRevision: 9.53.0
+      helm:
+        releaseName: cluster-autoscaler
+        valueFiles:
+          - $values/gitops/platform/cluster-autoscaler/values.yaml
+    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+      targetRevision: main # contracts: git.branch
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cluster-autoscaler
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 5
+      backoff: { duration: 10s, factor: 2, maxDuration: 3m }

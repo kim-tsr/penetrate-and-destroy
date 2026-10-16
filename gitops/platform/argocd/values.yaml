@@ -1,0 +1,153 @@
+# Values argo-cd (chart 10.10.5). Namespace argocd : PSS restricted.
+global:
+  domain: argocd.CHANGEME.example.net # contracts: hostnames.argocd + domain
+  logging:
+    format: json
+    level: info
+
+crds:
+  install: true
+  keep: true
+
+configs:
+  cm:
+    url: https://argocd.CHANGEME.example.net # contracts: hostnames.argocd + domain
+    # Pas de login local en nominal : SSO Authentik uniquement. Compte `admin` conservé pour le dépannage
+    # tant que l'OIDC n'est pas validé (domaine encore CHANGEME) ; à passer à "false" ensuite.
+    admin.enabled: "true"
+    exec.enabled: "false"
+    # Suivi par annotation (et non par label app.kubernetes.io/instance) : Cluster API recopie les labels des objets
+    # (MachineDeployment -> MachineSet -> Machine) et ArgoCD prendrait ces enfants pour des ressources de l'Application.
+    application.resourceTrackingMethod: annotation
+    # ksops : Kustomize doit autoriser les plugins exec (ksops est un plugin exec kustomize).
+    kustomize.buildOptions: --enable-alpha-plugins --enable-exec
+    # SSO Authentik (OIDC). Groupes IdP : ctf-admins, infra-admins (contracts: identity.groups).
+    oidc.config: |
+      name: Authentik
+      issuer: https://auth.CHANGEME.example.net/application/o/pad-argocd/
+      clientID: pad-argocd
+      clientSecret: $argocd-oidc:clientSecret
+      requestedScopes: [openid, profile, email, groups]
+    # contracts: hostnames.auth + domain (issuer), identity.oidc_clients.argocd (clientID)
+  params:
+    server.insecure: true # TLS terminé par Traefik
+  rbac:
+    policy.default: "" # aucun droit sans appartenance à un groupe autorisé
+    scopes: "[groups]"
+    policy.csv: |
+      g, ctf-admins, role:admin
+      g, infra-admins, role:admin
+
+# --- Composants ---
+controller:
+  replicas: 1
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 640Mi }
+  metrics:
+    enabled: true
+    serviceMonitor: { enabled: true } # CRDs : Application prometheus-crds (wave -10), lus par Alloy
+
+server:
+  replicas: 1
+  resources:
+    requests: { cpu: 20m, memory: 96Mi }
+    limits: { memory: 256Mi }
+  metrics:
+    enabled: true
+    serviceMonitor: { enabled: true }
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hostname: argocd.CHANGEME.example.net # contracts: hostnames.argocd + domain
+    tls: true
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-ovh
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+
+repoServer:
+  replicas: 1
+  resources:
+    requests: { cpu: 50m, memory: 160Mi }
+    limits: { memory: 640Mi }
+  metrics:
+    enabled: true
+    serviceMonitor: { enabled: true }
+  env:
+    # ksops (fonction KRM exec de kustomize) + clé age de SOPS. XDG_CONFIG_HOME : SOPS cherche aussi la clé dans
+    # $XDG_CONFIG_HOME/sops/age/keys.txt ; SOPS_AGE_KEY_FILE la désigne explicitement (Secret `sops-age`, clé keys.txt).
+    - name: XDG_CONFIG_HOME
+      value: /.config
+    - name: SOPS_AGE_KEY_FILE
+      value: /.config/sops/age/keys.txt
+  volumes:
+    - name: custom-tools
+      emptyDir: {}
+    - name: sops-age
+      secret:
+        secretName: sops-age
+        optional: true # créé par `task bootstrap:gitops` (clé age du CLUSTER, jamais celle de l'opérateur) ; sans lui ksops échoue explicitement
+  volumeMounts:
+    # Les générateurs (`config.kubernetes.io/function: exec: path: ksops`) résolvent `ksops` via le PATH de kustomize.
+    - name: custom-tools
+      mountPath: /usr/local/bin/ksops
+      subPath: ksops
+    - name: sops-age
+      mountPath: /.config/sops/age
+      readOnly: true
+  # L'image viaductoss/ksops est sans shell ni cp : on télécharge le binaire ksops épinglé (v4.5.1) et on vérifie son sha256.
+  # Le kustomize embarqué dans l'image argocd est utilisé avec `kustomize.buildOptions` ci-dessus.
+  initContainers:
+    - name: install-ksops
+      image: alpine:3.24.2@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+      command: [sh, -c]
+      args:
+        - |
+          set -eu
+          cd /custom-tools
+          wget -q -O ksops.tgz "https://github.com/viaduct-ai/kustomize-sops/releases/download/v4.5.1/ksops_4.5.1_Linux_x86_64.tar.gz"
+          echo "9641e03a301bf2fc4b98d0e837a0351e1ca443ecd7a68b25e6af2149fbb2ef30  ksops.tgz" | sha256sum -c -
+          tar -xzf ksops.tgz ksops
+          rm -f ksops.tgz
+          chmod 0555 ksops
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities: { drop: [ALL] }
+        seccompProfile: { type: RuntimeDefault }
+      resources:
+        requests: { cpu: 10m, memory: 16Mi }
+        limits: { memory: 64Mi }
+      volumeMounts:
+        - name: custom-tools
+          mountPath: /custom-tools
+
+applicationSet:
+  replicas: 1
+  resources:
+    requests: { cpu: 10m, memory: 48Mi }
+    limits: { memory: 160Mi }
+  metrics:
+    enabled: true
+    serviceMonitor: { enabled: true }
+
+redis:
+  resources:
+    requests: { cpu: 10m, memory: 24Mi }
+    limits: { memory: 128Mi }
+  metrics:
+    enabled: false # exporter redis non déployé (économie de RAM)
+
+redisSecretInit:
+  resources:
+    requests: { cpu: 10m, memory: 16Mi }
+    limits: { memory: 64Mi }
+
+# Authentik fait office d'IdP OIDC : Dex et les notifications ne sont pas utilisés (budget RAM).
+dex:
+  enabled: false
+notifications:
+  enabled: false

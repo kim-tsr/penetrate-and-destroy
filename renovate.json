@@ -1,0 +1,7 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":pinDigests"],
+  "argocd": { "fileMatch": ["^gitops/.+\\.ya?ml$"] },
+  "kubernetes": { "fileMatch": ["^gitops/.+\\.ya?ml$"] },
+  "packageRules": [{ "matchUpdateTypes": ["major"], "dependencyDashboardApproval": true }]
+}

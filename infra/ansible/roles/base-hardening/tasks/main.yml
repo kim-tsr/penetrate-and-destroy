@@ -1,0 +1,69 @@
+---
+- name: Installer les paquets de base
+  ansible.builtin.apt:
+    name: "{{ base_hardening_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Durcir sshd (clé uniquement)
+  ansible.builtin.template:
+    src: sshd-hardening.conf.j2
+    dest: /etc/ssh/sshd_config.d/10-pad-hardening.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: /usr/sbin/sshd -t -f %s
+  notify: Recharger sshd
+
+- name: Configurer unattended-upgrades (sécurité uniquement)
+  ansible.builtin.template:
+    src: 52pad-unattended-upgrades.j2
+    dest: /etc/apt/apt.conf.d/52pad-unattended-upgrades
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Activer les mises à jour automatiques
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      // Géré par Ansible (rôle base-hardening)
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+      APT::Periodic::AutocleanInterval "7";
+
+- name: Créer le répertoire de drop-in journald
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configurer journald
+  ansible.builtin.copy:
+    dest: /etc/systemd/journald.conf.d/10-pad.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Géré par Ansible (rôle base-hardening)
+      [Journal]
+      Storage=persistent
+      Compress=yes
+      SystemMaxUse={{ base_hardening_journald_system_max_use }}
+      MaxRetentionSec={{ base_hardening_journald_max_retention }}
+      ForwardToSyslog=no
+  notify: Redémarrer journald
+
+- name: Installer et configurer node-exporter
+  ansible.builtin.include_tasks: node_exporter.yml
+
+- name: Installer Alloy (logs et métriques vers le monitoring)
+  ansible.builtin.include_role:
+    name: alloy
+  when: base_hardening_alloy_enabled

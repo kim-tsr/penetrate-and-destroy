@@ -1,0 +1,25 @@
+# /metrics de CTFd (plugin metrics_exporter), protégé par Authorization: Bearer <PAD_METRICS_TOKEN>.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ctfd
+  namespace: ctfd
+  labels:
+    app.kubernetes.io/name: ctfd
+    app.kubernetes.io/part-of: ctfd
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ctfd
+  namespaceSelector:
+    matchNames: [ctfd]
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      authorization:
+        type: Bearer
+        credentials:
+          name: ctfd-secrets
+          key: PAD_METRICS_TOKEN

@@ -1,0 +1,11 @@
+# Géré par Ansible (rôle authentik)
+[Unit]
+Description=Sauvegarde quotidienne d'Authentik
+
+[Timer]
+OnCalendar={{ authentik_backup_on_calendar }}
+RandomizedDelaySec={{ authentik_backup_randomized_delay }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

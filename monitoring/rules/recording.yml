@@ -1,0 +1,98 @@
+---
+# Recording rules PenetrateAndDestroy (format Prometheus/vmalert).
+# Convention de nommage : niveau:métrique:opérations (préfixe "pad:" pour les agrégats plateforme).
+# Les gauges CTFd sont exportées par CHAQUE réplica avec la même valeur (lecture en base) : on agrège
+# toujours avec max() et jamais avec sum() pour ne pas multiplier par le nombre de pods.
+groups:
+  - name: pad-recording-ctf
+    interval: 30s
+    rules:
+      - record: pad:ctfd_submissions:rate5m
+        expr: max by (result) (rate(ctfd_submissions_total[5m]))
+
+      - record: pad:ctfd_submissions_per_minute
+        expr: 60 * sum(pad:ctfd_submissions:rate5m)
+
+      - record: pad:ctfd_solves_per_minute
+        expr: (60 * sum(pad:ctfd_submissions:rate5m{result="correct"})) or vector(0)
+
+      - record: pad:ctfd_solves:total
+        expr: sum(max by (challenge_id) (ctfd_challenge_solves))
+
+      - record: pad:ctfd_active_users
+        expr: max by (window) (ctfd_active_users)
+
+      - record: pad:ctfd_teams:total
+        expr: max(ctfd_teams{kind="all"})
+
+      - record: pad:ctfd_users:total
+        expr: max(ctfd_users{kind="all"})
+
+      - record: pad:ctfd_first_bloods:total
+        expr: max(ctfd_first_bloods)
+
+      # Valeur globale (ensemble partagé dans Valkey) identique sur chaque pod : max() obligatoire.
+      - record: pad:frontend_active_sessions
+        expr: max(pad_frontend_active_sessions)
+
+      - record: pad:frontend_http_requests:rate5m
+        expr: sum by (status) (rate(pad_frontend_http_requests_total[5m]))
+
+      - record: pad:frontend_http_5xx_ratio:rate5m
+        expr: |
+          sum(rate(pad_frontend_http_requests_total{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(pad_frontend_http_requests_total[5m])), 1e-9)
+
+      - record: pad:frontend_ctfd_request_duration_seconds:p95_5m
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(pad_frontend_ctfd_request_duration_seconds_bucket[5m])))
+
+      - record: pad:instances_active
+        expr: max(pad_instances_active)
+
+      # Instances vues par le cluster : un namespace par instance (préfixe inst-, contracts: namespaces.instances_prefix).
+      - record: pad:instances_namespaces
+        expr: count(kube_namespace_status_phase{namespace=~"inst-.+", phase="Active"} == 1) or vector(0)
+
+  - name: pad-recording-ingress
+    interval: 30s
+    rules:
+      - record: pad:traefik_requests:rate5m
+        expr: sum by (code) (rate(traefik_entrypoint_requests_total{entrypoint="websecure"}[5m]))
+
+      - record: pad:traefik_5xx_ratio:rate5m
+        expr: |
+          sum(rate(traefik_service_requests_total{code=~"5.."}[5m]))
+            / clamp_min(sum(rate(traefik_service_requests_total[5m])), 1e-9)
+
+      - record: pad:traefik_request_duration_seconds:p95_5m
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(traefik_service_request_duration_seconds_bucket[5m])))
+
+  - name: pad-recording-hosts
+    interval: 30s
+    rules:
+      - record: instance:node_cpu_used:ratio5m
+        expr: 1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))
+
+      - record: instance:node_memory_used:ratio
+        expr: 1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
+
+      - record: instance:node_filesystem_free:ratio
+        expr: |
+          node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|devtmpfs|fuse.*"}
+            / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs|ramfs|devtmpfs|fuse.*"}
+
+      # Hôte Proxmox : ZFS ARC.
+      - record: pad:zfs_arc_hit_ratio:rate5m
+        expr: |
+          rate(node_zfs_arc_hits[5m])
+            / clamp_min(rate(node_zfs_arc_hits[5m]) + rate(node_zfs_arc_misses[5m]), 1e-9)
+
+      - record: pad:zfs_arc_size:ratio
+        expr: node_zfs_arc_size / node_zfs_arc_c_max
+
+      - record: pad:pve_storage_used:ratio
+        expr: pve_disk_usage_bytes{id=~"storage/.+"} / pve_disk_size_bytes{id=~"storage/.+"}

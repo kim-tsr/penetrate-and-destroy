@@ -1,0 +1,82 @@
+---
+# Sondes Uptime Kuma déclaratives, appliquées par monitoring/uptime-kuma/sync.py (idempotent, clé = nom).
+# Les valeurs viennent de infra/contracts.yaml via des champs de format Python : {domain}, {hostnames[front]},
+# {ports[monitoring][grafana]}, {services[edge][ip]}... Aucune valeur réelle n'est écrite ici.
+# Secrets (jamais dans ce fichier) : variables d'environnement UPTIME_KUMA_* fournies par Ansible (SOPS).
+
+notifications:
+  - name: discord-ops
+    type: discord
+    webhook_env: UPTIME_KUMA_DISCORD_WEBHOOK   # même webhook que l'Alertmanager (secrets/monitoring.sops.yaml)
+    default: true                              # appliqué à toutes les sondes
+    apply_existing: true
+
+defaults:
+  interval: 60
+  retry_interval: 30
+  max_retries: 3
+  expiry_notification: true      # alerte d'expiration du certificat TLS pour les sondes HTTPS
+
+status_page:
+  slug: pad
+  title: PenetrateAndDestroy
+  description: État des services de la plateforme CTF.
+  domains: ["{hostnames[status]}.{domain}"]   # hostnames.status : status page publique
+  groups: [Public]                             # les sondes du groupe "Public" y sont publiées
+
+monitors:
+  # --- Sondes externes : chemin public complet (DNS, edge, Traefik, application) ---
+  - name: Front CTF
+    group: Public
+    type: http
+    url: "https://{hostnames[front]}.{domain}/"
+    accepted_status_codes: ["200-299"]
+  - name: Authentik (SSO)
+    group: Public
+    type: http
+    url: "https://{hostnames[auth]}.{domain}/"
+    accepted_status_codes: ["200-399"]
+  - name: NetBird (VPN)
+    group: Public
+    type: http
+    url: "https://{hostnames[vpn]}.{domain}/"
+    accepted_status_codes: ["200-399"]
+  - name: TCP 443 du front
+    group: Public
+    type: port
+    hostname: "{hostnames[front]}.{domain}"
+    port: "{flow_ports[https]}"
+
+  # --- Stack de monitoring, sondée depuis le réseau docker du compose ---
+  - name: Grafana
+    group: Stack monitoring
+    type: http
+    url: "http://grafana:{ports[monitoring][grafana]}/api/health"
+  - name: VictoriaMetrics
+    group: Stack monitoring
+    type: http
+    url: "http://victoriametrics:{ports[monitoring][victoriametrics]}/health"
+  - name: vmalert
+    group: Stack monitoring
+    type: http
+    url: "http://vmalert:{ports[monitoring][vmalert]}/health"
+  - name: Alertmanager
+    group: Stack monitoring
+    type: http
+    url: "http://alertmanager:{ports[monitoring][alertmanager]}/-/healthy"
+  - name: Loki
+    group: Stack monitoring
+    type: http
+    url: "http://loki:{ports[monitoring][loki]}/ready"
+  - name: Tempo
+    group: Stack monitoring
+    type: http
+    url: "http://tempo:{ports[monitoring][tempo_http]}/ready"
+
+  # --- Heartbeat de la chaîne d'alerte : Alertmanager pousse le Watchdog toutes les 5 min ---
+  - name: Watchdog Alertmanager
+    group: Stack monitoring
+    type: push
+    token_env: UPTIME_KUMA_WATCHDOG_TOKEN     # même jeton que secrets.uptime_kuma_watchdog_token
+    interval: 600                              # 2 heartbeats manqués = alerte (aucune dépendance à Discord)
+    max_retries: 0

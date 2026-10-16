@@ -1,0 +1,121 @@
+# Pile e2e locale : CTFd (build apps/ctfd) + MariaDB + Valkey + faux chall-manager + front (PAD_MOCK=1).
+# Usage : voir README.md (task e2e). Tous les secrets ci-dessous sont des valeurs JETABLES propres à cette pile,
+# jamais réutilisables ailleurs ; les ports ne sont publiés que sur 127.0.0.1.
+name: pad-e2e
+
+x-e2e-secrets: &e2e-sso-secret e2e-only-sso-shared-secret
+
+services:
+  mariadb:
+    image: docker.io/library/mariadb:10.11.19@sha256:7db29378d4fdab73f8123bbc2b48905c90d1a4b00cf848b028f1e81e623257f2
+    environment:
+      MARIADB_ROOT_PASSWORD: e2e-only-root
+      MARIADB_DATABASE: ctfd
+      MARIADB_USER: ctfd
+      MARIADB_PASSWORD: e2e-only-ctfd
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci", "--max-connections=300"]
+    volumes: [mariadb-data:/var/lib/mysql]
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks: [e2e]
+
+  valkey:
+    image: docker.io/valkey/valkey:9.1.2@sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd
+    command: ["valkey-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [e2e]
+
+  chall-manager:
+    build:
+      context: ./mock-chall-manager
+    environment:
+      MOCK_LATENCY_MS: "${E2E_CM_LATENCY_MS:-0}"
+    ports: ["127.0.0.1:${E2E_CM_PORT:-8080}:8080"]
+    networks: [e2e]
+
+  ctfd:
+    build:
+      context: ../../apps/ctfd
+      additional_contexts:
+        schema: ../../challenges/schema
+    depends_on:
+      mariadb: { condition: service_healthy }
+      valkey: { condition: service_healthy }
+      chall-manager: { condition: service_healthy }
+    environment:
+      SECRET_KEY: e2e-only-flask-secret-key
+      DATABASE_URL: mysql+pymysql://ctfd:e2e-only-ctfd@mariadb/ctfd
+      REDIS_URL: redis://valkey:6379
+      UPLOAD_PROVIDER: filesystem
+      WORKERS: "2"
+      WORKER_CLASS: gevent
+      UPDATE_CHECK: "false"
+      SWAGGER_UI: "false"
+      PAD_CHALL_MANAGER_URL: http://chall-manager:8080
+      PAD_GENERIC_SCENARIO: registry.invalid/pad/scenarios/k8s-instance:e2e
+      PAD_GROUP_ADMINS: ctf-admins
+      PAD_GROUP_MANAGERS: ctf-managers
+      PAD_GROUP_PLAYERS: ctf-players
+      # Le BFF et les scripts de test arrivent depuis le réseau docker (passerelle comprise).
+      PAD_SSO_ALLOWED_CIDRS: 172.31.250.0/24
+      PAD_SSO_SHARED_SECRET: *e2e-sso-secret
+      PAD_SSO_TOKEN_TTL_SECONDS: "${E2E_TOKEN_TTL:-3600}"
+      PAD_INSTANCES_COOLDOWN_SECONDS: "0"
+      PAD_INSTANCES_MAX_PER_SOURCE: "${E2E_MAX_INSTANCES:-50}"
+      PAD_INTERNAL_TOKEN: e2e-only-internal-token
+      PAD_METRICS_TOKEN: e2e-only-metrics-token
+    ports: ["127.0.0.1:${E2E_CTFD_PORT:-8000}:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthcheck', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    networks: [e2e]
+
+  # Le front est développé à part (apps/frontend/Dockerfile). Profil `front` : activé automatiquement par
+  # run.sh dès que ce Dockerfile existe (sinon : COMPOSE_PROFILES=front docker compose up --build).
+  # PAD_MOCK=1 est refusé par le front avec NODE_ENV=production (src/lib/env.ts) : on force development à l'exécution.
+  front:
+    profiles: [front]
+    build:
+      context: ../../apps/frontend
+      dockerfile: Dockerfile
+    depends_on:
+      ctfd: { condition: service_healthy }
+      valkey: { condition: service_healthy }
+    environment:
+      NODE_ENV: development
+      PAD_MOCK: "1"
+      AUTH_SECRET: e2e-only-auth-secret-not-for-production
+      AUTH_URL: http://localhost:${E2E_FRONT_PORT:-3000}
+      AUTH_TRUST_HOST: "true"
+      CTFD_URL: http://ctfd:8000
+      VALKEY_URL: redis://valkey:6379
+      PAD_SSO_SECRET: *e2e-sso-secret
+      PAD_EVENT_NAME: PAD e2e
+      LOG_LEVEL: info
+    ports: ["127.0.0.1:${E2E_FRONT_PORT:-3000}:3000"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    networks: [e2e]
+
+volumes:
+  mariadb-data:
+
+networks:
+  e2e:
+    ipam:
+      config:
+        - subnet: 172.31.250.0/24

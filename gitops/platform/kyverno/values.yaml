@@ -1,0 +1,53 @@
+# kyverno chart 3.9.1 (app v1.19.1). Budget RAM serré : 1 replica par contrôleur, platform pool uniquement.
+# 1 replica = pas de HA : le webhook d'admission est fail-closed sur les namespaces ciblés par les politiques.
+# Les namespaces kyverno / kube-system sont exclus par défaut des webhooks.
+global:
+  nodeSelector:
+    kubernetes.io/os: linux
+    pad.io/pool: platform
+
+crds:
+  install: true
+
+# Pre-delete hook de nettoyage des webhooks : conservé (évite un cluster bloqué à la désinstallation).
+webhooksCleanup:
+  enabled: true
+
+# Métriques (Service *-metrics, port 8000) : un ServiceMonitor par contrôleur, lus par Alloy
+# (CRDs : Application prometheus-crds, wave -10). kyverno_policy_results_total vient des contrôleurs
+# d'admission (requêtes) et background (scans).
+admissionController:
+  replicas: 1
+  container:
+    resources:
+      requests: { cpu: 100m, memory: 160Mi }
+      limits: { memory: 320Mi }
+  initContainer:
+    resources:
+      requests: { cpu: 10m, memory: 32Mi }
+      limits: { memory: 64Mi }
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+
+backgroundController:
+  replicas: 1
+  resources:
+    requests: { cpu: 25m, memory: 64Mi }
+    limits: { memory: 192Mi }
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+
+reportsController:
+  replicas: 1
+  resources:
+    requests: { cpu: 25m, memory: 96Mi }
+    limits: { memory: 256Mi }
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+
+# Désactivé (économie de RAM) : pas de CleanupPolicy utilisée dans la plateforme.
+cleanupController:
+  enabled: false

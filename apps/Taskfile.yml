@@ -1,0 +1,69 @@
+version: "3"
+
+# Build reproductible des images (scripts/build-image.sh). Images absentes ignorées.
+# Variables d'env : PUSH=1, SIGN=1, PLATFORMS, VERSION, COSIGN_KEY.
+
+vars:
+  BUILD: "{{.ROOT_DIR}}/scripts/build-image.sh"
+  # nom|contexte|Dockerfile (relatifs à la racine du repo)
+  IMAGES: >-
+    ctfd|apps/ctfd|apps/ctfd/Dockerfile
+    frontend|apps/frontend|apps/frontend/Dockerfile
+    netbird-sync|apps/netbird-sync|apps/netbird-sync/Dockerfile
+    chall-manager-scenario|apps/chall-manager-scenario|apps/chall-manager-scenario/Dockerfile
+    chal-pwn-ret2win-instanced|challenges/pwn-ret2win-instanced|challenges/pwn-ret2win-instanced/Dockerfile
+    chal-web-sqli-instanced|challenges/web-sqli-instanced|challenges/web-sqli-instanced/Dockerfile
+
+tasks:
+  build:
+    desc: Construit toutes les images présentes
+    cmds:
+      - for: { var: IMAGES, split: " " }
+        task: build-one
+        vars: { SPEC: "{{.ITEM}}" }
+
+  push:
+    desc: Construit et pousse toutes les images
+    env: { PUSH: "1" }
+    cmds:
+      - task: build
+
+  sign:
+    desc: Construit, pousse et signe (cosign) toutes les images
+    env: { PUSH: "1", SIGN: "1" }
+    cmds:
+      - task: build
+
+  build-one:
+    internal: true
+    dir: "{{.ROOT_DIR}}"
+    vars:
+      NAME: '{{index (splitList "|" .SPEC) 0}}'
+      CTX: '{{index (splitList "|" .SPEC) 1}}'
+      DF: '{{index (splitList "|" .SPEC) 2}}'
+    status:
+      - test ! -f {{.DF}}
+    env:
+      # ctfd : le Dockerfile attend le contexte nommé `schema`
+      BUILD_CONTEXTS: '{{if eq .NAME "ctfd"}}schema=challenges/schema{{end}}'
+    cmds:
+      - "{{.BUILD}} {{.NAME}} {{.CTX}} {{.DF}}"
+
+  build:ctfd:
+    desc: Image pad-ctfd
+    cmds: [{ task: build-one, vars: { SPEC: "ctfd|apps/ctfd|apps/ctfd/Dockerfile" } }]
+  build:frontend:
+    desc: Image pad-frontend
+    cmds: [{ task: build-one, vars: { SPEC: "frontend|apps/frontend|apps/frontend/Dockerfile" } }]
+  build:netbird-sync:
+    desc: Image pad-netbird-sync
+    cmds: [{ task: build-one, vars: { SPEC: "netbird-sync|apps/netbird-sync|apps/netbird-sync/Dockerfile" } }]
+  build:chall-manager-scenario:
+    desc: Image pad-chall-manager-scenario
+    cmds: [{ task: build-one, vars: { SPEC: "chall-manager-scenario|apps/chall-manager-scenario|apps/chall-manager-scenario/Dockerfile" } }]
+  build:chal-pwn-ret2win-instanced:
+    desc: Image pad-chal-pwn-ret2win-instanced
+    cmds: [{ task: build-one, vars: { SPEC: "chal-pwn-ret2win-instanced|challenges/pwn-ret2win-instanced|challenges/pwn-ret2win-instanced/Dockerfile" } }]
+  build:chal-web-sqli-instanced:
+    desc: Image pad-chal-web-sqli-instanced
+    cmds: [{ task: build-one, vars: { SPEC: "chal-web-sqli-instanced|challenges/web-sqli-instanced|challenges/web-sqli-instanced/Dockerfile" } }]

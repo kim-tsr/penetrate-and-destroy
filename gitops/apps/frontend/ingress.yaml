@@ -1,0 +1,27 @@
+# Front public : edge (DMZ) -> Traefik interne du cluster (contracts: kubernetes.ingress_ip) -> ce Service.
+# Traefik ne tamponne pas les réponses : le flux SSE du scoreboard (/api/scoreboard/stream) passe tel quel.
+# /api/metrics est exposé comme le reste mais protégé par jeton Bearer (METRICS_TOKEN) ; le scrape passe par le ServiceMonitor.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: frontend
+  namespace: frontend
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: frontend
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik # contracts: apps.ingress_class
+  rules:
+    - host: ctf.CHANGEME.example.net # contracts: hostnames.front + domain
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  name: http

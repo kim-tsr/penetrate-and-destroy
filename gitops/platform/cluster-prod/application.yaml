@@ -1,0 +1,48 @@
+# Objets Cluster API du cluster pad-prod (Cluster, ProxmoxCluster, TalosControlPlane, MachineDeployments, templates, pools IPAM).
+# Appliqués une première fois par `task bootstrap:cluster` (kubectl apply --server-side -k gitops/clusters/prod dans kind),
+# puis déplacés dans pad-prod par `clusterctl move` : ArgoCD (dans pad-prod) prend le relais sur les mêmes manifests.
+# Server-Side Apply des deux côtés : pas de conflit, ArgoCD devient co-propriétaire des champs identiques.
+#
+# Garde-fous (la suppression ou la mutation brutale de ces objets détruit les VMs, dont celle qui héberge ArgoCD) :
+# - sync-wave 5 : après capi-providers (-4), donc après l'installation des CRDs et des controllers CAPI ;
+# - prune désactivé ; chaque objet porte aussi Delete=false,Prune=false (gitops/clusters/prod/kustomization.yaml) ;
+# - pas de finalizer resources-finalizer, et Prune=false sur l'Application : `root` (prune: true) ne la supprime jamais ;
+# - projet `cluster` : seul le namespace pad-cluster et le Namespace sont autorisés ;
+# - replicas du pool `challenges` pilotés par cluster-autoscaler : ignorés ici.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-prod
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: cluster-prod
+    app.kubernetes.io/part-of: pad-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  project: cluster
+  source:
+    repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+    targetRevision: main # contracts: git.branch
+    path: gitops/clusters/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: pad-cluster # contracts: kubernetes.capi_namespace
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - ApplyOutOfSyncOnly=true
+    retry:
+      limit: 10
+      backoff: { duration: 30s, factor: 2, maxDuration: 10m }
+  ignoreDifferences:
+    # Le cluster-autoscaler pilote le nombre de workers `challenges` (min/max en annotations).
+    - group: cluster.x-k8s.io
+      kind: MachineDeployment
+      name: pad-prod-challenges # = <cluster_name>-challenges
+      jsonPointers:
+        - /spec/replicas

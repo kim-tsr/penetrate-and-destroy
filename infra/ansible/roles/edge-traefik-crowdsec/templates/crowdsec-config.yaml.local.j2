@@ -1,0 +1,7 @@
+# Géré par Ansible (rôle edge-traefik-crowdsec)
+# Métriques Prometheus (publiées sur l'IP du LXC, scrape par MONITORING).
+prometheus:
+  enabled: true
+  level: full
+  listen_addr: 0.0.0.0
+  listen_port: 6060

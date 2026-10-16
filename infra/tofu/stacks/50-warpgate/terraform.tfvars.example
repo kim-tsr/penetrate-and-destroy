@@ -1,0 +1,15 @@
+# Copier en terraform.tfvars. Aucun secret ici : la passphrase du state passe par TF_VAR_state_passphrase.
+
+# Vide = https://<hostnames.bastion>.<domain>. Accès direct possible depuis la zone MGMT/BASTION
+# (IP et port dans infra/contracts.yaml : services.warpgate, ports.warpgate.https) avec insecure_skip_verify = true.
+# warpgate_api_url     = ""
+# insecure_skip_verify = false
+
+# Groupes Authentik => rôles Warpgate de même nom (doit contenir infra-admins).
+# access_groups = ["infra-admins"]
+
+# Utilisateur SSH côté targets (l'utilisateur SSH de l'hôte Proxmox vient de secrets/site.sops.yaml).
+# lxc_ssh_username  = "root"
+
+# opnsense_ui_port    = 443
+# tls_verify_internal = false

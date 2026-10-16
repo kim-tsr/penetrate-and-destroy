@@ -1,0 +1,46 @@
+# Namespace storage : PSS baseline, NetworkPolicy Cilium default-deny + autorisations minimales.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: storage
+  labels:
+    pad.io/zone: prod
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false
+---
+# Base commune : tout endpoint du namespace est sélectionné (=> default-deny en entrée ET en sortie),
+# puis on autorise : trafic intra-namespace, DNS (kube-dns), API Kubernetes, scrape depuis observability.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-baseline
+  namespace: storage
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: storage
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: observability # contracts: namespaces.monitoring_agents
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: storage
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: ANY }
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toEntities: [kube-apiserver]

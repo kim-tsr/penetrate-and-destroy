@@ -1,0 +1,7 @@
+# Deux Applications : CRDs (wave -5) puis opérateur (wave -4), même version de chart.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - application-crds.yaml
+  - application.yaml

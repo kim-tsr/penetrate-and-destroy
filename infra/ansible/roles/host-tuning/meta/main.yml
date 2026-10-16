@@ -1,0 +1,10 @@
+---
+galaxy_info:
+  author: penetrate-and-destroy
+  description: Réglages de l'hôte Proxmox (ARC ZFS, sysctl, DNAT de repli, pve-exporter, node-exporter, Alloy)
+  license: MIT
+  min_ansible_version: "2.17"
+  platforms:
+    - name: Debian
+      versions: [all]
+dependencies: []

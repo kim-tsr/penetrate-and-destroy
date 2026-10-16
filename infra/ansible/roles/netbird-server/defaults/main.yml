@@ -1,0 +1,45 @@
+---
+netbird_server_dir: "{{ pad_compose_root }}/netbird"
+netbird_server_fqdn: "{{ pad_fqdn.vpn }}"
+
+# Images épinglées tag@sha256 (inventories/prod/group_vars/all/versions.yml).
+netbird_server_image: "{{ pad_images.netbird_server }}"
+netbird_server_dashboard_image: "{{ pad_images.netbird_dashboard }}"
+
+# Ports du contrat (hôte = conteneur sauf dashboard, 8080 -> 80).
+netbird_server_http_port: "{{ pad.ports.netbird.http }}"
+netbird_server_stun_port: "{{ pad.ports.netbird.stun }}"
+netbird_server_metrics_port: "{{ pad.ports.netbird.metrics }}"
+netbird_server_dashboard_port: "{{ pad.ports.netbird.dashboard }}"
+
+# TLS terminé par Traefik (edge) : seule l'IP de l'edge est un proxy de confiance.
+netbird_server_trusted_proxies:
+  - "{{ pad.services.edge.ip }}/32"
+
+netbird_server_log_level: info
+netbird_server_memory_limit: 640m
+netbird_server_dashboard_memory_limit: 64m
+
+# IdP Authentik (OIDC) : ajouté comme connecteur à l'IdP embarqué (Dex) via l'API management.
+netbird_server_authentik_name: Authentik
+netbird_server_authentik_client_id: "{{ pad.identity.oidc_clients.netbird }}"
+netbird_server_authentik_issuer: "{{ pad_authentik_issuer_tpl | format(netbird_server_authentik_client_id) }}"
+
+# Synchronisation des groupes JWT (claim "groups" d'Authentik) et filtre d'accès par groupe.
+netbird_server_jwt_groups_enabled: true
+netbird_server_jwt_groups_claim: groups
+netbird_server_jwt_allow_groups: "{{ pad.identity.groups }}"
+
+# Compte propriétaire initial (local, pour amorcer le PAT) ; mot de passe vide = bloc owner omis.
+netbird_server_owner_email: "admin@{{ pad_domain }}"
+netbird_server_owner_password: ""
+
+# PAT du owner (secrets/netbird.sops.yaml) : vide = la configuration IdP/groupes via l'API est ignorée.
+netbird_server_api_token: ""
+netbird_server_api_url: "http://127.0.0.1:{{ netbird_server_http_port }}/api"
+
+# Clés chargées depuis SOPS (voir secrets/netbird.example.yaml).
+netbird_server_relay_auth_secret: ""
+netbird_server_session_cookie_key: ""
+netbird_server_datastore_key: ""
+netbird_server_authentik_client_secret: ""

@@ -1,0 +1,12 @@
+# Clé publique cosign servant à vérifier les images du registry interne (politique verify-images).
+# PLACEHOLDER : remplacer par la clé publique réelle (`cosign generate-key-pair`, la clé privée reste dans SOPS/CI).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cosign-pubkey
+  namespace: kyverno
+data:
+  cosign.pub: |
+    -----BEGIN PUBLIC KEY-----
+    CHANGEME-REMPLACER-PAR-LA-CLE-PUBLIQUE-COSIGN
+    -----END PUBLIC KEY-----

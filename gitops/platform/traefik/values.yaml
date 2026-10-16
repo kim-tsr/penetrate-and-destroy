@@ -1,0 +1,134 @@
+# Values Traefik (chart 42.0.0) : ingress interne du cluster pad-prod.
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+deployment:
+  replicas: 2 # plan : 2 workers `platform` ; pas de ScaledObject sur ce Deployment
+  terminationGracePeriodSeconds: 60
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+nodeSelector:
+  pad.io/pool: platform # pas sur le pool challenges (taint) ni le control plane
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: traefik
+        app.kubernetes.io/instance: traefik-traefik
+
+resources:
+  requests: { cpu: 50m, memory: 64Mi }
+  limits: { memory: 192Mi }
+
+# securityContext / podSecurityContext du chart : déjà restrictifs (non-root 65532, RO rootfs, drop ALL, seccomp).
+
+ingressClass:
+  enabled: true
+  isDefaultClass: true
+
+api:
+  dashboard: false # pas de dashboard exposé ; l'observabilité passe par les métriques
+
+# --- Service LoadBalancer : IP fixe du pool LB-IPAM Cilium `ingress` ---
+service:
+  enabled: true
+  labels:
+    pad.io/lb-pool: ingress # contracts: kubernetes.lb_pool_label (sélection par le CiliumLoadBalancerIPPool)
+  annotations:
+    lbipam.cilium.io/ips: "10.20.60.200" # contracts: kubernetes.ingress_ip
+  spec:
+    type: LoadBalancer
+    # Local : conserve l'IP source réelle (l'edge). Avec Cluster, le SNAT remplace la source par l'IP d'un
+    # nœud : Traefik ne reconnaît plus l'edge dans trustedIPs, réécrit X-Forwarded-For et tous les joueurs
+    # partagent la même clé de rate limit. Cilium n'annonce l'IP en L2 que depuis les nœuds portant un pod
+    # Traefik (2 replicas répartis sur le pool `platform`, PDB minAvailable 1).
+    externalTrafficPolicy: Local
+
+providers:
+  kubernetesCRD:
+    enabled: true
+    # Les IngressRoute / Ingress des autres namespaces référencent les Middlewares du namespace traefik.
+    allowCrossNamespace: true
+    allowExternalNameServices: false
+  kubernetesIngress:
+    enabled: true
+    allowExternalNameServices: false
+    publishedService:
+      enabled: true
+
+ports:
+  web:
+    port: 8000
+    exposedPort: 80
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+    forwardedHeaders:
+      trustedIPs: ["10.20.20.10/32"] # contracts: services.edge.ip (Traefik edge, seul proxy de confiance)
+  websecure:
+    port: 8443
+    exposedPort: 443
+    http:
+      # Middlewares appliqués à tous les routeurs de l'entrypoint (resources/middlewares.yaml).
+      middlewares:
+        - traefik-security-headers@kubernetescrd
+        - traefik-rate-limit@kubernetescrd
+        - traefik-in-flight@kubernetescrd
+      tls:
+        enabled: true
+        options: default
+    forwardedHeaders:
+      trustedIPs: ["10.20.20.10/32"] # contracts: services.edge.ip
+  metrics:
+    port: 9100
+    expose:
+      default: false # métriques accessibles uniquement dans le cluster (scrape Alloy)
+
+# Durcissement TLS (TLSOption `default`).
+tlsOptions:
+  default:
+    minVersion: VersionTLS12
+    sniStrict: true
+    cipherSuites:
+      - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+      - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+      - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305
+      - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305
+      - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+      - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+    curvePreferences: [CurveP256, CurveP384]
+
+# --- Logs JSON + métriques Prometheus ---
+log:
+  format: json
+  level: INFO
+accessLog:
+  enabled: true
+  format: json
+metrics:
+  prometheus:
+    entryPoint: metrics
+    addEntryPointsLabels: true
+    addServicesLabels: true
+    # Service ClusterIP dédié aux métriques (port 9100, non exposé par le Service LoadBalancer) ciblé par le ServiceMonitor.
+    service:
+      enabled: true
+    # ServiceMonitor lu par Alloy (CRDs : Application prometheus-crds, wave -10, avant traefik wave -3).
+    # disableAPICheck : le chart ne vérifie pas la présence des CRDs au rendu (rendu hors cluster / cache d'API ArgoCD).
+    disableAPICheck: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      scrapeTimeout: 10s
+    # Les règles d'alerte sont dans monitoring/rules (vmalert) : pas de PrometheusRule dans le cluster.
+    prometheusRule:
+      enabled: false

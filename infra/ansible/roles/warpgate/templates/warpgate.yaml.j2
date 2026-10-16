@@ -1,0 +1,36 @@
+# Géré par Ansible (rôle warpgate). Format : Warpgate 0.29 (warpgate-common/src/config/mod.rs).
+# Le premier démarrage (unattended-setup) crée la base, les clés SSH, le certificat TLS et l'utilisateur admin.
+external_host: {{ warpgate_fqdn }}
+database_url: sqlite:/data/db
+
+ssh:
+  enable: true
+  listen: 0.0.0.0:{{ warpgate_ssh_port }}
+  host_key_verification: prompt
+
+http:
+  enable: true
+  listen: 0.0.0.0:{{ warpgate_https_port }}
+  external_port: {{ warpgate_external_https_port }}
+  certificate: /data/tls.certificate.pem
+  key: /data/tls.key.pem
+  trust_x_forwarded_headers: true
+
+log:
+  retention: {{ warpgate_log_retention }}
+
+sso_providers:
+  - name: {{ warpgate_sso_name }}
+    label: {{ warpgate_sso_label }}
+    auto_create_users: true
+    default_credential_policy: {{ warpgate_sso_default_credential_policy | to_json }}
+    provider:
+      type: custom
+      client_id: {{ warpgate_sso_client_id }}
+      client_secret: {{ warpgate_sso_client_secret | to_json }}
+      issuer_url: {{ warpgate_sso_issuer }}
+      scopes: {{ warpgate_sso_scopes | to_json }}
+      roles_claim: {{ warpgate_sso_groups_claim }}
+      admin_roles_claim: {{ warpgate_sso_groups_claim }}
+      role_mappings: {{ warpgate_sso_role_mappings | to_json }}
+      admin_role_mappings: {{ {warpgate_sso_admin_group: warpgate_admin_role} | to_json }}

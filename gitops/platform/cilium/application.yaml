@@ -1,0 +1,63 @@
+# Cilium : CNI (sans kube-proxy), LB-IPAM + L2 announcements, Hubble, WireGuard.
+#
+# Version : chart 1.20.3 (patch la plus récente de la branche 1.20 au 2026-10-16).
+# Justification : la matrice de compatibilité officielle
+#   (docs.cilium.io/en/<version>/network/kubernetes/compatibility) liste :
+#     1.18 -> k8s 1.30 à 1.33 (1.34 absent : exclu)
+#     1.19 -> k8s 1.32 à 1.35
+#     1.20 -> k8s 1.33 à 1.36
+#   Cilium 1.20 est la plus récente branche à supporter officiellement k8s 1.34
+#   (contracts: kubernetes.kubernetes_version = v1.34.1) et elle couvre aussi les montées 1.35/1.36.
+#
+# Sources : (1) chart Helm épinglé, (2) ce repo en `$values`, (3) ressources Cilium (pools LB-IPAM, L2).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cilium
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: cilium
+    app.kubernetes.io/part-of: pad-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-9"
+spec:
+  project: platform
+  sources:
+    - repoURL: https://helm.cilium.io
+      chart: cilium
+      targetRevision: 1.20.3
+      helm:
+        releaseName: cilium
+        valueFiles:
+          - $values/gitops/platform/cilium/values.yaml
+    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+      targetRevision: main # contracts: git.branch
+      ref: values
+    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+      targetRevision: main # contracts: git.branch
+      path: gitops/platform/cilium/resources
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      # Les CRDs Cilium (CiliumLoadBalancerIPPool, ...) sont créées par le chart dans la même synchronisation.
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 10
+      backoff: { duration: 15s, factor: 2, maxDuration: 5m }
+  # Certificats Hubble/CA générés par le chart (cronJob) : ne pas comparer le contenu des Secrets.
+  ignoreDifferences:
+    - kind: Secret
+      name: cilium-ca
+      jqPathExpressions: [.data]
+    - kind: Secret
+      name: hubble-server-certs
+      jqPathExpressions: [.data]
+    - kind: Secret
+      name: hubble-relay-client-certs
+      jqPathExpressions: [.data]

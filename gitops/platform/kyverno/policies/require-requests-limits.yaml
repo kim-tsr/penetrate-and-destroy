@@ -1,0 +1,30 @@
+# Requests CPU/mémoire et limite mémoire obligatoires (budget de RAM serré pour tout le cluster).
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-requests-limits
+  annotations:
+    policies.kyverno.io/title: Requests et limits obligatoires
+    policies.kyverno.io/category: Best Practices
+    policies.kyverno.io/severity: medium
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: validate-resources
+      match:
+        any:
+          - resources:
+              kinds: ["Pod"]
+              namespaces: ["inst-*", "chall-manager"]
+      validate:
+        message: "Chaque conteneur doit définir resources.requests.cpu, resources.requests.memory et resources.limits.memory."
+        pattern:
+          spec:
+            containers:
+              - resources:
+                  requests:
+                    cpu: "?*"
+                    memory: "?*"
+                  limits:
+                    memory: "?*"

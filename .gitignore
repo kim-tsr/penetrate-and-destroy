@@ -1,0 +1,28 @@
+.state/
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfplan
+.terraform.lock.hcl.bak
+node_modules/
+.next/
+dist/
+__pycache__/
+*.retry
+.direnv/
+*.decrypted.*
+kubeconfig
+talosconfig
+.DS_Store
+.claude/
+.ansible/
+
+# Secrets : jamais de clé privée ni de fichier déchiffré dans Git.
+# Les *.sops.yaml (chiffrés) SONT versionnés : ne pas les ignorer.
+*.agekey
+keys.txt
+*.decrypted.*
+*.dec.yaml
+*.dec.yml
+*.dec.json
+CLAUDE.md

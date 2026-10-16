@@ -1,0 +1,14 @@
+---
+alloy_version: "{{ pad_apt_versions.alloy }}"
+alloy_listen_address: "0.0.0.0:{{ pad.monitoring.exporters.alloy }}"
+alloy_remote_write_url: "{{ pad.monitoring.remote_write }}"
+alloy_loki_push_url: "{{ pad.monitoring.loki_push }}"
+alloy_otlp_endpoint: "{{ pad.monitoring.otlp_grpc }}"
+# Récepteur OTLP local (127.0.0.1:4317/4318) relayé vers Tempo, pour les apps du LXC.
+alloy_otlp_receiver_enabled: true
+# Logs et métriques des conteneurs (loki.source.docker + cadvisor) : activé sur les LXC Docker.
+alloy_docker_enabled: false
+alloy_external_labels:
+  project: "{{ pad.project }}"
+  host: "{{ inventory_hostname }}"
+alloy_journal_max_age: 12h

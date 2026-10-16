@@ -1,0 +1,44 @@
+---
+- name: Vérifier que la cible est bien un hôte Proxmox VE
+  ansible.builtin.stat:
+    path: /usr/bin/pveversion
+  register: host_tuning_pve
+
+- name: Refuser de continuer hors Proxmox
+  ansible.builtin.assert:
+    that: host_tuning_pve.stat.exists
+    fail_msg: "host-tuning ne s'applique qu'à l'hôte Proxmox (pveversion introuvable)."
+
+- name: Configurer l'ARC ZFS
+  ansible.builtin.import_tasks: zfs_arc.yml
+
+- name: Appliquer les sysctl
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/90-pad.conf
+    state: present
+    reload: true
+  loop: "{{ host_tuning_sysctl | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Configurer le DNAT de repli
+  ansible.builtin.import_tasks: nat.yml
+
+- name: Installer node-exporter (tâches partagées avec base-hardening)
+  ansible.builtin.include_role:
+    name: base-hardening
+    tasks_from: node_exporter.yml
+  vars:
+    base_hardening_node_exporter_listen: "{{ host_tuning_exporter_ip }}:{{ pad.monitoring.exporters.node }}"
+
+- name: Installer pve-exporter
+  ansible.builtin.import_tasks: pve_exporter.yml
+
+- name: Installer Alloy (journal de l'hôte)
+  ansible.builtin.include_role:
+    name: alloy
+  vars:
+    alloy_listen_address: "127.0.0.1:{{ pad.monitoring.exporters.alloy }}"
+    alloy_otlp_receiver_enabled: false

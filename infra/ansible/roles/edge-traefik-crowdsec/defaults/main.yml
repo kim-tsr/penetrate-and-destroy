@@ -1,0 +1,53 @@
+---
+edge_traefik_crowdsec_dir: "{{ pad_compose_root }}/edge"
+edge_traefik_crowdsec_secrets_file: "{{ pad_secrets_dir }}/edge.sops.yaml"   # voir secrets/edge.example.yaml
+
+# Images épinglées tag@sha256 (inventories/prod/group_vars/all/versions.yml).
+edge_traefik_crowdsec_traefik_image: "{{ pad_images.traefik }}"
+edge_traefik_crowdsec_crowdsec_image: "{{ pad_images.crowdsec }}"
+edge_traefik_crowdsec_bouncer_plugin_version: "{{ pad_traefik_plugins.crowdsec_bouncer }}"
+
+# Réseau : 80/443 publics (DNAT OPNsense), métriques publiées sur l'IP du LXC uniquement (scrape MONITORING).
+edge_traefik_crowdsec_listen_ip: "{{ pad.services.edge.ip }}"
+edge_traefik_crowdsec_http_port: "{{ pad.ports.edge.http }}"
+edge_traefik_crowdsec_https_port: "{{ pad.ports.edge.https }}"
+edge_traefik_crowdsec_traefik_metrics_port: "{{ pad.ports.edge.metrics }}"
+edge_traefik_crowdsec_crowdsec_metrics_port: "{{ pad.ports.edge.crowdsec_metrics }}"
+
+# ACME DNS-01 via OVH. Mettre une URL de CA de staging pour les essais.
+edge_traefik_crowdsec_acme_email: "{{ pad.acme.email }}"
+edge_traefik_crowdsec_ovh_endpoint: "{{ pad.acme.ovh_endpoint }}"
+edge_traefik_crowdsec_acme_ca_server: ""
+edge_traefik_crowdsec_acme_resolvers: ["1.1.1.1:53", "9.9.9.9:53"]
+
+# Hostnames publics (hostnames.* + domain du contrat).
+edge_traefik_crowdsec_host_front: "{{ pad_fqdn.front }}"
+edge_traefik_crowdsec_host_status: "{{ pad_fqdn.status }}"
+edge_traefik_crowdsec_host_auth: "{{ pad_fqdn.auth }}"
+edge_traefik_crowdsec_host_vpn: "{{ pad_fqdn.vpn }}"
+
+# Backends. L'ingress du cluster termine le trafic de l'edge en HTTP (TLS terminé sur l'edge).
+edge_traefik_crowdsec_ingress_url: "http://{{ pad.kubernetes.ingress_ip }}:{{ pad.ports.http }}"
+edge_traefik_crowdsec_authentik_url: "https://{{ pad.services.authentik.ip }}:{{ pad.ports.authentik.https }}"
+edge_traefik_crowdsec_netbird_ip: "{{ pad.services.netbird.ip }}"
+edge_traefik_crowdsec_netbird_http_port: "{{ pad.ports.netbird.http }}"
+edge_traefik_crowdsec_netbird_dashboard_port: "{{ pad.ports.netbird.dashboard }}"
+
+# Middlewares.
+edge_traefik_crowdsec_hsts_seconds: 31536000
+edge_traefik_crowdsec_csp: "frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+edge_traefik_crowdsec_rate_limit: { average: 100, burst: 200, period: 1s }
+# NetBird : beaucoup de pairs derrière une même IP et flux longs (gRPC, websocket) -> plafond plus haut.
+edge_traefik_crowdsec_rate_limit_vpn: { average: 300, burst: 600, period: 1s }
+# Réseaux jamais bannis par le bouncer (zones internes du contrat).
+edge_traefik_crowdsec_trusted_cidrs: "{{ pad.zones.values() | map(attribute='cidr') | list }}"
+
+# CrowdSec : LAPI locale, enrollment désactivé (pas d'ENROLL_KEY), AppSec en 7422 (réseau docker uniquement).
+edge_traefik_crowdsec_collections:
+  - crowdsecurity/traefik
+  - crowdsecurity/http-cve
+  - crowdsecurity/appsec-virtual-patching
+  - crowdsecurity/appsec-generic-rules
+edge_traefik_crowdsec_appsec_port: 7422
+edge_traefik_crowdsec_lapi_port: 8080
+edge_traefik_crowdsec_access_log_retention_days: 7

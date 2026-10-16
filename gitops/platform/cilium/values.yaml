@@ -1,0 +1,104 @@
+# Values Cilium 1.20.3 pour Talos v1.11 / Kubernetes v1.34 (cluster pad-prod).
+
+# --- Remplacement de kube-proxy (désactivé côté Talos : cluster.proxy.disabled) ---
+kubeProxyReplacement: true
+# Talos : KubePrism (activé par défaut, port 7445) expose l'API server sur chaque nœud en local.
+# Plus robuste que le VIP 10.20.60.5:6443 (contracts: kubernetes.control_plane_endpoint) : pas de dépendance au VIP
+# au démarrage de l'agent. Référence : doc Talos « Deploying Cilium » (k8sServiceHost=localhost, k8sServicePort=7445).
+k8sServiceHost: localhost
+k8sServicePort: 7445
+# L2 announcements ajoutent des Leases : relever le rate-limit client pour éviter le throttling.
+k8sClientRateLimit:
+  qps: 20
+  burst: 40
+
+# --- Particularités Talos ---
+ipam:
+  mode: kubernetes # podCIDR alloué par le controller-manager (contracts: kubernetes.pod_cidr 10.244.0.0/16)
+routingMode: tunnel
+tunnelProtocol: vxlan # contracts: ports.cilium.vxlan_udp (8472)
+cgroup:
+  autoMount:
+    enabled: false # Talos monte déjà cgroup2
+  hostRoot: /sys/fs/cgroup
+securityContext:
+  capabilities:
+    # Talos interdit SYS_MODULE : liste sans cette capability (doc Talos).
+    ciliumAgent: [CHOWN, KILL, NET_ADMIN, NET_RAW, IPC_LOCK, SYS_ADMIN, SYS_RESOURCE, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    cleanCiliumState: [NET_ADMIN, SYS_ADMIN, SYS_RESOURCE]
+
+# --- Chiffrement pod-à-pod WireGuard ---
+encryption:
+  enabled: true
+  type: wireguard # contracts: ports.cilium.wireguard_udp (51871)
+
+# --- LB-IPAM + L2 : les pools et la politique sont dans resources/ ---
+l2announcements:
+  enabled: true
+  leaseDuration: 15s
+  leaseRenewDeadline: 5s
+  leaseRetryPeriod: 2s
+
+# --- Hubble (relay + UI) ---
+hubble:
+  enabled: true
+  tls:
+    auto:
+      enabled: true
+      method: cronJob # `helm` régénérerait les certificats à chaque rendu => OutOfSync permanent
+  relay:
+    enabled: true
+    replicas: 1
+    nodeSelector: { pad.io/zone: prod }
+    resources:
+      requests: { cpu: 10m, memory: 32Mi }
+      limits: { memory: 128Mi }
+    prometheus:
+      enabled: true
+      serviceMonitor: { enabled: true, interval: 30s }
+  ui:
+    enabled: true
+    replicas: 1
+    nodeSelector: { pad.io/zone: prod }
+    frontend:
+      resources:
+        requests: { cpu: 10m, memory: 16Mi }
+        limits: { memory: 64Mi }
+    backend:
+      resources:
+        requests: { cpu: 10m, memory: 32Mi }
+        limits: { memory: 96Mi }
+  metrics:
+    enabled: [dns, drop, tcp, flow, icmp]
+    serviceMonitor: { enabled: true, interval: 30s } # Service hubble-metrics (port 9965)
+
+# --- Métriques : endpoints Prometheus exposés, scrapés par Alloy via ServiceMonitor ---
+# Les CRDs prometheus-operator (ServiceMonitor) viennent de l'Application prometheus-crds (wave -10, avant cilium
+# wave -9) ; Alloy lit les ServiceMonitor et pousse vers VictoriaMetrics. Chaque ServiceMonitor crée aussi son Service
+# de métriques (cilium-agent 9962, cilium-operator 9963, hubble-metrics 9965, hubble-relay 9966).
+prometheus:
+  enabled: true # contracts: ports.monitoring_scrape (9000-9999 : 9962 agent)
+  serviceMonitor:
+    enabled: true
+    interval: 30s # 10s par défaut : inutile pour le budget de stockage
+    trustCRDsExist: true # pas de contrôle des CRDs au rendu (rendu ArgoCD / hors cluster)
+operator:
+  replicas: 1 # budget RAM du plan : un seul control plane / peu de nœuds
+  nodeSelector: { pad.io/zone: prod }
+  resources:
+    requests: { cpu: 20m, memory: 64Mi }
+    limits: { memory: 160Mi }
+  prometheus:
+    enabled: true
+    serviceMonitor: { enabled: true, interval: 30s }
+
+# --- Envoy ---
+# Désactivé : seules des policies L3/L4 + règles DNS (proxy DNS de l'agent) sont utilisées. Économise ~50 Mi par nœud.
+# Passer à true si des CiliumNetworkPolicy L7 HTTP ou du Gateway API sont introduits.
+envoy:
+  enabled: false
+
+# --- Ressources de l'agent (DaemonSet sur chaque nœud) ---
+resources:
+  requests: { cpu: 100m, memory: 200Mi }
+  limits: { memory: 512Mi }

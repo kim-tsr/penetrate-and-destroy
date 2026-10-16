@@ -1,0 +1,25 @@
+---
+# Réutilisé par host-tuning (include_role tasks_from: node_exporter.yml).
+- name: Installer prometheus-node-exporter (paquet Debian, mis à jour par unattended-upgrades)
+  ansible.builtin.apt:
+    name: prometheus-node-exporter
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Configurer l'écoute de node-exporter
+  ansible.builtin.copy:
+    dest: /etc/default/prometheus-node-exporter
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Géré par Ansible (rôle base-hardening)
+      ARGS="--web.listen-address={{ base_hardening_node_exporter_listen }} --collector.systemd --no-collector.wifi"
+  notify: Redémarrer node-exporter
+
+- name: Activer node-exporter
+  ansible.builtin.systemd_service:
+    name: prometheus-node-exporter
+    enabled: true
+    state: started

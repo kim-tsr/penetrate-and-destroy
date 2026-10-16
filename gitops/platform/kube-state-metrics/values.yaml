@@ -1,0 +1,54 @@
+# kube-state-metrics 2.20.0 : 1 replica, collecteurs réduits (budget RAM), ServiceMonitor lu par Alloy.
+image:
+  registry: registry.k8s.io
+  repository: kube-state-metrics/kube-state-metrics
+  tag: v2.20.0
+  sha: sha256:42cfe3723a5f058171c627537fb57a3ea0f26e4380fa18555a95cb1a1b4cfc5b
+
+replicas: 1
+
+# Le scrape se fait via le ServiceMonitor (Alloy), pas via les annotations prometheus.io.
+prometheusScrape: false
+prometheus:
+  monitor:
+    enabled: true
+    http:
+      interval: 30s
+      honorLabels: true
+
+# Collecteurs utiles à la plateforme (secrets, configmaps, leases, CSR, webhooks... exclus : coût mémoire sans valeur).
+collectors:
+  - cronjobs
+  - daemonsets
+  - deployments
+  - horizontalpodautoscalers
+  - jobs
+  - namespaces
+  - nodes
+  - persistentvolumeclaims
+  - persistentvolumes
+  - poddisruptionbudgets
+  - pods
+  - replicasets
+  - resourcequotas
+  - services
+  - statefulsets
+  - storageclasses
+
+securityContext:
+  enabled: true
+  runAsUser: 65534
+  runAsGroup: 65534
+  fsGroup: 65534
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]
+
+resources:
+  requests: { cpu: 10m, memory: 48Mi }
+  limits: { cpu: 200m, memory: 128Mi }

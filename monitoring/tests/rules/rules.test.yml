@@ -1,0 +1,200 @@
+---
+# Tests unitaires des règles (promtool test rules). Les chemins sont relatifs à ce fichier.
+rule_files:
+  - ../../rules/recording.yml
+  - ../../rules/infra.yml
+  - ../../rules/platform.yml
+  - ../../rules/ctf.yml
+  - ../../rules/security.yml
+  - ../../rules/monitoring.yml
+
+evaluation_interval: 30s
+
+tests:
+  # --- Watchdog : toujours active ---
+  - interval: 1m
+    input_series: []
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: Watchdog
+        exp_alerts:
+          - exp_labels:
+              severity: none
+            exp_annotations:
+              summary: "Watchdog : la chaîne d'alerte fonctionne"
+              description: "Alerte permanente. Son absence côté heartbeat externe signifie que vmalert, Alertmanager ou la stack de monitoring est HS."
+              runbook_url: docs/runbooks/watchdog.md
+
+  # --- InstanceDown : critique après 5 minutes, jamais pour kubelet ---
+  - interval: 1m
+    input_series:
+      - series: 'up{job="node", instance="10.0.0.1:9100", host="pad-test"}'
+        values: "1 1 0 0 0 0 0 0 0 0"
+      - series: 'up{job="kubelet", instance="k8s-node:443"}'
+        values: "0 0 0 0 0 0 0 0 0 0"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: InstanceDown
+        exp_alerts: []
+      - eval_time: 9m
+        alertname: InstanceDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: node
+              instance: "10.0.0.1:9100"
+              host: pad-test
+            exp_annotations:
+              summary: "Cible 10.0.0.1:9100 injoignable"
+              description: "Le job node ne répond plus au scrape depuis plus de 5 minutes."
+              runbook_url: docs/runbooks/instance-down.md
+
+  # --- OpnsenseDown ---
+  - interval: 1m
+    input_series:
+      - series: 'up{job="node", instance="10.0.0.2:9100", host="opnsense", role="router"}'
+        values: "1 0 0 0 0"
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: OpnsenseDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: node
+              instance: "10.0.0.2:9100"
+              host: opnsense
+              role: router
+            exp_annotations:
+              summary: "Le routeur OPNsense ne répond plus"
+              description: "Plus de métriques de opnsense depuis 2 minutes : toutes les zones peuvent être coupées (les InstanceDown en cascade sont inhibées)."
+              runbook_url: docs/runbooks/opnsense-down.md
+
+  # --- Disque : recording rule + alerte ---
+  - interval: 1m
+    input_series:
+      - series: 'node_filesystem_avail_bytes{instance="h1", mountpoint="/", fstype="ext4"}'
+        values: "5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5"
+      - series: 'node_filesystem_size_bytes{instance="h1", mountpoint="/", fstype="ext4"}'
+        values: "100 100 100 100 100 100 100 100 100 100 100 100 100 100 100 100"
+    promql_expr_test:
+      - expr: instance:node_filesystem_free:ratio
+        eval_time: 1m
+        exp_samples:
+          - labels: 'instance:node_filesystem_free:ratio{instance="h1", mountpoint="/", fstype="ext4"}'
+            value: 0.05
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: DiskFull
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              instance: h1
+              mountpoint: /
+              fstype: ext4
+            exp_annotations:
+              summary: "Disque presque plein sur h1"
+              description: "Moins de 10 % d'espace libre sur / (h1)."
+              runbook_url: docs/runbooks/host-disk.md
+
+  # --- ArgoCD : application dégradée ---
+  - interval: 1m
+    input_series:
+      - series: 'argocd_app_info{name="ctfd", project="platform", sync_status="Synced", health_status="Degraded"}'
+        values: "1+0x20"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ArgoCDAppUnhealthy
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: ArgoCDAppUnhealthy
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              name: ctfd
+              project: platform
+              sync_status: Synced
+              health_status: Degraded
+            exp_annotations:
+              summary: "Application ArgoCD ctfd en état Degraded"
+              description: "L'application ctfd (projet platform) n'est pas saine depuis 15 minutes."
+              runbook_url: docs/runbooks/argocd.md
+
+  # --- Instances : recording rules (max sur réplicas) et dérive CTFd/cluster ---
+  - interval: 1m
+    input_series:
+      - series: 'pad_instances_active{pod="ctfd-0"}'
+        values: "20+0x60"
+      - series: 'pad_instances_active{pod="ctfd-1"}'
+        values: "20+0x60"
+      - series: 'kube_namespace_status_phase{namespace="inst-c1-t1", phase="Active"}'
+        values: "1+0x60"
+      - series: 'kube_namespace_status_phase{namespace="inst-c1-t2", phase="Active"}'
+        values: "1+0x60"
+      - series: 'kube_namespace_status_phase{namespace="inst-c1-t3", phase="Terminating"}'
+        values: "1+0x60"
+    promql_expr_test:
+      - expr: pad:instances_active
+        eval_time: 1m
+        exp_samples:
+          - labels: "pad:instances_active"
+            value: 20
+      - expr: pad:instances_namespaces
+        eval_time: 1m
+        exp_samples:
+          - labels: "pad:instances_namespaces"
+            value: 2
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: CtfdInstancesDrift
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Écart entre les instances de CTFd et celles du cluster"
+              description: "Écart de 18 entre les instances actives selon CTFd et les namespaces inst-* du cluster (instances orphelines ou janitor bloqué)."
+              runbook_url: docs/runbooks/instances.md
+
+  # --- Soumissions CTFd : max par résultat, pas de doublon entre réplicas ---
+  - interval: 1m
+    input_series:
+      - series: 'ctfd_submissions_total{result="correct", pod="ctfd-0"}'
+        values: "0+6x10"
+      - series: 'ctfd_submissions_total{result="correct", pod="ctfd-1"}'
+        values: "0+6x10"
+    promql_expr_test:
+      - expr: pad:ctfd_solves_per_minute
+        eval_time: 10m
+        exp_samples:
+          - labels: "pad:ctfd_solves_per_minute"
+            value: 6
+
+  # --- Sessions du front : max() et non sum() ---
+  - interval: 1m
+    input_series:
+      - series: 'pad_frontend_active_sessions{pod="front-0"}'
+        values: "42+0x5"
+      - series: 'pad_frontend_active_sessions{pod="front-1"}'
+        values: "42+0x5"
+    promql_expr_test:
+      - expr: pad:frontend_active_sessions
+        eval_time: 2m
+        exp_samples:
+          - labels: "pad:frontend_active_sessions"
+            value: 42
+
+  # --- Alertmanager : notifications en échec ---
+  - interval: 1m
+    input_series:
+      - series: 'alertmanager_notifications_failed_total{integration="discord"}'
+        values: "0+1x30"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: AlertmanagerNotificationsFailing
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              integration: discord
+            exp_annotations:
+              summary: "Alertmanager n'arrive pas à notifier via discord"
+              description: "Les notifications discord (Discord ou e-mail) échouent : webhook ou SMTP à vérifier. Le canal restant peut suffire à être prévenu."
+              runbook_url: docs/runbooks/alertmanager-notifications.md

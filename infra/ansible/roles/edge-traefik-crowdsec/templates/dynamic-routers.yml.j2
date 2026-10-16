@@ -1,0 +1,84 @@
+# Géré par Ansible (rôle edge-traefik-crowdsec) - routers et services (provider file)
+http:
+  routers:
+    front:
+      entryPoints: [websecure]
+      rule: "Host(`{{ edge_traefik_crowdsec_host_front }}`)"
+      middlewares: [edge-default@file]
+      service: cluster-ingress
+      tls: {}
+    status:
+      entryPoints: [websecure]
+      rule: "Host(`{{ edge_traefik_crowdsec_host_status }}`)"
+      middlewares: [edge-default@file]
+      service: cluster-ingress
+      tls: {}
+    auth:
+      entryPoints: [websecure]
+      rule: "Host(`{{ edge_traefik_crowdsec_host_auth }}`)"
+      middlewares: [edge-default@file]
+      service: authentik
+      tls: {}
+    # NetBird : dashboard (défaut), API/OAuth, relay websocket et gRPC h2c (signal + management).
+    vpn:
+      entryPoints: [websecure]
+      rule: "Host(`{{ edge_traefik_crowdsec_host_vpn }}`)"
+      middlewares: [edge-vpn@file]
+      service: netbird-dashboard
+      tls: {}
+    vpn-api:
+      entryPoints: [websecure]
+      rule: "Host(`{{ edge_traefik_crowdsec_host_vpn }}`) && (PathPrefix(`/api`) || PathPrefix(`/oauth2`))"
+      middlewares: [edge-vpn@file]
+      service: netbird-http
+      tls: {}
+    vpn-relay:
+      entryPoints: [websecure]
+      rule: "Host(`{{ edge_traefik_crowdsec_host_vpn }}`) && (PathPrefix(`/relay`) || PathPrefix(`/ws-proxy/`))"
+      middlewares: [edge-vpn@file]
+      service: netbird-http
+      tls: {}
+    vpn-grpc:
+      entryPoints: [websecure]
+      rule: "Host(`{{ edge_traefik_crowdsec_host_vpn }}`) && (PathPrefix(`/signalexchange.SignalExchange/`) || PathPrefix(`/management.ManagementService/`))"
+      middlewares: [edge-vpn@file]
+      service: netbird-h2c
+      tls: {}
+
+  services:
+    cluster-ingress:
+      loadBalancer:
+        passHostHeader: true
+        servers:
+          - url: {{ edge_traefik_crowdsec_ingress_url | to_json }}
+    authentik:
+      loadBalancer:
+        passHostHeader: true
+        serversTransport: authentik@file
+        servers:
+          - url: {{ edge_traefik_crowdsec_authentik_url | to_json }}
+    netbird-http:
+      loadBalancer:
+        passHostHeader: true
+        servers:
+          - url: "http://{{ edge_traefik_crowdsec_netbird_ip }}:{{ edge_traefik_crowdsec_netbird_http_port }}"
+    netbird-h2c:
+      loadBalancer:
+        passHostHeader: true
+        servers:
+          - url: "h2c://{{ edge_traefik_crowdsec_netbird_ip }}:{{ edge_traefik_crowdsec_netbird_http_port }}"
+    netbird-dashboard:
+      loadBalancer:
+        passHostHeader: true
+        servers:
+          - url: "http://{{ edge_traefik_crowdsec_netbird_ip }}:{{ edge_traefik_crowdsec_netbird_dashboard_port }}"
+
+  # Authentik publie un certificat auto-signé sur 443 (lien DMZ -> IDENTITY interne).
+  serversTransports:
+    authentik:
+      insecureSkipVerify: true
+
+tls:
+  options:
+    default:
+      minVersion: VersionTLS12

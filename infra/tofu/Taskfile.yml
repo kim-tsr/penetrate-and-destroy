@@ -1,0 +1,86 @@
+version: "3"
+
+# Tâches OpenTofu. Incluses par le Taskfile racine sous le préfixe `tofu:` (dir = infra/tofu).
+# Chaque stack a son propre state local chiffré : .state/tofu/<stack>.tfstate (passphrase : TF_VAR_state_passphrase).
+# Les secrets sont lus par le provider sops : SOPS_AGE_KEY_FILE doit pointer sur la clé age de l'opérateur.
+
+vars:
+  STATE_DIR: "{{.TASKFILE_DIR}}/../../.state/tofu"
+  LOCK_PLATFORMS: -platform=linux_amd64 -platform=darwin_arm64 -platform=darwin_amd64
+
+tasks:
+  apply-stack:
+    desc: "tofu init + apply d'un stack (STACK=<nom>)"
+    requires: { vars: [STACK] }
+    preconditions:
+      - sh: test -d stacks/{{.STACK}}
+        msg: "Stack inconnu : {{.STACK}}"
+      - sh: test -n "$TF_VAR_state_passphrase"
+        msg: "TF_VAR_state_passphrase doit être défini (chiffrement du state)"
+    cmds:
+      - mkdir -p {{.STATE_DIR}}
+      - tofu -chdir=stacks/{{.STACK}} init -input=false
+      - tofu -chdir=stacks/{{.STACK}} apply -input=false {{.CLI_ARGS}}
+
+  plan-stack:
+    desc: "tofu init + plan d'un stack (STACK=<nom>)"
+    requires: { vars: [STACK] }
+    preconditions:
+      - sh: test -d stacks/{{.STACK}}
+        msg: "Stack inconnu : {{.STACK}}"
+      - sh: test -n "$TF_VAR_state_passphrase"
+        msg: "TF_VAR_state_passphrase doit être défini (chiffrement du state)"
+    cmds:
+      - mkdir -p {{.STATE_DIR}}
+      - tofu -chdir=stacks/{{.STACK}} init -input=false
+      - tofu -chdir=stacks/{{.STACK}} plan -input=false {{.CLI_ARGS}}
+
+  destroy-stack:
+    desc: "tofu destroy d'un stack (STACK=<nom>) ; ignoré si le stack n'existe pas ou n'a pas de state"
+    requires: { vars: [STACK] }
+    status:
+      # Rien à détruire : stack absent (pas encore livré) ou jamais appliqué.
+      - test ! -d stacks/{{.STACK}} || test ! -f {{.STATE_DIR}}/{{.STACK}}.tfstate
+    cmds:
+      - test -n "$TF_VAR_state_passphrase" || { echo "TF_VAR_state_passphrase doit être défini" >&2; exit 1; }
+      - tofu -chdir=stacks/{{.STACK}} init -input=false
+      - tofu -chdir=stacks/{{.STACK}} destroy -input=false -auto-approve {{.CLI_ARGS}}
+
+  apply-netbird:
+    desc: "Applique 40-netbird (groupes, networks, routing peers, policies ; nécessite NetBird déployé et un PAT dans secrets/netbird-tofu.sops.yaml)"
+    cmds:
+      - task: apply-stack
+        vars: { STACK: 40-netbird, CLI_ARGS: "{{.CLI_ARGS}}" }
+
+  apply-warpgate:
+    desc: "Applique 50-warpgate (rôles et targets ; nécessite Warpgate déployé et un jeton dans secrets/warpgate-tofu.sops.yaml)"
+    cmds:
+      - task: apply-stack
+        vars: { STACK: 50-warpgate, CLI_ARGS: "{{.CLI_ARGS}}" }
+
+  fmt:
+    desc: Formate tout le code tofu
+    cmds:
+      - tofu fmt -recursive .
+
+  validate-all:
+    desc: "fmt -check puis init -backend=false + validate sur chaque stack (sans accès au serveur)"
+    cmds:
+      - tofu fmt -check -recursive .
+      - for: { var: STACKS }
+        cmd: |
+          echo "==> {{.ITEM}}"
+          tofu -chdir=stacks/{{.ITEM}} init -backend=false -input=false >/dev/null
+          tofu -chdir=stacks/{{.ITEM}} validate
+    vars:
+      STACKS:
+        sh: ls stacks
+
+  lock:
+    desc: Régénère les .terraform.lock.hcl multi-plateformes de tous les stacks
+    cmds:
+      - for: { var: STACKS }
+        cmd: tofu -chdir=stacks/{{.ITEM}} providers lock {{.LOCK_PLATFORMS}}
+    vars:
+      STACKS:
+        sh: ls stacks

@@ -1,0 +1,75 @@
+# Géré par Ansible (rôle edge-traefik-crowdsec) - configuration statique Traefik
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+log:
+  level: INFO
+  format: json
+
+# Format commun (CLF, par défaut) : requis par le parseur CrowdSec crowdsecurity/traefik-logs.
+accessLog:
+  filePath: /var/log/traefik/access.log
+  bufferingSize: 100
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+  websecure:
+    address: ":443"
+    transport:
+      respondingTimeouts:
+        # Flux longs NetBird (gRPC, websocket) : pas de délai de lecture global.
+        readTimeout: 0s
+        idleTimeout: 180s
+    http:
+      tls:
+        certResolver: le
+        domains:
+          - main: {{ pad_domain | to_json }}
+            sans:
+              - {{ ('*.' ~ pad_domain) | to_json }}
+  metrics:
+    address: ":8082"
+  traefik:
+    address: ":8080"
+
+# Santé du conteneur (entrypoint "traefik", non publié).
+ping:
+  entryPoint: traefik
+
+metrics:
+  prometheus:
+    entryPoint: metrics
+    addEntryPointsLabels: true
+    addRoutersLabels: true
+    addServicesLabels: true
+
+providers:
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+certificatesResolvers:
+  le:
+    acme:
+      email: {{ edge_traefik_crowdsec_acme_email | to_json }}
+      storage: /acme/acme.json
+{% if edge_traefik_crowdsec_acme_ca_server | length > 0 %}
+      caServer: {{ edge_traefik_crowdsec_acme_ca_server | to_json }}
+{% endif %}
+      dnsChallenge:
+        provider: ovh
+        resolvers: {{ edge_traefik_crowdsec_acme_resolvers | to_json }}
+
+experimental:
+  plugins:
+    crowdsec-bouncer:
+      moduleName: github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin
+      version: {{ edge_traefik_crowdsec_bouncer_plugin_version }}

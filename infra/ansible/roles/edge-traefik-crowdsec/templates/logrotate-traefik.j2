@@ -1,0 +1,10 @@
+# Géré par Ansible (rôle edge-traefik-crowdsec)
+{{ edge_traefik_crowdsec_dir }}/logs/traefik/access.log {
+    daily
+    rotate {{ edge_traefik_crowdsec_access_log_retention_days }}
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}

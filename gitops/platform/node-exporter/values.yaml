@@ -1,0 +1,44 @@
+# prometheus-node-exporter 1.12.1 : DaemonSet sur tous les nœuds (pool challenges tainté inclus), port 9100
+# (contracts: monitoring.exporters.node). hostNetwork/hostPID : namespace observability en PSS privileged.
+image:
+  registry: quay.io
+  repository: prometheus/node-exporter
+  tag: v1.12.1
+  digest: sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0
+
+# Scrape via le ServiceMonitor (Alloy), pas via les annotations.
+prometheusScrape: false
+prometheus:
+  monitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+    relabelings:
+      - action: replace
+        sourceLabels: [__meta_kubernetes_pod_node_name]
+        targetLabel: node
+
+service:
+  port: 9100
+  targetPort: 9100
+
+# Tolère tous les taints (pool challenges : pad.io/pool=challenges:NoSchedule, control-plane).
+tolerations:
+  - operator: Exists
+
+securityContext:
+  fsGroup: 65534
+  runAsGroup: 65534
+  runAsNonRoot: true
+  runAsUser: 65534
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]
+
+resources:
+  requests: { cpu: 10m, memory: 24Mi }
+  limits: { cpu: 100m, memory: 64Mi }

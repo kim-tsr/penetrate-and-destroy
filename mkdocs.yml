@@ -1,0 +1,140 @@
+site_name: PenetrateAndDestroy
+site_description: Plateforme CTF jetable et reconstructible de bout en bout, 100 % IaC.
+docs_dir: docs
+strict: true
+use_directory_urls: true
+
+theme:
+  name: material
+  language: fr
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: amber
+      toggle:
+        icon: material/weather-sunny
+        name: Passer en thème clair
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      accent: amber
+      toggle:
+        icon: material/weather-night
+        name: Passer en thème sombre
+
+plugins:
+  - search:
+      lang: fr
+  - include-markdown
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Accueil: index.md
+  - Démarrage rapide: demarrage-rapide.md
+  - Architecture:
+      - architecture/index.md
+      - Réseau et zones: architecture/reseau.md
+      - Matrice de flux: architecture/flux.md
+      - Cycle de vie d'une instance: architecture/instances.md
+      - Bootstrap du cluster: architecture/bootstrap.md
+      - Chaîne des secrets: architecture/secrets.md
+      - Scaling: architecture/scaling.md
+      - Supervision: architecture/supervision.md
+      - Plan et avancement: PLAN.md
+  - Décisions (ADR):
+      - adr/index.md
+      - "1. Routeur OPNsense": adr/001-routeur-opnsense.md
+      - "2. IdP Authentik": adr/002-idp-authentik.md
+      - "3. OpenTofu et bpg/proxmox": adr/003-iac-hyperviseur.md
+      - "4. Talos Linux": adr/004-talos.md
+      - "5. Cluster API auto-hébergé": adr/005-cluster-api.md
+      - "6. Autoscaling des nœuds": adr/006-autoscaling-noeuds.md
+      - "7. ArgoCD et GitOps": adr/007-gitops-argocd.md
+      - "8. SOPS et age": adr/008-secrets-sops.md
+      - "9. Cilium": adr/009-cilium.md
+      - "10. Stockage": adr/010-stockage.md
+      - "11. Bases de données": adr/011-bases-de-donnees.md
+      - "12. chall-manager": adr/012-chall-manager.md
+      - "13. Registry Zot": adr/013-registry-zot.md
+      - "14. Kyverno": adr/014-kyverno.md
+  - Opérations:
+      - operations/actions-post-deploiement.md
+      - Secrets (SOPS + age): SECRETS.md
+  - Runbooks:
+      - runbooks/index.md
+      - Procédures:
+          - runbooks/up.md
+          - runbooks/destroy.md
+          - runbooks/rebuild.md
+          - runbooks/backup-restore.md
+          - runbooks/incident.md
+          - runbooks/rotation-secrets.md
+      - Alertes:
+          - runbooks/alertmanager-notifications.md
+          - runbooks/alloy-telemetry.md
+          - runbooks/argocd.md
+          - runbooks/authentik.md
+          - runbooks/autoscaling.md
+          - runbooks/certificates.md
+          - runbooks/crowdsec.md
+          - runbooks/ctfd.md
+          - runbooks/docker-lxc.md
+          - runbooks/frontend.md
+          - runbooks/host-disk.md
+          - runbooks/host-resources.md
+          - runbooks/ingress.md
+          - runbooks/instance-down.md
+          - runbooks/instances.md
+          - runbooks/kubernetes-nodes.md
+          - runbooks/kubernetes-workloads.md
+          - runbooks/kyverno.md
+          - runbooks/monitoring-stack.md
+          - runbooks/netbird-sync.md
+          - runbooks/opnsense-down.md
+          - runbooks/proxmox-guest-down.md
+          - runbooks/proxmox-host.md
+          - runbooks/proxmox-storage.md
+          - runbooks/watchdog.md
+  - Guide joueur:
+      - player/index.md
+      - player/instances.md
+  - Guide manager:
+      - manager/index.md
+      - Format challenge.yml: manager/challenge-yml.md
+      - Import par ZIP: manager/import-zip.md
+      - Mode Git (dépôt privé): manager/depot-prive.md
+      - Instances, événement, modération: manager/exploitation-evenement.md
+  - Référence:
+      - reference/contrat.md
+      - Valeurs de site: reference/site.md
+      - reference/taches.md
+      - API des plugins CTFd: reference/api-plugins.md
+      - reference/limites.md

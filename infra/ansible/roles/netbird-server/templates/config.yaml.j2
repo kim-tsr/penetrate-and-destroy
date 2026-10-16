@@ -1,0 +1,38 @@
+# Géré par Ansible (rôle netbird-server). Format : serveur combiné NetBird 0.81 (combined/config.yaml.example).
+server:
+  listenAddress: ":80"
+  exposedAddress: "https://{{ netbird_server_fqdn }}:443"
+  stunPorts:
+    - {{ netbird_server_stun_port }}
+  metricsPort: {{ netbird_server_metrics_port }}
+  healthcheckAddress: ":9000"
+  logLevel: "{{ netbird_server_log_level }}"
+  logFile: "console"
+  authSecret: "{{ netbird_server_relay_auth_secret }}"
+  dataDir: "/var/lib/netbird"
+  disableAnonymousMetrics: true
+
+  auth:
+    issuer: "https://{{ netbird_server_fqdn }}/oauth2"
+    signKeyRefreshEnabled: true
+    sessionCookieEncryptionKey: "{{ netbird_server_session_cookie_key }}"
+    dashboardRedirectURIs:
+      - "https://{{ netbird_server_fqdn }}/nb-auth"
+      - "https://{{ netbird_server_fqdn }}/nb-silent-auth"
+    cliRedirectURIs:
+      - "http://localhost:53000/"
+{% if netbird_server_owner_password | length > 0 %}
+    owner:
+      email: "{{ netbird_server_owner_email }}"
+      password: "{{ netbird_server_owner_password }}"
+{% endif %}
+
+  reverseProxy:
+    trustedHTTPProxies:
+{% for cidr in netbird_server_trusted_proxies %}
+      - "{{ cidr }}"
+{% endfor %}
+
+  store:
+    engine: "sqlite"
+    encryptionKey: "{{ netbird_server_datastore_key }}"

@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mariadb-operator-crds
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: mariadb-operator-crds
+    app.kubernetes.io/part-of: platform
+    pad.io/zone: prod
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  source:
+    repoURL: https://helm.mariadb.com/mariadb-operator
+    chart: mariadb-operator-crds
+    targetRevision: 26.10.1
+    helm:
+      releaseName: mariadb-operator-crds
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: mariadb-operator # contracts: namespaces (CRDs cluster-scoped : namespace indicatif)
+  syncPolicy:
+    automated:
+      prune: false # ne jamais supprimer les CRDs (et donc les bases MariaDB) automatiquement
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

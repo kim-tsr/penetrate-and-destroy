@@ -1,0 +1,7 @@
+---
+# Phase 1 de `task up` : réglages de l'hôte Proxmox (sudo requis pour l'utilisateur SSH de l'hôte).
+- name: Régler l'hôte Proxmox
+  hosts: proxmox_host
+  become: true
+  roles:
+    - role: host-tuning

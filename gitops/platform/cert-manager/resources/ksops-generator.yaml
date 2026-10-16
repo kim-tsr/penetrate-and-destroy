@@ -1,0 +1,12 @@
+# Générateur ksops : déchiffre ovh-credentials.sops.yaml (SOPS + age, créé par `task secrets:init`) avec la clé age du
+# cluster (Secret sops-age du namespace argocd). Voir docs/SECRETS.md.
+apiVersion: viaduct.ai/v1
+kind: ksops
+metadata:
+  name: cert-manager-secrets
+  annotations:
+    config.kubernetes.io/function: |
+      exec:
+        path: ksops
+files:
+  - ovh-credentials.sops.yaml

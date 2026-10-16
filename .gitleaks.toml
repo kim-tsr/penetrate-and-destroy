@@ -1,0 +1,39 @@
+# Configuration gitleaks (repo public). Les règles par défaut restent TOUTES actives ; seules deux exceptions étroites
+# sont ajoutées. Le garde-fou structurel des fichiers chiffrés est scripts/check-sops.sh (CI + pre-commit).
+title = "PenetrateAndDestroy"
+
+[extend]
+useDefault = true
+
+# 1. Fichiers SOPS : seules les lignes dont la valeur est chiffrée (ENC[AES256_GCM,...]) sont ignorées. Une valeur en
+#    clair dans un *.sops.yaml reste détectée (la ligne ne contient pas ENC[...]) et bloque la CI.
+[[allowlists]]
+description = "valeurs chiffrées SOPS (ENC[AES256_GCM,...])"
+condition = "AND"
+paths = ['''(^|/)[^/]+\.sops\.(ya?ml|json)$''']
+regexTarget = "line"
+regexes = ['''ENC\[AES256_GCM,''']
+
+# 2. Exemples non chiffrés : uniquement les lignes qui portent le marqueur CHANGEME (une vraie valeur collée dans un
+#    *.example.yaml sans CHANGEME reste détectée).
+[[allowlists]]
+description = "valeurs d'exemple CHANGEME"
+condition = "AND"
+paths = ['''(^|/)[^/]+\.example\.ya?ml$''']
+regexTarget = "line"
+regexes = ['''CHANGEME''']
+
+# 3. Faux positifs connus, ciblés par fichier ET par motif exact (le reste de ces fichiers reste scanné).
+[[allowlists]]
+description = "jeton jetable de la pile e2e locale (docker compose), sans valeur hors test"
+condition = "AND"
+paths = ['''^tests/e2e/run\.sh$''']
+regexTarget = "line"
+regexes = ['''Bearer e2e-only-metrics-token''']
+
+[[allowlists]]
+description = "nom d'attribut Terraform password_field = \"password\" (identifiant de champ de flow, pas un secret)"
+condition = "AND"
+paths = ['''^infra/tofu/stacks/30-authentik/flows\.tf$''']
+regexTarget = "line"
+regexes = ['''password_field\s*=\s*"password"''']

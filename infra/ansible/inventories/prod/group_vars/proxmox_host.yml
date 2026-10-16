@@ -1,0 +1,7 @@
+---
+# Hôte Proxmox : toujours joint directement (adresse et utilisateur dans secrets/site.sops.yaml), sudo requis pour l'utilisateur SSH.
+ansible_user: "{{ lookup('ansible.builtin.env', 'PAD_PROXMOX_USER') | default(pad_site.ssh_user, true) }}"
+ansible_port: 22
+ansible_ssh_common_args: ""
+ansible_become: true
+ansible_become_method: ansible.builtin.sudo

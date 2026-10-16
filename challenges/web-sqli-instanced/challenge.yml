@@ -1,0 +1,26 @@
+name: Portail Admin
+author: orgas
+category: web
+description: |
+  Le portail interne protège un secret derrière un login. Retrouvez-le.
+value: 200
+connection_info: "Instance dédiée par équipe (HTTP)."
+flags:
+  - type: static
+    content: "PAD{sqli_union_or_bypass_ftw}"
+hints:
+  - content: "Le formulaire concatène vos entrées dans la requête SQL."
+    cost: 25
+tags: [sqli, flask]
+state: hidden
+version: "0.1"
+instance:
+  image: registry.changeme.example.net/ctf/web-sqli-instanced:0.1.0
+  ports:
+    - port: 8080
+      protocol: tcp
+      name: http
+  ttl: 30m
+  limits:
+    cpu: 500m
+    memory: 256Mi

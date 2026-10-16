@@ -1,0 +1,31 @@
+# Application ArgoCD : politiques Kyverno (ClusterPolicy). Wave -4 : après le moteur (-6), avant les apps.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kyverno-policies
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: kyverno-policies
+    app.kubernetes.io/part-of: pad-platform
+    pad.io/zone: prod
+  annotations:
+    argocd.argoproj.io/sync-wave: "-4"
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+    targetRevision: main # contracts: git.branch
+    path: gitops/platform/kyverno/policies
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kyverno
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true # CRDs ClusterPolicy créées par l'Application kyverno
+    retry:
+      limit: 5
+      backoff: { duration: 10s, factor: 2, maxDuration: 3m }

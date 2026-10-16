@@ -1,0 +1,39 @@
+# Values cert-manager-webhook-ovh 0.9.18 (chart aureq) : solver DNS-01 + ClusterIssuer letsencrypt-ovh.
+groupName: acme.pad.io # contracts: acme.webhook_group_name
+
+certManager:
+  namespace: cert-manager
+  serviceAccountName: cert-manager
+
+issuers:
+  - name: letsencrypt-ovh
+    create: true
+    kind: ClusterIssuer
+    acmeServerUrl: https://acme-v02.api.letsencrypt.org/directory
+    email: CHANGEME@CHANGEME.example.net # contracts: acme.email
+    ovhEndpointName: ovh-eu # contracts: acme.ovh_endpoint
+    ovhAuthenticationMethod: application
+    # Secret `ovh-credentials` (namespace cert-manager) : clés applicationKey / applicationSecret / applicationConsumerKey.
+    # Fourni chiffré SOPS via ksops (secrets/ovh.sops.yaml -> gitops) ; jamais en clair ici.
+    ovhAuthenticationRef:
+      applicationKeyRef: { name: ovh-credentials, key: applicationKey }
+      applicationSecretRef: { name: ovh-credentials, key: applicationSecret }
+      applicationConsumerKeyRef: { name: ovh-credentials, key: applicationConsumerKey }
+
+pod:
+  replicas: 1
+  loggingFormat: json
+  securityContext:
+    pod:
+      runAsUser: 1000
+      runAsGroup: 1000
+      runAsNonRoot: true
+      seccompProfile: { type: RuntimeDefault }
+    container:
+      readOnlyRootFilesystem: true
+      allowPrivilegeEscalation: false
+      privileged: false
+      capabilities: { drop: [ALL] }
+  resources:
+    requests: { cpu: 10m, memory: 24Mi }
+    limits: { memory: 64Mi }

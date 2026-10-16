@@ -1,0 +1,373 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  changes:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      tofu: ${{ steps.f.outputs.tofu }}
+      ansible: ${{ steps.f.outputs.ansible }}
+      gitops: ${{ steps.f.outputs.gitops }}
+      ctfd: ${{ steps.f.outputs.ctfd }}
+      netbird-sync: ${{ steps.f.outputs.netbird-sync }}
+      chall-manager-scenario: ${{ steps.f.outputs.chall-manager-scenario }}
+      frontend: ${{ steps.f.outputs.frontend }}
+      challenges: ${{ steps.f.outputs.challenges }}
+      shell: ${{ steps.f.outputs.shell }}
+      workflows: ${{ steps.f.outputs.workflows }}
+      tests: ${{ steps.f.outputs.tests }}
+      taskfile: ${{ steps.f.outputs.taskfile }}
+      iac: ${{ steps.f.outputs.iac }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: f
+        with:
+          filters: |
+            tofu:
+              - 'infra/tofu/**'
+              - 'flake.*'
+              - '.github/workflows/ci.yml'
+            ansible:
+              - 'infra/ansible/**'
+              - 'flake.*'
+              - '.github/workflows/ci.yml'
+            gitops:
+              - 'gitops/**'
+              - 'scripts/validate-gitops.sh'
+              - 'flake.*'
+              - '.github/workflows/ci.yml'
+            ctfd:
+              - 'apps/ctfd/**'
+              - 'challenges/schema/**'
+              - 'flake.*'
+              - '.github/workflows/ci.yml'
+            netbird-sync:
+              - 'apps/netbird-sync/**'
+              - 'flake.*'
+              - '.github/workflows/ci.yml'
+            chall-manager-scenario:
+              - 'apps/chall-manager-scenario/**'
+              - 'flake.*'
+              - '.github/workflows/ci.yml'
+            frontend:
+              - 'apps/frontend/**'
+              - 'flake.*'
+              - '.github/workflows/ci.yml'
+            challenges:
+              - 'challenges/**'
+              - 'flake.*'
+              - '.github/workflows/ci.yml'
+            shell:
+              - '**/*.sh'
+              - 'flake.*'
+              - '.github/workflows/ci.yml'
+            workflows:
+              - '.github/workflows/**'
+            tests:
+              - 'tests/**'
+              - 'apps/ctfd/**'
+              - 'apps/frontend/**'
+              - 'challenges/schema/**'
+              - 'flake.*'
+              - '.github/workflows/ci.yml'
+            taskfile:
+              - 'Taskfile.yml'
+              - '**/Taskfile.yml'
+              - 'scripts/**'
+              - '.github/workflows/ci.yml'
+            iac:
+              - 'infra/**'
+              - 'gitops/**'
+              - 'apps/**/Dockerfile'
+              - 'flake.*'
+              - '.github/workflows/ci.yml'
+
+  tofu:
+    needs: changes
+    if: needs.changes.outputs.tofu == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+      - name: fmt
+        run: nix develop -c tofu fmt -check -recursive infra/tofu
+      - name: validate (chaque stack)
+        run: |
+          # shellcheck disable=SC2016
+          nix develop -c bash -euo pipefail -c '
+            for s in infra/tofu/stacks/*/; do
+              echo "==> $s"
+              (cd "$s" && tofu init -backend=false -input=false >/dev/null && tofu validate)
+            done'
+
+  ansible:
+    needs: changes
+    if: needs.changes.outputs.ansible == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+      - run: nix develop -c bash -c 'cd infra/ansible && ansible-lint'
+
+  gitops:
+    needs: changes
+    if: needs.changes.outputs.gitops == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+      # Les secret.sops.yaml réels ne sont jamais lus : scripts/validate-gitops.sh travaille sur une copie de gitops/ où
+      # chaque *.example.yaml est chiffré avec une clé age ÉPHÉMÈRE (créée puis supprimée dans le job). La CI publique
+      # n'a accès à aucune clé réelle ; voir docs/SECRETS.md.
+      - name: kustomize build (ksops, sops factices) + kubeconform
+        run: KUSTOMIZE_FLAGS=--enable-helm nix develop -c scripts/validate-gitops.sh
+      - name: helm template (charts locaux)
+        run: |
+          # shellcheck disable=SC2016
+          nix develop -c bash -euo pipefail -c '
+            while IFS= read -r c; do
+              d=$(dirname "$c")
+              echo "==> $d"
+              helm template ci "$d" >/dev/null
+            done < <(find gitops -name Chart.yaml)'
+
+  ctfd:
+    needs: changes
+    if: needs.changes.outputs.ctfd == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+      - run: nix develop -c bash apps/ctfd/scripts/test.sh
+
+  netbird-sync:
+    needs: changes
+    if: needs.changes.outputs.netbird-sync == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+      - run: nix develop -c bash -c 'cd apps/netbird-sync && go vet ./... && go test ./...'
+
+  chall-manager-scenario:
+    needs: changes
+    if: needs.changes.outputs.chall-manager-scenario == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+      - run: nix develop -c bash -c 'cd apps/chall-manager-scenario && go vet ./... && go test ./...'
+
+  frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: apps/frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+      - run: nix develop ../.. -c pnpm install --frozen-lockfile
+      - run: nix develop ../.. -c pnpm lint
+      - run: nix develop ../.. -c pnpm typecheck
+      - run: nix develop ../.. -c pnpm test
+      - run: nix develop ../.. -c pnpm build
+      - name: Playwright
+        run: |
+          # shellcheck disable=SC2016
+          if compgen -G "playwright.config.*" >/dev/null; then
+            nix develop ../.. -c bash -euo pipefail -c 'pnpm exec playwright install --with-deps chromium && pnpm exec playwright test'
+          else
+            echo "pas de playwright.config.*, ignoré"
+          fi
+
+  challenges:
+    needs: changes
+    if: needs.changes.outputs.challenges == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+      - run: nix develop -c python3 challenges/validate.py
+
+  shell:
+    needs: changes
+    if: needs.changes.outputs.shell == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+      - run: |
+          nix develop -c bash -euo pipefail -c '
+            find . -name "*.sh" -not -path "*/node_modules/*" -not -path "./.state/*" -print0 | xargs -0 -r shellcheck'
+
+  security:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+      - name: trivy config
+        run: nix develop -c trivy config --exit-code 1 --severity HIGH,CRITICAL gitops apps infra
+      - name: trivy secret scan (arbre de travail)
+        run: nix develop -c trivy fs --scanners secret --exit-code 1 --skip-dirs .git --skip-dirs node_modules .
+
+  # Garde-fou des secrets chiffrés (sans clé) : blocs sops:, valeurs ENC[...], aucun Secret ni clé en clair suivi par git.
+  secrets-guard:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: check-sops
+        run: scripts/check-sops.sh
+      # Aucune valeur propre à un site réel dans le repo public : empreintes sha256 seulement, motifs jamais en clair.
+      - name: check-site-leaks
+        run: scripts/check-site-leaks.sh
+
+  # Le repo est public : tout l'historique et l'arbre de travail sont scannés à chaque push, sans filtre de chemin.
+  gitleaks:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+      - name: gitleaks (historique complet)
+        run: nix shell nixpkgs/nixos-25.05#gitleaks -c gitleaks git --redact --verbose --exit-code 1 .
+      - name: gitleaks (arbre de travail)
+        run: nix shell nixpkgs/nixos-25.05#gitleaks -c gitleaks dir --redact --verbose --exit-code 1 .
+
+  checkov:
+    needs: changes
+    if: needs.changes.outputs.iac == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+      # Non bloquant tant que les écarts existants ne sont pas triés (même réglage que scripts/lint.sh).
+      - name: checkov (tofu, ansible)
+        run: nix develop -c checkov -d infra --framework terraform,ansible --quiet --compact --soft-fail
+      - name: checkov (Dockerfiles)
+        run: nix develop -c checkov -d apps --framework dockerfile --quiet --compact --soft-fail
+      - name: checkov (manifests Kubernetes)
+        run: nix develop -c checkov -d gitops --framework kubernetes --quiet --compact --soft-fail
+
+  workflows:
+    needs: changes
+    if: needs.changes.outputs.workflows == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+      - run: nix shell nixpkgs/nixos-25.05#actionlint nixpkgs/nixos-25.05#shellcheck -c actionlint
+
+  taskfile:
+    needs: changes
+    if: needs.changes.outputs.taskfile == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+      - name: task --list-all (Taskfile racine et inclus)
+        run: nix develop -c task --list-all
+      - name: scripts d'exploitation (shellcheck, aide)
+        run: |
+          nix develop -c bash -euo pipefail -c '
+            shellcheck -x scripts/*.sh scripts/lib/*.sh
+            scripts/backup.sh --help >/dev/null
+            scripts/restore.sh --help >/dev/null'
+
+  tests:
+    needs: changes
+    if: needs.changes.outputs.tests == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+      - name: docker compose config (avec et sans le front)
+        run: |
+          docker compose -f tests/e2e/docker-compose.yml config -q
+          COMPOSE_PROFILES=front docker compose -f tests/e2e/docker-compose.yml config -q
+      - name: k6 inspect (valide le script et ses options)
+        run: nix develop -c bash -euo pipefail -c 'k6 inspect tests/load/pad.js >/dev/null && PAD_PROFILE=load k6 inspect tests/load/pad.js >/dev/null'
+      - name: smoke e2e (docker compose)
+        # Non bloquant jusqu'à la première validation sur un runner avec le front livré (apps/frontend/Dockerfile).
+        continue-on-error: true
+        run: nix develop -c tests/e2e/run.sh all

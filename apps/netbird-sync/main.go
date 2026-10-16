@@ -1,0 +1,85 @@
+// netbird-sync : synchronise les Services LoadBalancer des namespaces d'instances
+// avec des network resources + policies NetBird (accès limité au groupe de l'équipe).
+package main
+
+import (
+	"flag"
+	"log/slog"
+	"os"
+	"time"
+
+	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+
+	"github.com/kim-tsr/penetrate-and-destroy/apps/netbird-sync/internal/controller"
+	"github.com/kim-tsr/penetrate-and-destroy/apps/netbird-sync/internal/netbird"
+)
+
+func env(k, def string) string {
+	if v := os.Getenv(k); v != "" {
+		return v
+	}
+	return def
+}
+
+func main() {
+	var (
+		metricsAddr = flag.String("metrics-bind-address", ":8080", "adresse des métriques Prometheus")
+		probeAddr   = flag.String("health-probe-bind-address", ":8081", "adresse des probes healthz/readyz")
+		resync      = flag.Duration("resync", 10*time.Minute, "période de réconciliation complète")
+	)
+	flag.Parse()
+
+	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	slog.SetDefault(log)
+	ctrl.SetLogger(logr.FromSlogHandler(log.Handler()))
+
+	// contracts: netbird.network_name, netbird.team_group_prefix, namespaces.instances_prefix
+	cfg := controller.Config{
+		NetworkName:     env("NETBIRD_NETWORK_NAME", "pad-instances"),
+		TeamGroupPrefix: env("NETBIRD_TEAM_GROUP_PREFIX", "ctf-team-"),
+		NamespacePrefix: env("INSTANCES_NAMESPACE_PREFIX", "inst-"),
+		Resync:          *resync,
+	}
+	nb, err := netbird.New(os.Getenv("NETBIRD_API_URL"), os.Getenv("NETBIRD_API_TOKEN"), nil)
+	if err != nil {
+		log.Error("configuration NetBird invalide", "err", err)
+		os.Exit(1)
+	}
+
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		log.Error("scheme", "err", err)
+		os.Exit(1)
+	}
+	_ = corev1.AddToScheme(scheme)
+
+	// Un seul replica : pas d'élection de leader (évite le RBAC sur les Leases).
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+		Scheme:                 scheme,
+		Metrics:                metricsserver.Options{BindAddress: *metricsAddr},
+		HealthProbeBindAddress: *probeAddr,
+	})
+	if err != nil {
+		log.Error("manager", "err", err)
+		os.Exit(1)
+	}
+	r := &controller.ServiceReconciler{Client: mgr.GetClient(), NB: nb, Cfg: cfg, Log: log}
+	if err := r.SetupWithManager(mgr); err != nil {
+		log.Error("contrôleur", "err", err)
+		os.Exit(1)
+	}
+	_ = mgr.AddHealthzCheck("healthz", healthz.Ping)
+	_ = mgr.AddReadyzCheck("readyz", healthz.Ping)
+
+	log.Info("démarrage", "network", cfg.NetworkName, "resync", cfg.Resync.String())
+	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+		log.Error("arrêt en erreur", "err", err)
+		os.Exit(1)
+	}
+}

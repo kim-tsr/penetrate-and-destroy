@@ -1,0 +1,169 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: ctfd
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+# CTFd : entrée depuis le BFF (ns frontend), Traefik interne (UI admin) et le scrape (observability).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ctfd-ingress
+  namespace: ctfd
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ctfd
+      app.kubernetes.io/component: web
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: frontend # contracts: namespaces.frontend
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability # contracts: namespaces.monitoring_agents
+      ports:
+        - { port: 8000, protocol: TCP }
+---
+# CTFd : sortie vers MariaDB, Valkey, Garage, chall-manager, DNS.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ctfd-egress
+  namespace: ctfd
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ctfd
+      app.kubernetes.io/component: web
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: ctfd-mariadb
+      ports:
+        - { port: 3306, protocol: TCP }
+    # Valkey et Garage (ns storage)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: storage # contracts: namespaces.storage
+      ports:
+        - { port: 6379, protocol: TCP }
+        - { port: 3900, protocol: TCP } # contracts: apps.garage.s3_endpoint
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: chall-manager # contracts: namespaces.chall_manager
+      ports:
+        - { port: 8080, protocol: TCP }
+---
+# MariaDB : entrée depuis CTFd, les jobs de backup, l'opérateur et le scrape de l'exporter.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mariadb-ingress
+  namespace: ctfd
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: ctfd-mariadb
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ctfd
+              app.kubernetes.io/component: web
+        - podSelector:
+            matchExpressions:
+              - { key: batch.kubernetes.io/job-name, operator: Exists }
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: mariadb-operator
+      ports:
+        - { port: 3306, protocol: TCP }
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: observability # contracts: namespaces.monitoring_agents
+      ports:
+        - { port: 9104, protocol: TCP }
+---
+# MariaDB : DNS uniquement (la réplication n'est pas utilisée avec 1 instance).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mariadb-egress
+  namespace: ctfd
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: ctfd-mariadb
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+---
+# Jobs de backup (CronJob de la CR Backup) : MariaDB, Garage, DNS.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backup-egress
+  namespace: ctfd
+spec:
+  podSelector:
+    matchExpressions:
+      - { key: batch.kubernetes.io/job-name, operator: Exists }
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: ctfd-mariadb
+      ports:
+        - { port: 3306, protocol: TCP }
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: storage # contracts: namespaces.storage
+      ports:
+        - { port: 3900, protocol: TCP } # contracts: apps.garage.s3_endpoint

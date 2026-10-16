@@ -1,0 +1,87 @@
+name: images
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+concurrency:
+  group: images-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: ctfd, context: apps/ctfd, dockerfile: apps/ctfd/Dockerfile, build_contexts: 'schema=challenges/schema' }
+          - { name: frontend, context: apps/frontend, dockerfile: apps/frontend/Dockerfile }
+          - { name: netbird-sync, context: apps/netbird-sync, dockerfile: apps/netbird-sync/Dockerfile }
+          - { name: chall-manager-scenario, context: apps/chall-manager-scenario, dockerfile: apps/chall-manager-scenario/Dockerfile }
+          - { name: chal-pwn-ret2win-instanced, context: challenges/pwn-ret2win-instanced, dockerfile: challenges/pwn-ret2win-instanced/Dockerfile }
+          - { name: chal-web-sqli-instanced, context: challenges/web-sqli-instanced, dockerfile: challenges/web-sqli-instanced/Dockerfile }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Dockerfile présent ?
+        id: df
+        env:
+          DOCKERFILE: ${{ matrix.dockerfile }}
+        run: |
+          if [ -f "$DOCKERFILE" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "${{ matrix.name }} : Dockerfile absent, ignoré" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - if: steps.df.outputs.present == 'true'
+        uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+      - if: steps.df.outputs.present == 'true'
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - if: steps.df.outputs.present == 'true'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build, push, sign
+        if: steps.df.outputs.present == 'true'
+        id: build
+        env:
+          PUSH: '1'
+          SIGN: '1'
+          REGISTRY: ghcr.io/${{ github.repository_owner }}
+          VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
+          BUILD_CONTEXTS: ${{ matrix.build_contexts }}
+          NAME: ${{ matrix.name }}
+          CONTEXT: ${{ matrix.context }}
+          DOCKERFILE: ${{ matrix.dockerfile }}
+        run: |
+          ref=$(nix develop -c scripts/build-image.sh "$NAME" "$CONTEXT" "$DOCKERFILE" | tail -n1)
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+      - name: Scan Trivy
+        if: steps.df.outputs.present == 'true'
+        env:
+          REF: ${{ steps.build.outputs.ref }}
+        run: nix develop -c trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$REF"
+      - name: Résumé du digest
+        if: steps.df.outputs.present == 'true'
+        env:
+          REF: ${{ steps.build.outputs.ref }}
+          NAME: ${{ matrix.name }}
+        run: |
+          {
+            echo "### $NAME"
+            echo '```'
+            echo "$REF"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

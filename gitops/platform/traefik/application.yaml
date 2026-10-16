@@ -1,0 +1,42 @@
+# Traefik (chart 42.0.0) : ingress interne du cluster, Service LoadBalancer 10.20.60.200 (pool Cilium `ingress`).
+# Sources : (1) chart Helm épinglé, (2) ce repo en `$values`, (3) Middlewares de sécurité (resources/).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: traefik
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: traefik
+    app.kubernetes.io/part-of: pad-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+spec:
+  project: platform
+  sources:
+    - repoURL: https://traefik.github.io/charts
+      chart: traefik
+      targetRevision: 42.0.0
+      helm:
+        releaseName: traefik
+        valueFiles:
+          - $values/gitops/platform/traefik/values.yaml
+    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+      targetRevision: main # contracts: git.branch
+      ref: values
+    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+      targetRevision: main # contracts: git.branch
+      path: gitops/platform/traefik/resources
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: traefik
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      # Middleware / TLSOption : CRDs Traefik installées par le chart dans la même synchronisation.
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 10
+      backoff: { duration: 15s, factor: 2, maxDuration: 5m }

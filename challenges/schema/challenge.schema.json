@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pad.invalid/schema/challenge.schema.json",
+  "title": "challenge.yml (ctfcli étendu PenetrateAndDestroy)",
+  "description": "Miroir de apps/frontend/src/lib/challenge-yml/schema.ts (zod). Racine permissive (looseObject), blocs extra/instance stricts.",
+  "type": "object",
+  "required": ["name", "category", "description", "flags"],
+  "properties": {
+    "name": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "\\S"},
+    "author": {"type": "string"},
+    "category": {"type": "string", "minLength": 1, "maxLength": 40, "pattern": "\\S"},
+    "description": {"type": "string", "minLength": 1},
+    "type": {"enum": ["standard", "dynamic"], "default": "standard"},
+    "value": {"type": "integer", "minimum": 0},
+    "extra": {"$ref": "#/$defs/dynamicExtra"},
+    "connection_info": {"type": "string"},
+    "attempts": {"type": "integer", "minimum": 0},
+    "flags": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/flag"}},
+    "files": {"type": "array", "default": [], "items": {"$ref": "#/$defs/relativePath"}},
+    "hints": {"type": "array", "default": [], "items": {"$ref": "#/$defs/hint"}},
+    "tags": {"type": "array", "default": [], "items": {"type": "string", "minLength": 1}},
+    "topics": {"type": "array", "items": {"type": "string"}},
+    "requirements": {"type": "array", "items": {"type": ["string", "number"]}},
+    "state": {"enum": ["visible", "hidden"], "default": "hidden"},
+    "version": {"type": "string"},
+    "instance": {"$ref": "#/$defs/instance"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"type": {"const": "dynamic"}}, "required": ["type"]},
+      "then": {"required": ["extra"]},
+      "else": {"required": ["value"]}
+    }
+  ],
+  "$defs": {
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?![/\\\\])(?!(.*[/\\\\])?\\.\\.([/\\\\]|$)).+$",
+      "description": "Chemin relatif au ZIP, sans « .. »."
+    },
+    "dynamicExtra": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["initial", "decay", "minimum"],
+      "properties": {
+        "initial": {"type": "integer", "exclusiveMinimum": 0},
+        "decay": {"type": "integer", "exclusiveMinimum": 0},
+        "minimum": {"type": "integer", "minimum": 0},
+        "function": {"enum": ["linear", "logarithmic"]}
+      },
+      "$comment": "minimum <= initial n'est pas exprimable en JSON Schema ; vérifié par validate.py."
+    },
+    "flag": {
+      "oneOf": [
+        {"type": "string", "minLength": 1},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["content"],
+          "properties": {
+            "type": {"enum": ["static", "regex"], "default": "static"},
+            "content": {"type": "string", "minLength": 1},
+            "data": {"enum": ["case_sensitive", "case_insensitive"]}
+          }
+        }
+      ]
+    },
+    "hint": {
+      "oneOf": [
+        {"type": "string", "minLength": 1},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["content"],
+          "properties": {
+            "content": {"type": "string", "minLength": 1},
+            "cost": {"type": "integer", "minimum": 0, "default": 0}
+          }
+        }
+      ]
+    },
+    "port": {
+      "oneOf": [
+        {"type": "integer", "minimum": 1, "maximum": 65535},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["port"],
+          "properties": {
+            "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+            "protocol": {"enum": ["tcp", "udp"], "default": "tcp"},
+            "name": {"type": "string", "maxLength": 32}
+          }
+        }
+      ]
+    },
+    "ttl": {
+      "description": "Secondes (60..21600) ou durée 90s / 30m / 2h (bornes des durées vérifiées par validate.py).",
+      "oneOf": [
+        {"type": "integer", "minimum": 60, "maximum": 21600},
+        {"type": "string", "pattern": "^\\d+\\s*(s|m|h)$"}
+      ],
+      "default": 3600
+    },
+    "instance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["image", "ports"],
+      "properties": {
+        "image": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-z0-9.-]+(:\\d+)?/[a-z0-9._/-]+(:[\\w.-]+)?(@sha256:[a-f0-9]{64})?$"
+        },
+        "ports": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/port"}},
+        "ttl": {"$ref": "#/$defs/ttl"},
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "default": {"cpu": "500m", "memory": "256Mi"},
+          "properties": {
+            "cpu": {"type": "string", "pattern": "^(\\d+m|\\d+(\\.\\d+)?)$", "default": "500m"},
+            "memory": {"type": "string", "pattern": "^\\d+(Ki|Mi|Gi)$", "default": "256Mi"}
+          }
+        }
+      }
+    }
+  }
+}

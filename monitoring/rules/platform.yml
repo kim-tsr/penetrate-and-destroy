@@ -1,0 +1,215 @@
+---
+# Alertes plateforme Kubernetes : ArgoCD, workloads, nœuds, ingress Traefik, KEDA, cluster-autoscaler.
+# Métriques kube-state-metrics, kubelet, ArgoCD, Traefik, KEDA et cluster-autoscaler collectées par Alloy
+# (label externe cluster="pad-prod").
+groups:
+  - name: pad-gitops
+    rules:
+      - alert: ArgoCDOutOfSync
+        expr: argocd_app_info{sync_status="OutOfSync"} == 1
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Application ArgoCD {{ $labels.name }} désynchronisée"
+          description: "L'application {{ $labels.name }} est OutOfSync depuis plus de 30 minutes."
+          runbook_url: docs/runbooks/argocd.md
+
+      - alert: ArgoCDAppUnhealthy
+        expr: argocd_app_info{health_status=~"Degraded|Missing"} == 1
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Application ArgoCD {{ $labels.name }} en état {{ $labels.health_status }}"
+          description: "L'application {{ $labels.name }} (projet {{ $labels.project }}) n'est pas saine depuis 15 minutes."
+          runbook_url: docs/runbooks/argocd.md
+
+      - alert: ArgoCDSyncFailed
+        expr: increase(argocd_app_sync_total{phase=~"Error|Failed"}[30m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "Synchronisation ArgoCD en échec pour {{ $labels.name }}"
+          description: "Au moins une synchronisation de {{ $labels.name }} a échoué dans les 30 dernières minutes."
+          runbook_url: docs/runbooks/argocd.md
+
+  - name: pad-kubernetes-workloads
+    rules:
+      - alert: KubePodCrashLooping
+        expr: max_over_time(kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff"}[5m]) >= 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} en CrashLoopBackOff"
+          description: "Le conteneur {{ $labels.container }} redémarre en boucle depuis 15 minutes."
+          runbook_url: docs/runbooks/kubernetes-workloads.md
+
+      - alert: KubePodNotReady
+        expr: |
+          sum by (namespace, pod) (
+            kube_pod_status_phase{phase=~"Pending|Unknown|Failed", namespace!~"inst-.+"}
+          ) > 0
+        for: 20m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} bloqué"
+          description: "Le pod est en Pending, Unknown ou Failed depuis 20 minutes (hors namespaces d'instances de challenges)."
+          runbook_url: docs/runbooks/kubernetes-workloads.md
+
+      - alert: KubeDeploymentUnavailable
+        expr: |
+          kube_deployment_spec_replicas{namespace!~"inst-.+"} > 0
+            and kube_deployment_status_replicas_available{namespace!~"inst-.+"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} sans réplica disponible"
+          description: "Aucun pod disponible pour {{ $labels.namespace }}/{{ $labels.deployment }} depuis 5 minutes."
+          runbook_url: docs/runbooks/kubernetes-workloads.md
+
+      - alert: KubeDeploymentReplicasMismatch
+        expr: |
+          kube_deployment_spec_replicas{namespace!~"inst-.+"}
+            != kube_deployment_status_replicas_available{namespace!~"inst-.+"}
+        for: 20m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} incomplet"
+          description: "Le nombre de réplicas disponibles diffère de la consigne depuis 20 minutes."
+          runbook_url: docs/runbooks/kubernetes-workloads.md
+
+      - alert: KubePodOOMKilled
+        expr: |
+          (increase(kube_pod_container_status_restarts_total[15m]) > 0)
+            and on (namespace, pod, container)
+          (kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1)
+        labels:
+          severity: warning
+        annotations:
+          summary: "Conteneur {{ $labels.namespace }}/{{ $labels.pod }}/{{ $labels.container }} tué par OOM"
+          description: "Le conteneur a été redémarré pour dépassement de sa limite mémoire : revoir les limits."
+          runbook_url: docs/runbooks/kubernetes-workloads.md
+
+      - alert: KubePersistentVolumeFillingUp
+        expr: |
+          kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes < 0.10
+            and kubelet_volume_stats_capacity_bytes > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Volume {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} presque plein"
+          description: "Moins de 10 % d'espace libre sur le PVC {{ $labels.persistentvolumeclaim }}."
+          runbook_url: docs/runbooks/kubernetes-workloads.md
+
+  - name: pad-kubernetes-nodes
+    rules:
+      - alert: KubeNodeNotReady
+        expr: kube_node_status_condition{condition="Ready", status="true"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Nœud Kubernetes {{ $labels.node }} NotReady"
+          description: "Le nœud {{ $labels.node }} n'est plus Ready depuis 5 minutes."
+          runbook_url: docs/runbooks/kubernetes-nodes.md
+
+      - alert: KubeNodePressure
+        expr: kube_node_status_condition{condition=~"MemoryPressure|DiskPressure|PIDPressure", status="true"} == 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Nœud {{ $labels.node }} sous pression ({{ $labels.condition }})"
+          description: "La condition {{ $labels.condition }} est active sur {{ $labels.node }} : éviction de pods possible."
+          runbook_url: docs/runbooks/kubernetes-nodes.md
+
+      - alert: ClusterMetricsMissing
+        expr: absent(kube_node_info)
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Plus aucune métrique du cluster Kubernetes"
+          description: "kube-state-metrics n'arrive plus dans VictoriaMetrics depuis 15 minutes (Alloy, réseau PROD -> MONITORING ou cluster HS)."
+          runbook_url: docs/runbooks/alloy-telemetry.md
+
+  - name: pad-ingress
+    rules:
+      - alert: IngressHigh5xxRatio
+        expr: pad:traefik_5xx_ratio:rate5m > 0.05 and sum(rate(traefik_service_requests_total[5m])) > 0.2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Plus de 5 % d'erreurs 5xx sur l'ingress Traefik"
+          description: "Taux de 5xx de {{ $value | humanizePercentage }} sur les services publiés par Traefik depuis 10 minutes."
+          runbook_url: docs/runbooks/ingress.md
+
+      - alert: IngressHighLatency
+        expr: pad:traefik_request_duration_seconds:p95_5m > 2 and sum(rate(traefik_service_requests_total[5m])) > 0.2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latence p95 de l'ingress supérieure à 2 s"
+          description: "p95 à {{ $value | humanizeDuration }} sur les services Traefik depuis 10 minutes."
+          runbook_url: docs/runbooks/ingress.md
+
+  - name: pad-autoscaling
+    rules:
+      - alert: KedaScalerErrors
+        expr: increase(keda_scaler_detail_errors_total[10m]) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Erreurs de scaler KEDA pour {{ $labels.scaledObject }}"
+          description: "Le scaler {{ $labels.scaler }} du ScaledObject {{ $labels.namespace }}/{{ $labels.scaledObject }} échoue : l'autoscaling est aveugle."
+          runbook_url: docs/runbooks/autoscaling.md
+
+      - alert: HpaMaxedOut
+        expr: |
+          kube_horizontalpodautoscaler_status_current_replicas
+            >= kube_horizontalpodautoscaler_spec_max_replicas
+        for: 30m
+        labels:
+          severity: info
+        annotations:
+          summary: "HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler }} au maximum de réplicas"
+          description: "Le plafond de réplicas est atteint depuis 30 minutes (KEDA/HPA ne peut plus absorber de charge)."
+          runbook_url: docs/runbooks/autoscaling.md
+
+      - alert: ClusterAutoscalerUnschedulablePods
+        expr: cluster_autoscaler_unschedulable_pods_count > 0
+        for: 20m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pods non planifiables depuis 20 minutes"
+          description: "{{ $value }} pod(s) en attente de capacité malgré le cluster-autoscaler (pool au maximum ou création de VM en échec)."
+          runbook_url: docs/runbooks/autoscaling.md
+
+      - alert: ClusterAutoscalerErrors
+        expr: increase(cluster_autoscaler_errors_total[15m]) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Le cluster-autoscaler remonte des erreurs ({{ $labels.type }})"
+          description: "Erreurs de type {{ $labels.type }} répétées depuis 15 minutes."
+          runbook_url: docs/runbooks/autoscaling.md
+
+      - alert: ClusterAutoscalerFailedScaleUp
+        expr: increase(cluster_autoscaler_failed_scale_ups_total[30m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "Échec d'ajout de nœud par le cluster-autoscaler"
+          description: "Une création de VM Talos (Cluster API / Proxmox) a échoué dans les 30 dernières minutes (raison : {{ $labels.reason }})."
+          runbook_url: docs/runbooks/autoscaling.md

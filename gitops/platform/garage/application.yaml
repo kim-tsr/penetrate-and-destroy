@@ -1,0 +1,40 @@
+# Garage v2.4.1 (S3) : chart Helm upstream lu directement dans le dépôt Git Deuxfleurs au tag v2.4.1
+# (script/helm/garage, chart 0.10.2), + manifests locaux (RBAC + Job d'initialisation PostSync).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: garage
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: garage
+    app.kubernetes.io/part-of: platform
+    pad.io/zone: prod
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+  sources:
+    - repoURL: https://git.deuxfleurs.fr/Deuxfleurs/garage.git
+      targetRevision: v2.4.1
+      path: script/helm/garage
+      helm:
+        releaseName: garage
+        valueFiles:
+          - $values/gitops/platform/garage/values.yaml
+    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+      targetRevision: main # contracts: git.branch
+      ref: values
+    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+      targetRevision: main # contracts: git.branch
+      path: gitops/platform/garage/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: storage # contracts: namespaces.storage
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

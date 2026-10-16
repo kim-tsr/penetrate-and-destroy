@@ -1,0 +1,96 @@
+---
+- name: Charger les secrets SOPS de Warpgate
+  community.sops.load_vars:
+    file: "{{ pad_secrets_dir }}/warpgate.sops.yaml"
+  delegate_to: localhost
+  become: false
+  no_log: true
+
+- name: Vérifier la présence des secrets obligatoires
+  ansible.builtin.assert:
+    that:
+      - warpgate_admin_password | length > 0
+      - warpgate_sso_client_secret | length > 0
+    fail_msg: "Secrets manquants dans secrets/warpgate.sops.yaml (voir secrets/warpgate.example.yaml)"
+    quiet: true
+
+- name: Créer le répertoire Compose de Warpgate
+  ansible.builtin.file:
+    path: "{{ warpgate_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Créer le répertoire de données persistant
+  ansible.builtin.file:
+    path: "{{ warpgate_data_dir }}"
+    state: directory
+    owner: "{{ warpgate_uid }}"
+    group: "{{ warpgate_uid }}"
+    mode: "0700"
+
+- name: Chercher une instance Warpgate déjà initialisée
+  ansible.builtin.stat:
+    path: "{{ warpgate_data_dir }}/warpgate.yaml"
+  register: warpgate_initialized
+
+- name: Initialiser Warpgate (base, clés SSH, certificat TLS, utilisateur admin)
+  community.docker.docker_container:
+    name: warpgate-setup
+    image: "{{ warpgate_image }}"
+    command:
+      - unattended-setup
+      - --data-path
+      - /data
+      - --http-port
+      - "{{ warpgate_https_port }}"
+      - --ssh-port
+      - "{{ warpgate_ssh_port }}"
+      - --external-host
+      - "{{ warpgate_fqdn }}"
+    env:
+      WARPGATE_ADMIN_PASSWORD: "{{ warpgate_admin_password }}"
+    volumes:
+      - "{{ warpgate_data_dir }}:/data"
+    detach: false
+    cleanup: true
+    pull: missing
+    state: started
+  when: not warpgate_initialized.stat.exists
+  no_log: true
+
+- name: Déployer la configuration de Warpgate
+  ansible.builtin.template:
+    src: warpgate.yaml.j2
+    dest: "{{ warpgate_data_dir }}/warpgate.yaml"
+    owner: "{{ warpgate_uid }}"
+    group: "{{ warpgate_uid }}"
+    mode: "0600"
+  no_log: true
+  register: warpgate_config
+
+- name: Déployer le fichier Compose
+  ansible.builtin.template:
+    src: compose.yml.j2
+    dest: "{{ warpgate_dir }}/compose.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  register: warpgate_compose
+
+- name: Démarrer Warpgate (recréation si la configuration a changé)
+  community.docker.docker_compose_v2:
+    project_src: "{{ warpgate_dir }}"
+    files:
+      - compose.yml
+    state: present
+    pull: missing
+    recreate: "{{ 'always' if (warpgate_config is changed or warpgate_compose is changed) else 'auto' }}"
+    remove_orphans: true
+
+- name: Attendre le listener HTTPS
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ warpgate_https_port }}"
+    timeout: 120

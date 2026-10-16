@@ -1,0 +1,34 @@
+# Namespaces du socle (PSS restricted + CiliumNetworkPolicy default-deny), sync-wave -10 : créés avant tout composant.
+# Les manifests sont dans resources/ (un fichier par namespace, source de vérité : infra/contracts.yaml -> namespaces).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: namespaces
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: namespaces
+    app.kubernetes.io/part-of: pad-platform
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+    targetRevision: main # contracts: git.branch
+    path: gitops/platform/namespaces/resources
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: false # les Namespaces portent Delete=false ; jamais de suppression automatique
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      # CiliumNetworkPolicy : CRD créée par Cilium (wave -9) après cette Application.
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 10
+      backoff: { duration: 15s, factor: 2, maxDuration: 5m }

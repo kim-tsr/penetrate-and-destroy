@@ -1,0 +1,39 @@
+# Providers Cluster API rendus par bootstrap/scripts/render-providers.sh (ne pas éditer les YAML générés).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - core-cluster-api.yaml
+  - bootstrap-talos.yaml
+  - control-plane-talos.yaml
+  - infrastructure-proxmox.yaml
+  - ipam-in-cluster.yaml
+  - inventory.yaml
+
+patches:
+  # Les CRDs CAPI portent l'état du cluster lui-même : ArgoCD ne doit jamais les supprimer.
+  - target:
+      kind: CustomResourceDefinition
+    patch: |-
+      - op: add
+        path: /metadata/annotations/argocd.argoproj.io~1sync-options
+        value: Delete=false,Prune=false
+  # Les Namespaces des providers (capi-system, cabpt-system, ...) ne sont jamais supprimés par ArgoCD.
+  - target:
+      kind: Namespace
+    patch: |-
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: placeholder
+        annotations:
+          argocd.argoproj.io/sync-options: Delete=false
+  # Inventaire clusterctl : CRD créée par `clusterctl init` (bootstrap), pas par ce rendu.
+  - target:
+      kind: Provider
+      group: clusterctl.cluster.x-k8s.io
+    patch: |-
+      - op: add
+        path: /metadata/annotations
+        value:
+          argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true,Delete=false

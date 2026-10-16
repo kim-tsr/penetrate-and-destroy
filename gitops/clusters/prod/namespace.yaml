@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pad-cluster # contracts: kubernetes.capi_namespace
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    # Ne jamais supprimer le namespace (il porte le Cluster qui héberge ArgoCD lui-même).
+    argocd.argoproj.io/sync-options: Delete=false

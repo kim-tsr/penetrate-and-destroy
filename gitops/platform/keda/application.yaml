@@ -1,0 +1,41 @@
+# Application ArgoCD : KEDA (autoscaling événementiel). Un seul ScaledObject par Deployment (pas d'HPA séparé).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keda
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: keda
+    app.kubernetes.io/part-of: pad-platform
+    pad.io/zone: prod
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+spec:
+  project: platform
+  sources:
+    - repoURL: https://kedacore.github.io/charts
+      chart: keda
+      targetRevision: 2.21.0
+      helm:
+        releaseName: keda
+        valueFiles:
+          - $values/gitops/platform/keda/values.yaml
+    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+      targetRevision: main # contracts: git.branch
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: keda
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true # CRDs KEDA volumineuses
+    retry:
+      limit: 5
+      backoff: { duration: 10s, factor: 2, maxDuration: 3m }
+  ignoreDifferences:
+    - group: apiregistration.k8s.io
+      kind: APIService
+      jsonPointers: ["/spec/insecureSkipTLSVerify", "/spec/caBundle"]

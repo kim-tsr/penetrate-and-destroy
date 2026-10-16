@@ -1,0 +1,9 @@
+# Géré par Ansible (rôle edge-traefik-crowdsec)
+# AppSec (WAF) interrogé par le bouncer Traefik ; non publié hors du réseau docker.
+appsec_configs:
+  - crowdsecurity/virtual-patching
+  - crowdsecurity/generic-rules
+labels:
+  type: appsec
+listen_addr: 0.0.0.0:{{ edge_traefik_crowdsec_appsec_port }}
+source: appsec

@@ -1,0 +1,95 @@
+# Géré par Ansible (rôle monitoring-stack). Config vmagent intégré à VictoriaMetrics (-promscrape.config).
+# Cibles dérivées de infra/contracts.yaml (services.*, monitoring.exporters, ports.*).
+{% set exporters = pad.monitoring.exporters %}
+{% set lxcs = pad.services | dict2items %}
+global:
+  scrape_interval: {{ monitoring_stack_scrape_interval }}
+  external_labels:
+    cluster: {{ pad.project }}
+
+scrape_configs:
+  # --- La stack elle-même (réseau docker du compose) ---
+  - job_name: victoriametrics
+    static_configs:
+      - targets: ["victoriametrics:{{ pad.ports.monitoring.victoriametrics }}"]
+  - job_name: vmalert
+    static_configs:
+      - targets: ["vmalert:{{ pad.ports.monitoring.vmalert }}"]
+  - job_name: alertmanager
+    static_configs:
+      - targets: ["alertmanager:{{ pad.ports.monitoring.alertmanager }}"]
+  - job_name: loki
+    static_configs:
+      - targets: ["loki:{{ pad.ports.monitoring.loki }}"]
+  - job_name: tempo
+    static_configs:
+      - targets: ["tempo:{{ pad.ports.monitoring.tempo_http }}"]
+  - job_name: grafana
+    static_configs:
+      - targets: ["grafana:3000"]
+
+  # --- node-exporter : hôte Proxmox, chaque LXC, OPNsense ---
+  - job_name: node
+    static_configs:
+{% for item in lxcs %}
+      - targets: ["{{ item.value.ip }}:{{ exporters.node }}"]
+        labels: { host: pad-{{ item.key }}, zone: {{ item.value.zone }}, role: lxc }
+{% endfor %}
+      - targets: ["{{ pad.monitoring.host_target }}:{{ exporters.node }}"]
+        labels: { host: {{ pad.host.node }}, zone: mgmt, role: proxmox }
+      - targets: ["{{ exporters.opnsense.target }}:{{ exporters.opnsense.port }}"]
+        labels: { host: {{ pad.router.name }}, zone: mgmt, role: router }
+
+  # --- Alloy : hôte et chaque LXC ---
+  - job_name: alloy
+    static_configs:
+{% for item in lxcs %}
+      - targets: ["{{ item.value.ip }}:{{ exporters.alloy }}"]
+        labels: { host: pad-{{ item.key }}, zone: {{ item.value.zone }}, role: lxc }
+{% endfor %}
+      - targets: ["{{ pad.monitoring.host_target }}:{{ exporters.alloy }}"]
+        labels: { host: {{ pad.host.node }}, zone: mgmt, role: proxmox }
+
+  # --- Métriques dockerd : chaque LXC ---
+  - job_name: docker
+    static_configs:
+{% for item in lxcs %}
+      - targets: ["{{ item.value.ip }}:{{ exporters.docker }}"]
+        labels: { host: pad-{{ item.key }}, zone: {{ item.value.zone }}, role: lxc }
+{% endfor %}
+
+  # --- prometheus-pve-exporter : hôte uniquement (le paramètre target est l'hôte PVE interrogé) ---
+  - job_name: pve
+    metrics_path: /pve
+    params:
+      module: [default]
+      cluster: ["1"]
+      node: ["1"]
+    static_configs:
+      - targets: ["{{ pad.monitoring.host_target }}"]
+        labels: { host: {{ pad.host.node }}, zone: mgmt, role: proxmox }
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: "{{ pad.monitoring.host_target }}:{{ exporters.pve }}"
+
+  # --- Services applicatifs des LXC ---
+  - job_name: traefik
+    static_configs:
+      - targets: ["{{ pad.services.edge.ip }}:{{ pad.ports.edge.metrics }}"]
+        labels: { host: pad-edge, zone: {{ pad.services.edge.zone }} }
+  - job_name: crowdsec
+    static_configs:
+      - targets: ["{{ pad.services.edge.ip }}:{{ pad.ports.edge.crowdsec_metrics }}"]
+        labels: { host: pad-edge, zone: {{ pad.services.edge.zone }} }
+  - job_name: netbird
+    static_configs:
+      - targets: ["{{ pad.services.netbird.ip }}:{{ pad.ports.netbird.metrics }}"]
+        labels: { host: pad-netbird, zone: {{ pad.services.netbird.zone }} }
+  - job_name: authentik
+    static_configs:
+      - targets: ["{{ pad.services.authentik.ip }}:{{ pad.ports.authentik.metrics }}"]
+        labels: { host: pad-authentik, zone: {{ pad.services.authentik.zone }} }

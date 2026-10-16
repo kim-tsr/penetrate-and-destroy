@@ -1,0 +1,2 @@
+{# Géré par Ansible (rôle docker) #}
+{{ docker_daemon_config | combine(docker_daemon_extra) | to_nice_json }}

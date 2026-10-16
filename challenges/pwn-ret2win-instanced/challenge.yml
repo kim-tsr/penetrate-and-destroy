@@ -1,0 +1,25 @@
+name: Ret2Win
+author: orgas
+category: pwn
+description: |
+  Un classique. Faites appeler la bonne fonction.
+value: 250
+connection_info: "nc <hôte> <port> (instance dédiée par équipe)"
+flags:
+  - type: static
+    content: "PAD{ret2win_n0_c4n4ry_n0_pie}"
+hints:
+  - content: "Pas de canary, pas de PIE : l'adresse de win() est fixe."
+    cost: 25
+tags: [pwn, ret2win]
+state: hidden
+version: "0.1"
+instance:
+  image: registry.changeme.example.net/ctf/pwn-ret2win-instanced:0.1.0
+  ports:
+    - port: 1337
+      protocol: tcp
+  ttl: 1h
+  limits:
+    cpu: 500m
+    memory: 128Mi

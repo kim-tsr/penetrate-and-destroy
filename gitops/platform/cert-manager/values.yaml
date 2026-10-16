@@ -1,0 +1,88 @@
+# Values cert-manager v1.21.2 (namespace cert-manager : PSS restricted).
+crds:
+  enabled: true
+  keep: true # ne jamais supprimer les CRDs (et donc les Certificates) avec le chart
+
+replicaCount: 1 # budget RAM du plan ; un seul nœud perdu = reprise par le scheduler
+
+# Résolution DNS-01 : vérifier la propagation via des résolveurs publics (le DNS interne OPNsense/Unbound
+# pourrait répondre en split-horizon pour le domaine, ce qui fausserait le self-check).
+extraArgs:
+  - --dns01-recursive-nameservers-only
+  - --dns01-recursive-nameservers=1.1.1.1:53,9.9.9.9:53
+  - --enable-certificate-owner-ref=true
+
+config:
+  apiVersion: controller.config.cert-manager.io/v1alpha1
+  kind: ControllerConfiguration
+  logging:
+    format: json
+
+securityContext:
+  runAsNonRoot: true
+  seccompProfile: { type: RuntimeDefault }
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities: { drop: [ALL] }
+
+resources:
+  requests: { cpu: 20m, memory: 64Mi }
+  limits: { memory: 192Mi }
+
+# Métriques :9402 (controller, webhook, cainjector) : un ServiceMonitor lu par Alloy
+# (CRDs : Application prometheus-crds, wave -10, avant cert-manager wave -7). PodMonitor exclusif : laissé désactivé.
+prometheus:
+  enabled: true
+  servicemonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 20s
+
+webhook:
+  replicaCount: 1
+  config:
+    apiVersion: webhook.config.cert-manager.io/v1alpha1
+    kind: WebhookConfiguration
+    logging:
+      format: json
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile: { type: RuntimeDefault }
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities: { drop: [ALL] }
+  resources:
+    requests: { cpu: 10m, memory: 32Mi }
+    limits: { memory: 96Mi }
+
+cainjector:
+  replicaCount: 1
+  config:
+    apiVersion: cainjector.config.cert-manager.io/v1alpha1
+    kind: CAInjectorConfiguration
+    logging:
+      format: json
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile: { type: RuntimeDefault }
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities: { drop: [ALL] }
+  resources:
+    requests: { cpu: 10m, memory: 48Mi }
+    limits: { memory: 128Mi }
+
+startupapicheck:
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile: { type: RuntimeDefault }
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities: { drop: [ALL] }
+  resources:
+    requests: { cpu: 10m, memory: 16Mi }
+    limits: { memory: 64Mi }

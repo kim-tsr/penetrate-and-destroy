@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: netbird-sync
+  labels: &labels
+    app.kubernetes.io/name: netbird-sync
+    app.kubernetes.io/component: controller
+    app.kubernetes.io/part-of: penetrate-and-destroy
+    pad.io/zone: prod
+spec:
+  replicas: 1 # pas d'élection de leader : un seul replica, stratégie Recreate
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: netbird-sync
+  template:
+    metadata:
+      labels: *labels
+    spec:
+      serviceAccountName: netbird-sync
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: netbird-sync
+          # Digest renseigné par la CI (push registry) puis maintenu par Renovate : tag@sha256.
+          image: registry.CHANGEME.example.net/pad/netbird-sync:0.1.0 # contracts: apps.registry
+          args: ["--resync=10m"]
+          env:
+            - name: NETBIRD_API_URL
+              valueFrom: { secretKeyRef: { name: netbird-sync, key: NETBIRD_API_URL } }
+            - name: NETBIRD_API_TOKEN
+              valueFrom: { secretKeyRef: { name: netbird-sync, key: NETBIRD_API_TOKEN } }
+            - name: NETBIRD_NETWORK_NAME
+              value: pad-instances # contracts: netbird.network_name
+            - name: NETBIRD_TEAM_GROUP_PREFIX
+              value: ctf-team- # contracts: netbird.team_group_prefix
+            - name: INSTANCES_NAMESPACE_PREFIX
+              value: inst- # contracts: namespaces.instances_prefix
+          ports:
+            - { name: metrics, containerPort: 8080 }
+            - { name: probes, containerPort: 8081 }
+          livenessProbe:
+            httpGet: { path: /healthz, port: probes }
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /readyz, port: probes }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 10m, memory: 48Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: netbird-sync
+  labels:
+    app.kubernetes.io/name: netbird-sync
+spec:
+  selector:
+    app.kubernetes.io/name: netbird-sync
+  ports:
+    - { name: metrics, port: 8080, targetPort: metrics }

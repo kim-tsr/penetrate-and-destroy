@@ -1,0 +1,73 @@
+---
+- name: Charger les secrets SOPS de NetBird
+  community.sops.load_vars:
+    file: "{{ pad_secrets_dir }}/netbird.sops.yaml"
+  delegate_to: localhost
+  become: false
+  no_log: true
+
+- name: Vérifier la présence des secrets obligatoires
+  ansible.builtin.assert:
+    that:
+      - netbird_server_relay_auth_secret | length > 0
+      - netbird_server_session_cookie_key | length > 0
+      - netbird_server_datastore_key | length > 0
+      - netbird_server_authentik_client_secret | length > 0
+    fail_msg: "Secrets manquants dans secrets/netbird.sops.yaml (voir secrets/netbird.example.yaml)"
+    quiet: true
+
+- name: Créer le répertoire Compose de NetBird
+  ansible.builtin.file:
+    path: "{{ netbird_server_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Déployer la configuration du serveur combiné
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: "{{ netbird_server_dir }}/config.yaml"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  register: netbird_server_config
+
+- name: Déployer l'environnement du dashboard
+  ansible.builtin.template:
+    src: dashboard.env.j2
+    dest: "{{ netbird_server_dir }}/dashboard.env"
+    owner: root
+    group: root
+    mode: "0600"
+  register: netbird_server_dashboard_env
+
+- name: Déployer le fichier Compose
+  ansible.builtin.template:
+    src: compose.yml.j2
+    dest: "{{ netbird_server_dir }}/compose.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  register: netbird_server_compose
+
+- name: Démarrer NetBird (recréation si la configuration a changé)
+  community.docker.docker_compose_v2:
+    project_src: "{{ netbird_server_dir }}"
+    files:
+      - compose.yml
+    state: present
+    pull: missing
+    recreate: "{{ 'always' if (netbird_server_config is changed or netbird_server_dashboard_env is changed or netbird_server_compose is changed) else 'auto' }}"
+    remove_orphans: true
+
+- name: Attendre l'API management
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ netbird_server_http_port }}"
+    timeout: 120
+
+- name: Configurer l'IdP Authentik et les groupes JWT via l'API
+  ansible.builtin.include_tasks: idp.yml
+  when: netbird_server_api_token | length > 0

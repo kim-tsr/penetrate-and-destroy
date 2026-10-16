@@ -1,0 +1,9 @@
+---
+profile: production
+exclude_paths:
+  - .collections/
+  - .ansible/
+  - inventories/prod/hosts.generated.yml
+skip_list:
+  # Les noms de rôles avec tirets sont imposés par docs/PLAN.md (host-tuning, edge-traefik-crowdsec, ...).
+  - role-name

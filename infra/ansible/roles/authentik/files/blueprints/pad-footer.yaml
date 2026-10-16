@@ -1,0 +1,14 @@
+# Désactive les liens de pied de page par défaut des pages de flow (paramètres du tenant).
+# Séparé du branding : un échec ici ne doit pas bloquer l'application du thème.
+version: 1
+metadata:
+  name: PenetrateAndDestroy - Footer
+  labels:
+    blueprints.goauthentik.io/description: Aucun lien de footer sur les pages de flow
+entries:
+  - model: authentik_tenants.tenant
+    state: present
+    identifiers:
+      schema_name: public
+    attrs:
+      footer_links: []

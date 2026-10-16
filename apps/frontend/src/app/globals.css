@@ -1,0 +1,244 @@
+@import "tailwindcss";
+
+/*
+ * Direction artistique « salle d'opérations » : graphite, crème, ambre.
+ * Un seul thème (sombre). Big Shoulders Display pour les titres et chiffres, JetBrains Mono pour tout le reste.
+ */
+@theme {
+  --font-display: var(--font-bigshoulders), "Arial Narrow", Impact, sans-serif;
+  --font-mono: var(--font-jbmono), ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --color-bg: #0d0e10;
+  --color-bg-raised: #131518;
+  --color-panel: #181b1f;
+  --color-panel-hi: #1f2328;
+  --color-line: #2a2f35;
+  --color-line-strong: #3d444c;
+
+  --color-fg: #efe7d3;
+  --color-dim: #b6ae9b;
+  --color-muted: #7f7b70;
+
+  --color-amber: #ffb000;
+  --color-amber-dim: #b97f00;
+  --color-amber-ink: #1a1203;
+  --color-ok: #8fd694;
+  --color-alert: #ff6a4d;
+  --color-info: #7fb7c9;
+
+  --shadow-glow: 0 0 0 1px rgb(255 176 0 / 0.35), 0 0 24px rgb(255 176 0 / 0.14);
+
+  --animate-pulse-amber: pulse-amber 2.4s ease-in-out infinite;
+  --animate-rise: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-scan: scan 7s linear infinite;
+}
+
+@keyframes pulse-amber {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes scan {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(100vh);
+  }
+}
+
+@layer base {
+  html {
+    background: var(--color-bg);
+    color-scheme: dark;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    min-height: 100dvh;
+    background-color: var(--color-bg);
+    /* Quadrillage de table lumineuse + vignette ambre en haut de page. */
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgb(255 176 0 / 0.07), transparent 70%),
+      linear-gradient(rgb(239 231 211 / 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(239 231 211 / 0.025) 1px, transparent 1px);
+    background-size:
+      100% 100%,
+      48px 48px,
+      48px 48px;
+    color: var(--color-fg);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    line-height: 1.6;
+    font-feature-settings:
+      "calt" 1,
+      "zero" 1;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background: var(--color-amber);
+    color: var(--color-amber-ink);
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    line-height: 1.05;
+  }
+  a {
+    color: var(--color-amber);
+    text-underline-offset: 3px;
+  }
+  a:hover {
+    text-decoration-style: wavy;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-amber);
+    outline-offset: 2px;
+  }
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+  }
+  code,
+  kbd,
+  pre {
+    font-family: var(--font-mono);
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-bg);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-line-strong);
+    border: 2px solid var(--color-bg);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* Panneau avec repères d'angle, signature visuelle du front. */
+  .panel {
+    position: relative;
+    background: linear-gradient(180deg, var(--color-panel-hi), var(--color-panel) 40%);
+    border: 1px solid var(--color-line);
+  }
+  .panel::before,
+  .panel::after {
+    content: "";
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    pointer-events: none;
+    border: 1px solid var(--color-amber);
+    opacity: 0.8;
+  }
+  .panel::before {
+    top: -1px;
+    left: -1px;
+    border-right: 0;
+    border-bottom: 0;
+  }
+  .panel::after {
+    right: -1px;
+    bottom: -1px;
+    border-left: 0;
+    border-top: 0;
+  }
+  .label {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .hatch {
+    background-image: repeating-linear-gradient(135deg, rgb(239 231 211 / 0.05) 0 2px, transparent 2px 8px);
+  }
+  .prose-pad {
+    color: var(--color-fg);
+  }
+  .prose-pad > * + * {
+    margin-top: 0.85em;
+  }
+  .prose-pad h1,
+  .prose-pad h2,
+  .prose-pad h3 {
+    font-size: 1.25rem;
+    color: var(--color-amber);
+    margin-top: 1.2em;
+  }
+  .prose-pad code {
+    background: var(--color-bg);
+    border: 1px solid var(--color-line);
+    padding: 0.05em 0.4em;
+    color: var(--color-amber);
+  }
+  .prose-pad pre {
+    background: var(--color-bg);
+    border: 1px solid var(--color-line);
+    padding: 0.8em 1em;
+    overflow-x: auto;
+  }
+  .prose-pad pre code {
+    border: 0;
+    padding: 0;
+    color: var(--color-fg);
+    background: transparent;
+  }
+  .prose-pad ul {
+    list-style: square;
+    padding-left: 1.4em;
+  }
+  .prose-pad ol {
+    list-style: decimal;
+    padding-left: 1.6em;
+  }
+  .prose-pad table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+  .prose-pad th,
+  .prose-pad td {
+    border: 1px solid var(--color-line);
+    padding: 0.3em 0.6em;
+    text-align: left;
+  }
+  .prose-pad blockquote {
+    border-left: 2px solid var(--color-amber);
+    padding-left: 1em;
+    color: var(--color-dim);
+  }
+}

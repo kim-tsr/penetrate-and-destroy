@@ -1,0 +1,117 @@
+# Pool "challenges" : workers de la zone CHALLENGES (VLAN 70), autoscalés par cluster-autoscaler
+# (provider clusterapi). Pas de `replicas` : l'autoscaler le pilote (ignoré par ArgoCD, cf. Application cluster-prod).
+---
+apiVersion: ipam.cluster.x-k8s.io/v1alpha2
+kind: InClusterIPPool
+metadata:
+  name: pad-prod-challenges
+  annotations:
+    ipam.capmox.cluster.x-k8s.io/gateway-metric: "100"
+spec:
+  addresses: [10.20.70.20-10.20.70.39] # contracts: kubernetes.pools.challenges.ip_pool
+  prefix: 24 # contracts: zones.challenges.cidr
+  gateway: 10.20.70.1 # contracts: zones.challenges.gw
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha2
+kind: ProxmoxMachineTemplate
+metadata:
+  name: pad-prod-challenges
+spec:
+  template:
+    spec:
+      sourceNode: pve # contracts: host.node
+      templateID: 299 # contracts: kubernetes.talos_template.vmid
+      full: true
+      format: raw
+      storage: local-zfs # contracts: host.datastore_vm
+      vmIDRange: { start: 300, end: 399 } # contracts: kubernetes.vmid_range
+      numSockets: 1
+      numCores: 2 # contracts: kubernetes.pools.challenges.cores
+      memoryMiB: 2560 # contracts: kubernetes.pools.challenges.memory_mb
+      disks:
+        bootVolume: { disk: scsi0, sizeGb: 30 } # contracts: kubernetes.pools.challenges.disk_gb
+      tags: [pad, talos, pad-prod, challenges]
+      checks:
+        skipCloudInitStatus: true
+      metadataSettings:
+        providerIDInjection: true
+      network:
+        networkDevices:
+          - name: net0
+            bridge: vmbr2 # contracts: host.zones_bridge
+            vlan: 70 # contracts: zones.challenges.vlan
+            model: virtio
+            defaultIPv4: false
+            ipPoolRef:
+              - apiGroup: ipam.cluster.x-k8s.io
+                kind: InClusterIPPool
+                name: pad-prod-challenges
+            dnsServers: [10.20.70.1] # contracts: zones.challenges.gw
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
+kind: TalosConfigTemplate
+metadata:
+  name: pad-prod-challenges
+spec:
+  template:
+    spec:
+      generateType: worker
+      talosVersion: v1.11.3 # contracts: kubernetes.talos_version
+      strategicPatches:
+        - |
+          machine:
+            install:
+              disk: /dev/sda
+              image: factory.talos.dev/nocloud-installer/ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515:v1.11.3
+            kubelet:
+              extraArgs:
+                rotate-server-certificates: "true"
+                cloud-provider: external
+              nodeIP:
+                validSubnets: [10.20.70.0/24] # contracts: zones.challenges.cidr
+            nodeLabels:
+              pad.io/pool: challenges
+              pad.io/zone: challenges
+            # contracts: kubernetes.pools.challenges.taint (pad.io/pool=challenges:NoSchedule)
+            nodeTaints:
+              pad.io/pool: challenges:NoSchedule
+            features:
+              kubePrism: { enabled: true, port: 7445 }
+---
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: MachineDeployment
+metadata:
+  name: pad-prod-challenges
+  annotations:
+    # contracts: kubernetes.pools.challenges.min / max
+    cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size: "1"
+    cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size: "3"
+    # Gabarit pour la simulation (utile si min passe à 0) : ressources + taint du pool.
+    capacity.cluster-autoscaler.kubernetes.io/cpu: "2"
+    capacity.cluster-autoscaler.kubernetes.io/memory: "2560Mi"
+    capacity.cluster-autoscaler.kubernetes.io/maxPods: "110"
+    capacity.cluster-autoscaler.kubernetes.io/labels: "pad.io/pool=challenges,pad.io/zone=challenges"
+    capacity.cluster-autoscaler.kubernetes.io/taints: "pad.io/pool=challenges:NoSchedule"
+spec:
+  clusterName: pad-prod
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: pad-prod
+      pad.io/pool: challenges
+  template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: pad-prod
+        pad.io/pool: challenges
+    spec:
+      clusterName: pad-prod
+      version: v1.34.1 # contracts: kubernetes.kubernetes_version
+      bootstrap:
+        configRef:
+          apiGroup: bootstrap.cluster.x-k8s.io
+          kind: TalosConfigTemplate
+          name: pad-prod-challenges
+      infrastructureRef:
+        apiGroup: infrastructure.cluster.x-k8s.io
+        kind: ProxmoxMachineTemplate
+        name: pad-prod-challenges

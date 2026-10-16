@@ -1,0 +1,51 @@
+{% extends "admin/challenges/create.html" %}
+
+{% block header %}
+<div class="alert alert-secondary" role="alert">
+	Challenge instancié par équipe via chall-manager. L'UI admin CTFd est un
+	secours : le portail manager du front est l'outil nominal.
+</div>
+{% endblock %}
+
+{% block value %}
+<div class="form-group">
+	<label>Valeur<br><small class="form-text text-muted">Points du challenge.</small></label>
+	<input type="number" class="form-control" name="value" placeholder="Valeur" required>
+</div>
+
+<div class="form-group">
+	<label>Scénario chall-manager (OCI, tag@digest)<br>
+		<small class="form-text text-muted">Vide = scénario générique de la plateforme.</small>
+	</label>
+	<input type="text" class="form-control" name="scenario" placeholder="registry/pad/scenarios/x:v1@sha256:...">
+</div>
+
+<div class="form-group">
+	<label>Configuration additionnelle (JSON)<br>
+		<small class="form-text text-muted">Ex. {"image": "registry/pad/chall:1@sha256:...", "port": "5000"}</small>
+	</label>
+	<textarea class="form-control" name="instance_config" rows="4">{}</textarea>
+</div>
+
+<div class="form-row">
+	<div class="form-group col-md-4">
+		<label>TTL (secondes)</label>
+		<input type="number" class="form-control" name="timeout" value="1800" min="60">
+	</div>
+	<div class="form-group col-md-4">
+		<label>Prolongations max</label>
+		<input type="number" class="form-control" name="max_renewals" value="3" min="0">
+	</div>
+	<div class="form-group col-md-4">
+		<label>Flag par instance</label>
+		<select class="custom-select" name="per_instance_flag">
+			<option value="false">Non (flags statiques)</option>
+			<option value="true">Oui (fourni par chall-manager)</option>
+		</select>
+	</div>
+</div>
+{% endblock %}
+
+{% block type %}
+<input type="hidden" value="dynamic_instance" name="type" id="chaltype">
+{% endblock %}

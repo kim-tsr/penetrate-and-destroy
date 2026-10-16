@@ -1,0 +1,28 @@
+# Scrape de Zot par pod (PodMonitor) : le chart crée deux Services (zot et zot-headless) avec les mêmes labels,
+# donc son ServiceMonitor produisait chaque série en double. Un PodMonitor donne exactement une cible par pod.
+# Identifiants : Secret zot-metrics-basic-auth (utilisateur "metrics", cf. secret.example.yaml).
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: zot
+  namespace: registry # contracts: namespaces.registry
+  labels:
+    app.kubernetes.io/name: zot
+    app.kubernetes.io/part-of: platform
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: zot
+      app.kubernetes.io/instance: zot
+  podMetricsEndpoints:
+    - portNumber: 5000 # = service.port de values.yaml
+      path: /metrics
+      scheme: http
+      interval: 30s
+      basicAuth:
+        username:
+          name: zot-metrics-basic-auth
+          key: username
+        password:
+          name: zot-metrics-basic-auth
+          key: password

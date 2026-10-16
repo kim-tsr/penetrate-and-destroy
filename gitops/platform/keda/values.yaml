@@ -1,0 +1,50 @@
+# keda chart 2.21.0 : 1 replica de chaque composant, pool platform.
+nodeSelector:
+  pad.io/pool: platform # contracts: kubernetes.pools.platform
+
+operator:
+  replicaCount: 1
+metricsServer:
+  replicaCount: 1
+webhooks:
+  replicaCount: 1
+
+resources:
+  operator:
+    requests: { cpu: 50m, memory: 96Mi }
+    limits: { memory: 256Mi }
+  metricServer:
+    requests: { cpu: 50m, memory: 96Mi }
+    limits: { memory: 256Mi }
+  webhooks:
+    requests: { cpu: 25m, memory: 48Mi }
+    limits: { memory: 128Mi }
+
+logging:
+  operator:
+    format: json
+  metricServer:
+    logFormat: json
+  webhooks:
+    format: json
+
+asciiArt: false
+
+# Métriques Prometheus (port 8080) + ServiceMonitor lus par Alloy (CRDs : Application prometheus-crds, wave -10).
+# keda_scaler_* / keda_scaled_object_* viennent de l'operator ; le metrics-server expose l'API de métriques externes.
+prometheus:
+  operator:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+  metricServer:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+  webhooks:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s

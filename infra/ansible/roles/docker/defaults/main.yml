@@ -1,0 +1,36 @@
+---
+docker_apt_uri: https://download.docker.com/linux/debian
+docker_apt_key_url: https://download.docker.com/linux/debian/gpg
+docker_apt_suite: trixie
+
+# Versions centralisées dans inventories/prod/group_vars/all/versions.yml.
+docker_ce_version: "{{ pad_apt_versions.docker_ce }}"
+docker_containerd_version: "{{ pad_apt_versions.containerd }}"
+docker_compose_plugin_version: "{{ pad_apt_versions.docker_compose_plugin }}"
+
+docker_packages:
+  - { name: docker-ce, version: "{{ docker_ce_version }}" }
+  - { name: docker-ce-cli, version: "{{ docker_ce_version }}" }
+  - { name: containerd.io, version: "{{ docker_containerd_version }}" }
+  - { name: docker-compose-plugin, version: "{{ docker_compose_plugin_version }}" }
+
+docker_prerequisites:
+  - ca-certificates
+  - gnupg
+  - python3-debian          # requis par ansible.builtin.deb822_repository
+
+# daemon.json. Pas de userns-remap : incompatible avec un LXC non privilégié (déjà dans un user namespace).
+docker_log_max_size: 10m
+docker_log_max_file: "3"
+docker_live_restore: true
+docker_metrics_addr: "0.0.0.0:{{ pad.monitoring.exporters.docker }}"
+docker_daemon_config:
+  log-driver: json-file
+  log-opts:
+    max-size: "{{ docker_log_max_size }}"
+    max-file: "{{ docker_log_max_file }}"
+    compress: "true"
+  live-restore: "{{ docker_live_restore }}"
+  metrics-addr: "{{ docker_metrics_addr }}"
+# Clés supplémentaires fusionnées dans daemon.json.
+docker_daemon_extra: {}

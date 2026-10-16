@@ -1,0 +1,14 @@
+# Géré par Ansible (rôle monitoring-stack). Dashboards copiés depuis monitoring/dashboards/ du dépôt.
+apiVersion: 1
+
+providers:
+  - name: pad
+    orgId: 1
+    folder: PenetrateAndDestroy
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    updateIntervalSeconds: 60
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false
