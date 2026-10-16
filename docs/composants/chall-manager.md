@@ -19,7 +19,8 @@ Images `docker.io/ctferio/chall-manager:v0.6.6@sha256:...` et `chall-manager-jan
 ## Fichiers de configuration dans le dépôt
 
 - `gitops/apps/chall-manager/` : `deployment.yaml`, `rbac.yaml`, `networkpolicy.yaml`, `scaledobject.yaml`, `secret.example.yaml`, `secret-generator.yaml`.
-- Variables du scénario : `PAD_LB_POOL`, `PAD_LB_POOL_LABEL`, `PAD_FROM_CIDRS` (hérités par le programme Pulumi).
+- Variables du scénario (hérités par le programme Pulumi) : `PAD_LB_POOL`, `PAD_LB_POOL_LABEL`, `PAD_FROM_CIDRS` (routing peer NetBird seul, `10.20.70.10/32`), `PAD_IMAGE_PREFIX` (`registry.pad.internal/ctf/`),
+  `PAD_HOST_USERS` (`false` : user namespaces) et, en option, `PAD_RUNTIME_CLASS`. Elles reprennent le contrat (`netbird.routing_peer_ip`, `instances.*`).
 
 ## Interactions avec les autres briques
 
@@ -29,6 +30,7 @@ Appelé par le plugin [chall_manager_bridge](ctfd-plugin-chall-manager-bridge.md
 
 - Seuls les pods du namespace CTFd peuvent l'appeler (NetworkPolicy) ; Swagger désactivé ; `readOnlyRootFilesystem`, `drop: ALL`, `seccomp: RuntimeDefault`.
 - Droits RBAC limités aux objets que crée le scénario ; pull du scénario avec un compte registry en lecture seule (`pad-pull`).
+- Les instances qu'il crée sont isolées par le [scénario](chall-manager-scenario.md) (entrée limitée au routing peer, aucune sortie, user namespace, image du registre interne par empreinte) et bornées par [Kyverno](kyverno.md) (quota, LimitRange).
 
 ## Supervision
 

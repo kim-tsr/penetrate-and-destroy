@@ -24,12 +24,13 @@ Chart `cilium` 1.20.3 dans `gitops/platform/cilium/application.yaml` (la version
 
 - Donne leur IP aux Services : l'ingress [Traefik](traefik-cluster.md) (`10.20.60.200`) et chaque instance de challenge (pool `instances`, annoncée par le [scénario](chall-manager-scenario.md)).
 - Appliqué avec [Talos](talos.md) (KubePrism, `cni: none`).
-- Les `NetworkPolicy` d'isolement des instances et des namespaces sont appliquées par Cilium ; [Kyverno](kyverno.md) génère des `default-deny`.
+- Les `NetworkPolicy` d'isolement des instances et des namespaces sont appliquées par Cilium ; [Kyverno](kyverno.md) génère le `default-deny` de chaque `inst-*` et, pour les instances qui l'ont demandé (`pad.io/dns=cluster-local`), une `CiliumNetworkPolicy` qui filtre le DNS (règles `dns`/`matchPattern`) pour ne laisser résoudre que `*.cluster.local`.
 
 ## Sécurité
 
 - Chiffrement WireGuard des flux inter-nœuds (UDP 51871).
-- `NetworkPolicy` default-deny dans chaque namespace applicatif et par instance.
+- `NetworkPolicy` default-deny dans chaque namespace applicatif et par instance. Une instance n'a **aucun egress, DNS compris** par défaut (pas de tunnel DNS vers Internet) ; l'entrée est limitée au routing peer NetBird.
+- Les flux inter-nœuds entre zones PROD et CHALLENGES (VXLAN 8472, WireGuard 51871, health 4240, Hubble 4244) sont asymétriques dans la [matrice](../architecture/flux.md).
 - Capacités de l'agent restreintes à la liste nécessaire ; Hubble avec TLS automatique (cronJob).
 - UI Hubble exposée en interne (`hubble.<domaine>`) derrière le forward-auth Authentik.
 
