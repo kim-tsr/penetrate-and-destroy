@@ -153,9 +153,6 @@
   vars:
     base_hardening_alloy_enabled: false   # Alloy est posé explicitement après Docker (découverte des conteneurs)
     alloy_docker_enabled: true
-    # Le défaut du rôle lit pad.ports.http, absent du contrat : le port HTTP de l'ingress est flow_ports.http.
-    # À retirer quand le défaut du rôle edge-traefik-crowdsec sera corrigé.
-    edge_traefik_crowdsec_ingress_url: "http://{{ pad.kubernetes.ingress_ip }}:{{ pad.flow_ports.http }}"
   pre_tasks:
     - name: Rechercher le secret chiffré edge.sops.yaml
       ansible.builtin.stat:
