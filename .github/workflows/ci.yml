@@ -262,8 +262,17 @@ jobs:
         with:
           persist-credentials: false
       - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+      # trivy config n'accepte qu'une seule cible : un appel par dossier.
       - name: trivy config
-        run: nix develop -c trivy config --exit-code 1 --severity HIGH,CRITICAL gitops apps infra
+        run: |
+          # shellcheck disable=SC2016
+          nix develop -c bash -euo pipefail -c '
+            rc=0
+            for d in gitops apps infra; do
+              echo "==> trivy config $d"
+              trivy config --exit-code 1 --severity HIGH,CRITICAL "$d" || rc=1
+            done
+            exit "$rc"'
       - name: trivy secret scan (arbre de travail)
         run: nix develop -c trivy fs --scanners secret --exit-code 1 --skip-dirs .git --skip-dirs node_modules .
 

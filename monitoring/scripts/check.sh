@@ -24,7 +24,8 @@ need() { # need <nom> <variable-override> : définit le chemin ou SKIP
 PROMTOOL="$(need promtool PROMTOOL)"
 VMALERT="$(need vmalert-prod VMALERT)"
 [[ -n "$VMALERT" ]] || VMALERT="$(need vmalert VMALERT)"
-export PROMTOOL AMTOOL="$(need amtool AMTOOL)"
+AMTOOL="$(need amtool AMTOOL)"
+export PROMTOOL AMTOOL
 missing() {
   echo "  SKIP: $1 introuvable"
   [[ "$PAD_REQUIRE_TOOLS" != "1" ]] || { echo "  ECHEC: $1 requis (PAD_REQUIRE_TOOLS=1)"; fail=1; }
@@ -33,7 +34,12 @@ missing() {
 step "JSON des dashboards (jq)"
 if have jq; then
   for f in monitoring/dashboards/*.json; do
-    jq -e '.uid and .title and (.panels | length > 0)' "$f" >/dev/null && echo "  OK $f" || { echo "  ECHEC $f"; fail=1; }
+    if jq -e '.uid and .title and (.panels | length > 0)' "$f" >/dev/null; then
+      echo "  OK $f"
+    else
+      echo "  ECHEC $f"
+      fail=1
+    fi
   done
 else missing jq; fi
 

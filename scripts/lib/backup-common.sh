@@ -81,7 +81,9 @@ open_garage() {
   local ak sk port i
   ak="$(kubectl -n "$STORAGE_NS" get secret "$GARAGE_CREDS_SECRET" -o jsonpath='{.data.access_key_id}' | base64 -d)"
   sk="$(kubectl -n "$STORAGE_NS" get secret "$GARAGE_CREDS_SECRET" -o jsonpath='{.data.secret_access_key}' | base64 -d)"
-  [ -n "$ak" ] && [ -n "$sk" ] || die "secret $STORAGE_NS/$GARAGE_CREDS_SECRET vide ou absent (sync ArgoCD de Garage et secret-s3.sops.yaml présent ?)"
+  if [ -z "$ak" ] || [ -z "$sk" ]; then
+    die "secret $STORAGE_NS/$GARAGE_CREDS_SECRET vide ou absent (sync ArgoCD de Garage et secret-s3.sops.yaml présent ?)"
+  fi
   port="${PAD_GARAGE_LOCAL_PORT:-$((20000 + RANDOM % 20000))}"
   kubectl -n "$STORAGE_NS" port-forward "svc/$GARAGE_SVC" "$port:3900" >/dev/null 2>&1 &
   GARAGE_PF_PID=$!
