@@ -9,6 +9,8 @@ resources:
   - infrastructure-proxmox.yaml
   - ipam-in-cluster.yaml
   - inventory.yaml
+  # NetworkPolicy Cilium default-deny + autorisations minimales des namespaces des providers (fichier maintenu à la main).
+  - network-policies.yaml
 
 patches:
   # Les CRDs CAPI portent l'état du cluster lui-même : ArgoCD ne doit jamais les supprimer.
@@ -26,6 +28,14 @@ patches:
       kind: Namespace
       metadata:
         name: placeholder
+        labels:
+          pad.io/zone: prod
+          # Ces namespaces portent des identifiants (jeton Proxmox, machine configs Talos) : baseline appliqué, restricted
+          # audité (les controllers CAPI y sont conformes ; passer en restricted une fois vérifié sur le cluster).
+          pod-security.kubernetes.io/enforce: baseline
+          pod-security.kubernetes.io/enforce-version: latest
+          pod-security.kubernetes.io/audit: restricted
+          pod-security.kubernetes.io/warn: restricted
         annotations:
           argocd.argoproj.io/sync-options: Delete=false
   # Inventaire clusterctl : CRD créée par `clusterctl init` (bootstrap), pas par ce rendu.

@@ -1,0 +1,13 @@
+# Namespace pad-cluster : objets Cluster API du cluster prod et secrets de bootstrap (kubeconfig, talosconfig, CA Talos).
+# Aucun pod n'y tourne. Cette NetworkPolicy refuse tout, entrée et sortie (défense en profondeur : un pod créé ici par
+# erreur, ou par un attaquant ayant de la latitude RBAC, ne joint rien et n'est joignable de nulle part).
+# NetworkPolicy standard (et non CiliumNetworkPolicy) : ce kustomize est aussi appliqué dans le cluster kind de
+# bootstrap, où les CRDs Cilium n'existent pas.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: pad-cluster # contracts: kubernetes.capi_namespace
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
