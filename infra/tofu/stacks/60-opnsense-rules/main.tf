@@ -191,6 +191,9 @@ locals {
     ],
     length(var.internet_egress_zones) == 0 ? [] : [
       { id = "i5-egress-tcp", seq = 900, ifaces = [for z in var.internet_egress_zones : local.iface[z]], proto = "TCP", src = "net_all_zones", dst = "!net_private", port = "port_egress_tcp", desc = "I5 zones -> Internet 80/443" },
+      # DNS public : ACME DNS-01 (lego de Traefik sur l'edge, cert-manager en PROD) interroge des résolveurs publics et
+      # les serveurs faisant autorité de la zone pour vérifier la propagation ; Unbound ne suffit pas.
+      { id = "i5-egress-dns", seq = 902, ifaces = [for z in var.internet_egress_zones : local.iface[z]], proto = "TCP/UDP", src = "net_all_zones", dst = "!net_private", port = tostring(local.p.dns), desc = "I5 zones -> Internet DNS (ACME DNS-01)" },
       { id = "i5-egress-ntp", seq = 901, ifaces = [for z in var.internet_egress_zones : local.iface[z]], proto = "UDP", src = "net_all_zones", dst = "!net_private", port = tostring(local.p.ntp), desc = "I5 zones -> Internet NTP" },
     ],
   )

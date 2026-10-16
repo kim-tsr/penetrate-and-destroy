@@ -27,7 +27,7 @@ variable "challenges_egress_allowlist" {
 # de la plateforme ; chacun est désactivable pour s'en tenir strictement à la matrice.
 
 variable "internet_egress_zones" {
-  description = "Zones autorisées à sortir sur Internet (80/443 TCP, 123 UDP) : apt, pulls d'images, ACME, NTP. CHALLENGES passe par l'allowlist."
+  description = "Zones autorisées à sortir sur Internet (80/443 TCP, 53 TCP/UDP, 123 UDP) : apt, pulls d'images, ACME, NTP. CHALLENGES passe par l'allowlist."
   type        = list(string)
   default     = ["mgmt", "dmz", "bastion", "identity", "monitoring", "prod"]
 }
