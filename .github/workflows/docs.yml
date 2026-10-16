@@ -43,7 +43,7 @@ jobs:
             test -f "$f" || { echo "runbook manquant : $f"; exit 1; }
           done
       - name: mkdocs build --strict
-        run: "$RUNNER_TEMP/venv/bin/mkdocs" build --strict
+        run: '"$RUNNER_TEMP/venv/bin/mkdocs" build --strict'
 
   # Déploiement GitHub Pages (branche gh-pages), désactivé par défaut :
   # définir la variable de dépôt PAD_DOCS_DEPLOY=true puis activer Pages sur la branche gh-pages.
