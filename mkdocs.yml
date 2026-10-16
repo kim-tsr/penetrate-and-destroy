@@ -58,6 +58,7 @@ markdown_extensions:
 
 nav:
   - Accueil: index.md
+  - Guide de déploiement: guide-deploiement.md
   - Démarrage rapide: demarrage-rapide.md
   - Comment tout fonctionne: fonctionnement.md
   - Architecture:

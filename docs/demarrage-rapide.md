@@ -1,6 +1,6 @@
 # Démarrage rapide
 
-Ce parcours déploie la plateforme complète sur un hyperviseur Proxmox VE neuf. Compter une à deux heures à la
+Ce résumé déploie la plateforme complète sur un hyperviseur Proxmox VE neuf. Compter une à deux heures à la
 première exécution, hors temps de préparation des prérequis.
 
 ## Prérequis
@@ -36,6 +36,9 @@ nix develop
 Il apporte `task`, `tofu`, `ansible`, `kubectl`, `helm`, `clusterctl`, `kind`, `sops`, `age`, `yq`, `k6` et le reste.
 Un démon Docker local est nécessaire pour le cluster `kind` éphémère du bootstrap.
 
+!!! tip "Guide complet"
+    Pour déployer phase par phase, en vérifiant chaque étape (et savoir détruire et repartir de zéro), suivre le [Guide de déploiement](guide-deploiement.md). Cette page n'en est que le résumé.
+
 ## 1. Valeurs de site
 
 Les valeurs propres à votre hôte (URL de l'API Proxmox, accès SSH, IP publique, passerelle, MAC) sont des entrées
@@ -57,7 +60,7 @@ task secrets:keys      # clés age opérateur et cluster, hors du dépôt (à sa
 task secrets:init      # crée tous les *.sops.yaml manquants (valeurs aléatoires fortes)
 task secrets:pending   # liste ce qu'il reste à renseigner à la main (valeurs de site, jeton Proxmox, OVH, Discord, SMTP...)
 sops secrets/proxmox.sops.yaml
-task secrets:check     # doit afficher OK
+task phase:0-prereqs   # tri des valeurs exigibles maintenant ; secrets:check ne sera OK qu'à la fin du déploiement
 ```
 
 !!! warning "Sauvegardez les clés privées age"
@@ -74,11 +77,11 @@ task up
 
 1. réseau de l'hôte (`vmbr2`) et réglages de l'hôte (Ansible) ;
 2. routeur OPNsense, image Talos, règles du pare-feu ;
-3. LXC de services, puis leur configuration par Ansible, première passe (monitoring, Authentik, edge) ;
+3. LXC de services, DNS public, puis leur configuration par Ansible, première passe (monitoring, Authentik, edge) ;
 4. configuration d'Authentik (OIDC, groupes, flows, MFA du staff), recopie des secrets OIDC générés dans les sops (`secrets:oidc-sync`), puis seconde passe Ansible (Warpgate, NetBird, Grafana) ;
 5. cluster `kind` éphémère, Cluster API, cluster `pad-prod`, pivot ;
 6. ArgoCD et l'Application `root`, qui synchronise la plateforme puis les applications ;
-7. NetBird, Warpgate, DNS, puis `task verify` (smoke tests).
+7. accès NetBird et Warpgate, puis smoke tests.
 
 Chaque phase peut être relancée seule (`task tofu:apply-stack STACK=60-opnsense-rules`, `task bootstrap:gitops`...).
 Voir [Tâches `task`](reference/taches.md) et le détail pas à pas dans le [runbook up](runbooks/up.md).
