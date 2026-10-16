@@ -75,7 +75,9 @@ while time.time() < end:
         send(FACTORY_PASSWORD + "\r")
         state, buf = "menu", ""
     elif state == "menu" and "login incorrect" in low:
-        sys.exit("mot de passe root d'usine refusé : la VM a déjà une config non d'usine ; import manuel (README)")
+        # Mot de passe d'usine refusé : la config de la plateforme (seule source possible : l'ISO) est déjà en place.
+        print("configuration déjà importée (mot de passe root d'usine refusé) : rien à faire", flush=True)
+        sys.exit(0)
     elif state == "menu" and "enter an option" in low:
         send("8\r")  # shell
         state, buf = "shell", ""
