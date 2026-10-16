@@ -215,6 +215,7 @@ Erreurs (corps `{"message": "..."}`) :
 | 409 | `POST` alors qu'une instance existe déjà |
 | 429 | quota `PAD_INSTANCES_MAX_PER_SOURCE` (3) d'instances simultanées ; cooldown `PAD_INSTANCES_COOLDOWN_SECONDS` (30 s) entre deux créations ; plus de renouvellement (`max_renewals`) |
 | 502 | chall-manager injoignable ou en erreur |
+| 503 | limite globale `PAD_INSTANCES_MAX_TOTAL` (90) d'instances de la plateforme atteinte (message joueur ; managers/admins exemptés) |
 
 `DELETE` est idempotent (404 chall-manager ignoré). Les managers/admins
 contournent quota, cooldown, renouvellements, pause et visibilité.
@@ -576,7 +577,7 @@ du pod). Une valeur vide équivaut à absente.
 | `PAD_HIDE_MANAGERS` | true | sso_bridge |
 | `PAD_LOCAL_LOGIN_BREAKGLASS`, `PAD_LOCAL_LOGIN_HOSTS` | false, vide | sso_bridge |
 | `PAD_CHALL_MANAGER_URL`, `PAD_CHALL_MANAGER_TIMEOUT_SECONDS` (300), `PAD_CHALL_MANAGER_UPDATE_STRATEGY` (update_in_place), `PAD_GENERIC_SCENARIO` | - | chall_manager_bridge, manager_api |
-| `PAD_INSTANCES_MAX_PER_SOURCE`, `PAD_INSTANCES_COOLDOWN_SECONDS` | 3, 30 | chall_manager_bridge |
+| `PAD_INSTANCES_MAX_PER_SOURCE`, `PAD_INSTANCES_COOLDOWN_SECONDS`, `PAD_INSTANCES_MAX_TOTAL` | 3, 30, 90 | chall_manager_bridge |
 | `PAD_INTERNAL_TOKEN` | - | pad_teams |
 | `PAD_TEAM_JOIN_USER_MAX_FAILURES` / `_WINDOW_SECONDS` / `_LOCK_SECONDS` | 5 / 300 / 60 | pad_teams (verrou de base, doublé à chaque récidive, plafond 1 h) |
 | `PAD_TEAM_JOIN_TEAM_MAX_FAILURES` / `_WINDOW_SECONDS` / `_LOCK_SECONDS` | 10 / 900 / 300 | pad_teams (échecs cumulés sur l'équipe cible, tous utilisateurs confondus) |

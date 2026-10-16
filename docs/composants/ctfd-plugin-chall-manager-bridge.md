@@ -9,7 +9,7 @@ Ajoute le type de challenge `dynamic_instance` et l'API `/api/v1/instances` (lis
 
 ## Où elle tourne et comment elle est déployée
 
-Chargé par CTFd ; table `pad_dynamic_instance_challenge` ajoutée à la base. Variables `PAD_CHALL_MANAGER_URL`, `PAD_GENERIC_SCENARIO`, `PAD_INSTANCES_MAX_PER_SOURCE` (3), `PAD_INSTANCES_COOLDOWN_SECONDS` (30).
+Chargé par CTFd ; table `pad_dynamic_instance_challenge` ajoutée à la base. Variables `PAD_CHALL_MANAGER_URL`, `PAD_GENERIC_SCENARIO`, `PAD_INSTANCES_MAX_PER_SOURCE` (3), `PAD_INSTANCES_COOLDOWN_SECONDS` (30), `PAD_INSTANCES_MAX_TOTAL` (90, limite globale ; contrat `instances.max_total`).
 
 ## Version épinglée
 

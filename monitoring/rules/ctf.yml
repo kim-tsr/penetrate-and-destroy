@@ -99,6 +99,28 @@ groups:
           description: "Écart de {{ $value | humanize }} entre les instances actives selon CTFd et les namespaces inst-* du cluster (instances orphelines ou janitor bloqué)."
           runbook_url: docs/runbooks/instances.md
 
+      # Remplissage du pool LB-IPAM `instances` (100 IP : contracts: kubernetes.lb_pools.instances). Un Service LoadBalancer
+      # par instance : pool plein = les nouvelles instances restent sans IP. Limite côté CTFd : contracts: instances.max_total.
+      - alert: InstancesLBPoolFilling
+        expr: count(kube_service_spec_type{namespace=~"inst-.+", type="LoadBalancer"} == 1) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Le pool d'IP des instances est rempli à plus de 80 %"
+          description: "{{ $value | humanize }} Services LoadBalancer d'instances sur 100 IP (pool LB-IPAM instances) : proche de l'épuisement."
+          runbook_url: docs/runbooks/instances.md
+
+      - alert: InstancesLBPoolExhausted
+        expr: count(kube_service_spec_type{namespace=~"inst-.+", type="LoadBalancer"} == 1) >= 98
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Le pool d'IP des instances est presque épuisé"
+          description: "{{ $value | humanize }} Services LoadBalancer d'instances sur 100 IP : les prochaines instances resteront sans adresse."
+          runbook_url: docs/runbooks/instances.md
+
       - alert: ChallManagerErrorRate
         expr: |
           sum(rate(traces_spanmetrics_calls_total{service="chall-manager", status_code="STATUS_CODE_ERROR"}[10m]))
