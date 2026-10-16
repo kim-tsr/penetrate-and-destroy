@@ -13,7 +13,7 @@ Commandes (appelées par `task secrets:*`) :
                        afficher de valeur
   update-keys          applique les recipients de .sops.yaml à tous les *.sops.yaml (sops updatekeys)
   oidc-sync [--from-json F]  recopie les secrets des clients OIDC (sortie `oidc_client_secrets` de la stack tofu 30-authentik, générés
-                       par tofu) dans les sops de NetBird, Warpgate, Grafana et du front ; F = JSON (ou - pour stdin)
+                       par tofu) dans les sops de NetBird, Warpgate, Grafana, du front et d'ArgoCD ; F = JSON (ou - pour stdin)
   rotate-cluster-key   nouvelle clé age du cluster : remplace le recipient, updatekeys + rotation des clés de données
 
 Aucune valeur secrète n'est écrite sur disque en clair : tout passe par des pipes vers sops. Seule exception, la
@@ -461,6 +461,7 @@ HANDLERS = {
 EXTERNAL_ONLY = {
     "secrets/ovh.example.yaml", "secrets/proxmox.example.yaml", "secrets/site.example.yaml", "secrets/netbird-tofu.example.yaml",
     "secrets/warpgate-tofu.example.yaml", "secrets/backup-s3.example.yaml",
+    "gitops/platform/argocd/secret-oidc.example.yaml",  # clientSecret alimenté par `oidc-sync`
     "gitops/platform/external-dns/secret.example.yaml", "gitops/platform/proxmox-csi/secret.example.yaml",
     "gitops/platform/cert-manager/resources/ovh-credentials.example.yaml",
 }
@@ -671,12 +672,13 @@ def cmd_rotate_cluster_key(_: argparse.Namespace) -> None:
 # ---------------------------------------------------------------- secrets des clients OIDC (générés par tofu 30-authentik)
 
 OIDC_STACK = "infra/tofu/stacks/30-authentik"
-# client du contrat -> (fichier sops, clé). Les autres clients (argocd, proxmox) restent manuels (docs/operations).
+# client du contrat -> (fichier sops, clé). Le client proxmox (realm OpenID) reste manuel (docs/operations).
 OIDC_TARGETS = {
     "netbird": ("secrets/netbird.sops.yaml", "netbird_server_authentik_client_secret"),
     "warpgate": ("secrets/warpgate.sops.yaml", "warpgate_sso_client_secret"),
     "grafana": ("secrets/monitoring.sops.yaml", "grafana_oidc_client_secret"),
     "frontend": ("gitops/apps/frontend/secret.sops.yaml", "AUTH_AUTHENTIK_SECRET"),
+    "argocd": ("gitops/platform/argocd/secret-oidc.sops.yaml", "clientSecret"),
 }
 
 
@@ -716,7 +718,7 @@ def cmd_oidc_sync(args: argparse.Namespace) -> None:
         changed = sops_set_value(rel, key, value)
         done += 1
         log(f"{'+' if changed else '='} {rel} : {key} {'mis à jour' if changed else 'inchangé'}")
-    log(f"{done} secret(s) de client OIDC synchronisé(s). Restent manuels : argocd (argocd-oidc) et proxmox (realm OpenID).")
+    log(f"{done} secret(s) de client OIDC synchronisé(s). Reste manuel : proxmox (realm OpenID).")
 
 
 def main() -> None:

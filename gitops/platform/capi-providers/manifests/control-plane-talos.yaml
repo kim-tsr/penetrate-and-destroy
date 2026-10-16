@@ -774,6 +774,9 @@ spec:
             runAsGroup: 65532
             runAsUser: 65532
             readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           terminationMessagePolicy: FallbackToLogsOnError
           volumeMounts:
             - mountPath: /tmp/k8s-webhook-server/serving-certs
@@ -789,6 +792,12 @@ spec:
             secretName: cacppt-webhook-service-cert
         - name: tmp
           emptyDir: {}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
 status: {}
 ---
 apiVersion: admissionregistration.k8s.io/v1

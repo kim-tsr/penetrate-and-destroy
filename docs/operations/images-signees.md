@@ -63,7 +63,6 @@ volontaire. Les Applications concernées restent `Degraded` jusqu'à la premièr
       CiliumNetworkPolicy du namespace `kyverno`. Si les pods plateforme sont lents à démarrer, vérifier ce flux et le
       flux platform vers Internet (variable `internet_egress_zones` de la stack `60-opnsense-rules`).
     - Les nœuds challenges tirent les images de `registry.pad.internal/ctf/` : la configuration de Zot
-      (`gitops/platform/zot/values.yaml`) ne définit de règle d'accès que pour `pad/**` (CI et compte `pad-pull`) et
-      `public/**`, aucune pour `ctf/**`. Avant le premier challenge instancié, ajouter une règle `ctf/**` (écriture pour
-      la CI, lecture pour `pad-pull`) et fournir les identifiants de pull aux nœuds (imagePullSecret ou configuration
-      containerd). Marche à suivre : [Actions manuelles](actions-post-deploiement.md) (action 8).
+      (`gitops/platform/zot/values.yaml`) définit la règle d'accès `ctf/**` (écriture pour la CI, lecture pour
+      `pad-pull`). Reste à fournir les identifiants de `pad-pull` aux nœuds (configuration de registre Talos, hors Git).
+      Marche à suivre : [Actions manuelles](actions-post-deploiement.md) (action 8).

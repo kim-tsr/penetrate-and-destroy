@@ -36,7 +36,7 @@ détaille chaque phase, ses vérifications et sa reprise. Pour la première fois
     Les secrets des clients OIDC de NetBird, Warpgate et Grafana sont **générés par la stack `30-authentik`** (ressources `random_password`), qui exige elle-même Authentik et l'edge en ligne (URL publique d'Authentik).
     Les rôles NetBird et Warpgate refusent de s'exécuter sans ces secrets. `task up` déploie donc d'abord monitoring, Authentik et l'edge, applique `30-authentik`, recopie les secrets dans les sops
     (`scripts/sopsctl.py oidc-sync`, sans jamais les afficher), puis déploie Warpgate, NetBird et rejoue monitoring (Grafana). Les rôles sont idempotents : la passe 2 ne change que ce qui dépend des secrets.
-    Le secret OIDC du front (`AUTH_AUTHENTIK_SECRET`) est recopié dans `gitops/apps/frontend/secret.sops.yaml` : le commiter et le pousser avant `bootstrap:gitops`. Celui d'ArgoCD (`argocd-oidc`) reste à poser à la main.
+    Les secrets OIDC du front (`AUTH_AUTHENTIK_SECRET`) et d'ArgoCD (`clientSecret`) sont recopiés dans `gitops/apps/frontend/secret.sops.yaml` et `gitops/platform/argocd/secret-oidc.sops.yaml` : les commiter et les pousser avant `bootstrap:gitops`.
 
 !!! note "Amorçage de NetBird et Warpgate"
     Les stacks 40 et 50 exigent un jeton créé *après* le premier déploiement du service correspondant. Le premier

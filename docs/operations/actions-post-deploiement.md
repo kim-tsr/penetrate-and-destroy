@@ -12,13 +12,13 @@ déploiement. **Les faire avant d'ouvrir la plateforme aux joueurs.**
 | # | Action | Quand |
 |---|---|---|
 | 1 | Clés du captcha | avant `task up` |
-| 2 | `tofu apply` de `30-authentik` depuis le bastion ou le management, secret d'ArgoCD | pendant `task up` |
+| 2 | `tofu apply` de `30-authentik` depuis le bastion ou le management, commit des sops OIDC | pendant `task up` |
 | 3 | Enrôler le MFA du premier `infra-admins` | après `30-authentik` |
 | 4 | Supprimer la policy NetBird « Default » | après le déploiement de NetBird |
 | 5 | Créer les PAT NetBird (`netbird-sync`, front) | après le déploiement de NetBird |
 | 6 | Règles OPNsense des routing peers | avant le premier événement |
 | 7 | Première publication des images (digests de remplacement) | après le premier push sur `main` |
-| 8 | Zot : règle d'accès `ctf/**` et identifiants de pull | avant le premier challenge instancié |
+| 8 | Zot : identifiants de pull des nœuds challenges | avant le premier challenge instancié |
 | 9 | Clé cosign et passage en `enforce` | une fois les images signées |
 | 10 | Protéger la branche `main` | avant tout merge d'un tiers |
 
@@ -44,19 +44,13 @@ CIDR du bastion et du management (`edge_traefik_crowdsec_authentik_admin_allowed
    poste, ajouter temporairement son CIDR à cette variable du rôle edge et rejouer
    `task ansible:services -- --tags edge`, puis le retirer.
 2. `task up` enchaîne ensuite `task secrets:oidc-sync`, qui recopie les secrets des clients OIDC générés par tofu dans les sops de
-   NetBird, Warpgate, Grafana et du front, avant la seconde passe d'Ansible ([Up](../runbooks/up.md)). Commiter les sops modifiés
-   (`secrets/*.sops.yaml` et `gitops/apps/frontend/secret.sops.yaml`) **avant** `bootstrap:gitops`.
-3. **ArgoCD** : son secret OIDC n'est pas recopié automatiquement. Une fois le cluster créé, créer le Secret attendu par l'Application
-   (clé `clientSecret`, label `app.kubernetes.io/part-of=argocd`), sans afficher la valeur :
-
-    ```bash
-    tofu -chdir=infra/tofu/stacks/30-authentik output -json oidc_client_secrets | jq -r .argocd \
-      | kubectl -n argocd create secret generic argocd-oidc --from-file=clientSecret=/dev/stdin
-    kubectl -n argocd label secret argocd-oidc app.kubernetes.io/part-of=argocd
-    ```
-
-   Tant qu'il n'existe pas, la connexion SSO à ArgoCD échoue ; le compte local `admin` est désactivé, utiliser
-   `argocd login --core` avec les droits `kubectl`. Le client `proxmox` (realm OpenID de Proxmox) se configure aussi à la main.
+   NetBird, Warpgate, Grafana, du front et d'ArgoCD, avant la seconde passe d'Ansible ([Up](../runbooks/up.md)). Commiter les sops
+   modifiés (`secrets/*.sops.yaml`, `gitops/apps/frontend/secret.sops.yaml` et `gitops/platform/argocd/secret-oidc.sops.yaml`)
+   **avant** `bootstrap:gitops`.
+3. **ArgoCD** : rien à faire à la main. Son Secret `argocd-oidc` (clé `clientSecret`) est déclaratif : sops + ksops, appliqué par
+   l'Application `root` dès la première synchronisation. Tant que le sops contient `CHANGEME` (oidc-sync non lancé), la connexion SSO
+   échoue ; le compte local `admin` est désactivé, utiliser `argocd login --core` avec les droits `kubectl`. Seul le client `proxmox`
+   (realm OpenID de Proxmox) se configure à la main.
 
 ## 3. Enrôler le MFA du premier administrateur d'infrastructure
 
@@ -140,17 +134,33 @@ pas (volontairement) et les Applications restent `Degraded`.
 3. Pour les challenges d'exemple (`challenges/*/challenge.yml`, `registry.pad.internal/ctf/...@sha256:000…`) : pousser l'image dans Zot
    (action 8), relever son empreinte et la reporter dans le `challenge.yml`. Une instance n'est créée qu'avec une empreinte réelle.
 
-## 8. Zot : règle d'accès `ctf/**` et identifiants de pull
+## 8. Zot : identifiants de pull des nœuds challenges
 
-Les instances n'acceptent que des images de `registry.pad.internal/ctf/`, mais la configuration de Zot
-(`gitops/platform/zot/values.yaml`) ne définit de règle que pour `pad/**` et `public/**`. Avant le premier challenge instancié :
+Les instances n'acceptent que des images de `registry.pad.internal/ctf/`. La règle d'accès `ctf/**` est déjà dans
+`gitops/platform/zot/values.yaml` (`pad-ci` : `read, create, update, delete` ; `pad-pull` : `read` ; `defaultPolicy: []`), et les
+comptes htpasswd (`pad-ci`, `pad-pull`) sont générés par `task secrets:init` (mots de passe en clair dans
+`secrets/credentials.sops.yaml`). Il reste à donner aux nœuds du pool `challenges` les identifiants de `pad-pull`, **hors Git**
+(un mot de passe ne peut pas figurer en clair dans le `TalosConfigTemplate`, et Cluster API ne déchiffre pas de configuration SOPS) :
 
-1. Ajouter dans `accessControl.repositories` un dépôt `ctf/**` : `pad-ci` en `read, create, update, delete`, `pad-pull` en `read`,
-   `defaultPolicy: []` (même forme que `pad/**`). Commiter ; ArgoCD redéploie Zot.
-2. Donner aux nœuds du pool `challenges` les identifiants du compte `pad-pull` (mot de passe :
-   `sops -d --extract '["zot_pad_pull_password"]' secrets/credentials.sops.yaml`) via une configuration de registre containerd
-   sur le pool (patch Talos, sans commiter la valeur) ou un `imagePullSecret` fourni par le scénario.
-3. Contrôler : un pod `inst-*` démarre (pas d'`ImagePullBackOff` ni de `401`) et `docker pull` anonyme sur `ctf/` est refusé.
+1. Pour chaque nœud du pool `challenges`, appliquer un patch de configuration machine Talos, sans écrire le mot de passe sur disque
+   (substitution de processus ; `registry.pad.internal` = hôte du registre du contrat) :
+
+    ```bash
+    pw=$(sops -d --extract '["zot_pad_pull_password"]' secrets/credentials.sops.yaml)
+    talosctl -n <ip-du-noeud> patch machineconfig --patch @<(printf '%s\n' \
+      "machine:" "  registries:" "    config:" "      registry.pad.internal:" "        auth:" \
+      "          username: pad-pull" "          password: ${pw}")
+    unset pw
+    ```
+
+   Le patch s'applique à chaud (containerd relit la configuration de registre, sans redémarrage).
+2. **Nœuds créés ensuite par l'autoscaler** : ils naissent du `TalosConfigTemplate` du dépôt, donc sans ces identifiants. Rejouer
+   l'étape 1 sur chaque nouveau nœud challenges (`kubectl get nodes -l pad.io/pool=challenges -o wide` donne les IP) ; tant que ce n'est
+   pas fait, les pods d'instance posés sur ce nœud restent en `ImagePullBackOff`.
+3. Contrôler : un pod `inst-*` démarre (pas d'`ImagePullBackOff` ni de `401`) et un `pull` anonyme sur `ctf/` est refusé.
+4. Rotation : modifier le mot de passe à la main dans `secrets/credentials.sops.yaml`, dans la ligne htpasswd (bcrypt) de
+   `gitops/platform/zot/secret.sops.yaml` et dans `gitops/apps/chall-manager/secret.sops.yaml` (`task secrets:init` ne réécrit jamais
+   un fichier existant), puis rejouer l'étape 1 sur chaque nœud.
 
 ## 9. Clé cosign et passage en `enforce`
 

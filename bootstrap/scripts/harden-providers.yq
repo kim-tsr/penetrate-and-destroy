@@ -1,7 +1,31 @@
-# Filtre yq appliqué par render-providers.sh : durcit les managers des providers Cluster API (trivy KSV014).
-# Système de fichiers racine en lecture seule ; /tmp reste inscriptible via un emptyDir (les certificats webhook
-# viennent d'un Secret monté en lecture seule).
+# Filtre yq appliqué par render-providers.sh : durcit les managers des providers Cluster API (trivy KSV014, KSV118 et
+# apparentés : trivy config lit les YAML tels quels et ne voit ni les patches kustomize ni les valeurs par défaut du chart).
+# - Pod : non-root, seccomp RuntimeDefault, uid/gid 65532 (images distroless "nonroot" de tous les providers).
+# - Conteneurs (et initContainers) : pas d'élévation de privilèges, capabilities ALL retirées, pas de mode privilégié,
+#   système de fichiers racine en lecture seule.
+# - /tmp reste inscriptible via un emptyDir (sans doublon si le filtre est rejoué ; les certificats webhook viennent d'un Secret monté en lecture seule).
 with(select(.kind == "Deployment");
-  .spec.template.spec.containers[] |= (select(.name == "manager") | .securityContext.readOnlyRootFilesystem = true | .volumeMounts += [{"name": "tmp", "mountPath": "/tmp"}])
-  | .spec.template.spec.volumes += [{"name": "tmp", "emptyDir": {}}]
+  .spec.template.spec.securityContext.runAsNonRoot = true
+  | .spec.template.spec.securityContext.runAsUser = 65532
+  | .spec.template.spec.securityContext.runAsGroup = 65532
+  | .spec.template.spec.securityContext.seccompProfile.type = "RuntimeDefault"
+  | .spec.template.spec.containers[] |= (
+      .securityContext.allowPrivilegeEscalation = false
+      | .securityContext.privileged = false
+      | .securityContext.capabilities.drop = ["ALL"]
+      | .securityContext.readOnlyRootFilesystem = true
+      | .securityContext.runAsNonRoot = true
+      | .securityContext.runAsUser = 65532
+      | .securityContext.runAsGroup = 65532
+      | .securityContext.seccompProfile.type = "RuntimeDefault"
+    )
+  | (.spec.template.spec | select(has("initContainers")) | .initContainers[]) |= (
+      .securityContext.allowPrivilegeEscalation = false
+      | .securityContext.privileged = false
+      | .securityContext.capabilities.drop = ["ALL"]
+      | .securityContext.readOnlyRootFilesystem = true
+      | .securityContext.runAsNonRoot = true
+    )
+  | .spec.template.spec.containers[] |= (select(.name == "manager") | .volumeMounts = ((.volumeMounts // []) + [{"name": "tmp", "mountPath": "/tmp"}] | unique_by(.name)))
+  | .spec.template.spec.volumes = ((.spec.template.spec.volumes // []) + [{"name": "tmp", "emptyDir": {}}] | unique_by(.name))
 )

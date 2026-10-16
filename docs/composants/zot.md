@@ -27,9 +27,8 @@ Alimenté par la [CI](github-actions.md) (`pad-ci`) ; lu par [chall-manager](cha
 ## Sécurité
 
 - Authentification htpasswd obligatoire (hash bcrypt, mots de passe en clair dans `secrets/credentials.sops.yaml`).
-- Contrôle d'accès : `pad/**` réservé à `pad-ci` (écriture) et `pad-pull` (lecture) ; `public/**` en lecture anonyme ; métriques pour l'utilisateur `metrics`.
-- **Images de challenges (`ctf/**`)** : le préfixe `registry.pad.internal/ctf/` est imposé aux instances ([scénario](chall-manager-scenario.md), [Kyverno](kyverno.md)), mais `values.yaml` ne définit **aucune règle d'accès** pour `ctf/**` : à ajouter avant le premier challenge instancié
-  (écriture pour `pad-ci`, lecture pour `pad-pull`), avec les identifiants de pull côté nœuds challenges ([Actions manuelles](../operations/actions-post-deploiement.md)).
+- Contrôle d'accès : `pad/**` et `ctf/**` réservés à `pad-ci` (lecture, création, mise à jour, suppression) et `pad-pull` (lecture), `defaultPolicy: []` ; `public/**` en lecture anonyme ; métriques pour l'utilisateur `metrics`.
+- **Images de challenges (`ctf/**`)** : le préfixe `registry.pad.internal/ctf/` est imposé aux instances ([scénario](chall-manager-scenario.md), [Kyverno](kyverno.md)) ; la règle d'accès `ctf/**` est dans `values.yaml`. Les nœuds challenges doivent encore recevoir les identifiants de `pad-pull` (configuration de registre Talos, hors Git : [Actions manuelles](../operations/actions-post-deploiement.md), action 8).
 - Interface interne uniquement.
 
 ## Supervision

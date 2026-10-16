@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Le Secret argocd-oidc est déchiffré par ksops depuis secret-oidc.sops.yaml (créé par `task secrets:init`, valeur
+# alimentée par `task secrets:oidc-sync`, cf. docs/SECRETS.md). values.yaml n'est pas une ressource kustomize.
+resources:
+  - application.yaml
+generators:
+  - secret-generator.yaml

@@ -41,7 +41,7 @@ Les secrets des clients OIDC (`netbird_server_authentik_client_secret`, `warpgat
 (sortie sensible `oidc_client_secrets`), qui n'existe qu'une fois Authentik déployé. Ils restent à `CHANGEME` jusqu'à `task secrets:oidc-sync`
 (`python3 scripts/sopsctl.py oidc-sync`), qui lit la sortie `tofu output -json oidc_client_secrets`, la déchiffre en mémoire et recopie chaque valeur dans le sops concerné (aucune valeur n'est affichée ni écrite en clair).
 `task up` l'exécute pour vous entre `30-authentik` et la seconde passe d'Ansible (voir [Up](runbooks/up.md)) ; la commande est idempotente et sert aussi après une rotation.
-Restent manuels : `argocd` (Secret `argocd-oidc`, clé `clientSecret`) et `proxmox` (realm OpenID).
+Le secret d'ArgoCD suit le même chemin : `oidc-sync` renseigne `clientSecret` dans `gitops/platform/argocd/secret-oidc.sops.yaml` (Secret `argocd-oidc`, label `app.kubernetes.io/part-of: argocd`), déchiffré par ksops et appliqué par l'Application `root` (le chart argo-cd ne le crée pas). Reste manuel : `proxmox` (realm OpenID).
 
 ## CI publique : jamais d'accès à la vraie clé
 
