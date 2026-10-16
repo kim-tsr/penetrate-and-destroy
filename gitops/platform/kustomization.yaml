@@ -1,6 +1,7 @@
 # Cible de l'Application `root` (gitops/bootstrap/root.yaml) : liste les Applications ArgoCD du socle.
 # L'ordre d'installation est porté par l'annotation argocd.argoproj.io/sync-wave de chaque Application :
-#   -10 namespaces, prometheus-crds | -9 cilium | -7 cert-manager | -6 kyverno
+#   -10 namespaces, prometheus-crds | -9 cilium | -8 proxmox-ccm (retire le taint uninitialized des nœuds)
+#   -7 cert-manager | -6 kyverno
 #   -5 argocd, proxmox-csi, mariadb-operator (CRDs) | -4 mariadb-operator, kyverno-policies, capi-providers
 #   -3 traefik, keda, cluster-autoscaler, external-dns | -2 valkey, garage, zot
 #   -1 alloy, kube-state-metrics, node-exporter | 5 cluster-prod (projet cluster ; après capi-providers)
@@ -12,6 +13,7 @@ resources:
   - namespaces/application.yaml
   - prometheus-crds
   - cilium/application.yaml
+  - proxmox-ccm
   - cert-manager/application.yaml
   - capi-providers/application.yaml
   - kyverno

@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Application ArgoCD (namespace argocd). values.yaml est lu par ArgoCD via `$values`, resources/ (PodMonitor) par la
+# troisième source. Pas de Secret propre : le contrôleur lit proxmox-csi-config, déchiffré par ksops dans
+# gitops/platform/proxmox-csi (même namespace, même jeton ; cf. README.md).
+resources:
+  - application.yaml

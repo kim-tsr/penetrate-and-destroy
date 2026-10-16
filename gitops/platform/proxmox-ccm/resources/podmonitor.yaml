@@ -1,0 +1,24 @@
+# Scrape du cloud controller manager Proxmox (port sécurisé 10258, certificat auto-signé généré en mémoire).
+# /metrics est autorisé sans jeton (--authorization-always-allow-paths du chart) ; l'entrée depuis observability est
+# ouverte par la CiliumNetworkPolicy du namespace (gitops/platform/namespaces/resources/csi-proxmox.yaml).
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: proxmox-cloud-controller-manager
+  namespace: csi-proxmox
+  labels:
+    app.kubernetes.io/name: proxmox-cloud-controller-manager
+    app.kubernetes.io/part-of: pad-platform
+    pad.io/zone: prod
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: proxmox-cloud-controller-manager
+      app.kubernetes.io/instance: proxmox-ccm
+  podMetricsEndpoints:
+    - port: metrics # containerPort 10258 du chart
+      path: /metrics
+      scheme: https
+      interval: 60s
+      tlsConfig:
+        insecureSkipVerify: true # certificat auto-signé du contrôleur (aucun secret transporté)

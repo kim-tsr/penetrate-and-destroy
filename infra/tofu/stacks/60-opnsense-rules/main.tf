@@ -21,7 +21,7 @@
 #   M6  BASTION -> toutes zones : SSH, HTTPS, kube API 6443, Talos API 50000 (+ OPNsense lui-même : SSH/GUI)
 #   M7  Toutes zones -> MONITORING : push uniquement
 #   M8  MONITORING -> toutes zones : scrape uniquement
-#   M9  PROD -> API Proxmox (CAPMOX, CSI)
+#   M9  PROD -> API Proxmox (CAPMOX, CSI, CCM)
 #   M10 CHALLENGES -> API kube (depuis les NOEUDS challenges uniquement, ni le routing peer NetBird ni les IP
 #       d'instances) + DNS interne ; egress Internet uniquement vers l'allowlist
 #   I*  DNS des zones, egress Internet, OIDC back-channel, inter-nœuds Kubernetes, status page
@@ -127,7 +127,7 @@ locals {
     { id = "m7-zones-push", seq = 500, ifaces = local.ifaces_except_mon, proto = "TCP", src = "net_all_zones", dst = "host_monitoring", port = "port_mon_push", desc = "M7 zones -> monitoring (push)" },
     { id = "m8-monitoring-scrape", seq = 510, ifaces = [local.iface["monitoring"]], proto = "TCP", src = "net_monitoring", dst = "net_all_zones", port = "port_mon_scrape", desc = "M8 monitoring -> zones (scrape)" },
 
-    # M9 - PROD -> API Proxmox (CAPMOX, Proxmox CSI)
+    # M9 - PROD -> API Proxmox (CAPMOX, Proxmox CSI, Proxmox CCM)
     { id = "m9-prod-proxmox", seq = 600, ifaces = [local.iface["prod"]], proto = "TCP", src = "net_prod", dst = "host_proxmox_api", port = tostring(local.p.proxmox_api), desc = "M9 PROD -> API Proxmox" },
 
     # M10 - CHALLENGES : API kube + DNS interne + allowlist Internet, rien d'autre

@@ -110,6 +110,7 @@ nav:
           - "kind (bootstrap)": composants/kind.md
           - "cluster-autoscaler": composants/cluster-autoscaler.md
           - "Cilium et Hubble": composants/cilium-hubble.md
+          - "Proxmox CCM": composants/proxmox-ccm.md
           - "Proxmox CSI": composants/proxmox-csi.md
           - "Traefik (cluster)": composants/traefik-cluster.md
       - Plateforme GitOps:

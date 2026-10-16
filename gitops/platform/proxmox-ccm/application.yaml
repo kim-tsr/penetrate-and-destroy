@@ -1,0 +1,46 @@
+# Application ArgoCD : proxmox-cloud-controller-manager (initialisation des nœuds, providerID au format CAPMOX).
+# Chart OCI épinglé. Déployé dans le namespace csi-proxmox pour lire le MÊME Secret que le CSI (proxmox-csi-config,
+# géré par l'Application proxmox-csi) : un seul jeton Proxmox, une seule règle d'egress vers l'API (cf. README.md).
+# Sync-wave -8 : après Cilium (-9), avant cert-manager (-7) et tout ce qui a besoin de nœuds initialisés
+# (taint node.cloudprovider.kubernetes.io/uninitialized retiré par ce contrôleur).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: proxmox-ccm
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: proxmox-cloud-controller-manager
+    app.kubernetes.io/part-of: pad-platform
+    pad.io/zone: prod
+  annotations:
+    argocd.argoproj.io/sync-wave: "-8"
+spec:
+  project: platform
+  sources:
+    - repoURL: ghcr.io/sergelogvinov/charts # OCI (sans le préfixe oci://)
+      chart: proxmox-cloud-controller-manager
+      targetRevision: 0.2.32
+      helm:
+        releaseName: proxmox-ccm
+        valueFiles:
+          - $values/gitops/platform/proxmox-ccm/values.yaml
+    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+      targetRevision: main # contracts: git.branch
+      ref: values
+    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+      targetRevision: main # contracts: git.branch
+      path: gitops/platform/proxmox-ccm/resources # PodMonitor (métriques du contrôleur)
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: csi-proxmox
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      # PodMonitor : CRD fournie par l'Application prometheus-crds (wave -10).
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 5
+      backoff: { duration: 10s, factor: 2, maxDuration: 3m }

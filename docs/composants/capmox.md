@@ -46,6 +46,9 @@ kubectl -n capmox-system logs deploy/capmox-controller-manager    # namespace in
 
 - Le template Talos doit exister avant la création des machines (stack `15-talos-image`).
 - Les VMID alloués sont dans 300 à 399 ; le template est hors de cette plage pour ne pas être géré par CAPI.
+- CAPMOX écrit `proxmox://<SMBIOS UUID>` dans `ProxmoxMachine.spec.providerID`, mais ne le pose pas sur le Node (kubelets en
+  `cloud-provider: external`) : c'est le [CCM Proxmox](proxmox-ccm.md) (mode `capmox`) qui le fait. Sans lui, les Machines restent en
+  `Provisioned` et les nœuds gardent le taint `node.cloudprovider.kubernetes.io/uninitialized`.
 - Les `ProxmoxMachineTemplate` sont **immuables** (webhook CAPMOX) : changer un template déjà appliqué impose de le supprimer et de le
   recréer (ou de le renommer et de mettre à jour la référence du `MachineDeployment`). Un `kubectl apply` du template modifié est refusé.
 

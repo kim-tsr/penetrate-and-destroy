@@ -100,7 +100,8 @@ Quelques points à retenir :
 flowchart LR
     R[Application root] --> W10[-10 namespaces, CRD Prometheus]
     W10 --> W9[-9 Cilium]
-    W9 --> W7[-7 cert-manager<br/>-6 Kyverno]
+    W9 --> W8[-8 Proxmox CCM<br/>initialise les nœuds]
+    W8 --> W7[-7 cert-manager<br/>-6 Kyverno]
     W7 --> W5[-5 ArgoCD, Proxmox CSI<br/>-4 operator MariaDB, politiques, providers CAPI]
     W5 --> W3[-3 Traefik, KEDA, autoscaler, external-dns]
     W3 --> W2[-2 Valkey, Garage, Zot]

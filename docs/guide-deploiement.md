@@ -194,7 +194,8 @@ chaque privilège manquant.
 
 ### 2.3 Jeton du CSI Proxmox (volumes persistants)
 
-Le CSI a son propre utilisateur, à privilèges réduits (détails : [Proxmox CSI](composants/proxmox-csi.md)) :
+Le CSI a son propre utilisateur, à privilèges réduits (détails : [Proxmox CSI](composants/proxmox-csi.md)). Le même jeton sert au
+cloud controller manager Proxmox ([Proxmox CCM](composants/proxmox-ccm.md)), qui ne fait que lire (`VM.Audit`, `Sys.Audit`) :
 
 ```bash
 pveum role add CSI -privs "VM.Audit VM.Config.Disk Datastore.Allocate Datastore.AllocateSpace Datastore.Audit Sys.Audit"
@@ -202,6 +203,8 @@ pveum user add csi@pve
 pveum acl modify / --users csi@pve --roles CSI
 pveum user token add csi@pve csi --privsep 0    # le secret va dans gitops/platform/proxmox-csi/secret.sops.yaml (token_secret)
 ```
+
+Dans ce même fichier, `features.provider` doit valoir `capmox` (valeur du modèle) : c'est le format de providerID de CAPMOX.
 
 ### 2.4 Utilisateur SSH avec sudo
 
@@ -222,7 +225,7 @@ Depuis le poste : `ssh -i ~/.ssh/pad_admin pad-admin@<hôte> sudo -n true && ech
 ### 2.5 Réseau de l'hôte
 
 !!! warning "Pare-feu Proxmox activé (`/etc/pve/firewall/cluster.fw`, `enable: 1`)"
-    Il met l'entrée de l'hôte en DROP par défaut. Le cluster (CAPMOX après le pivot, CSI) joint l'API Proxmox par l'IP
+    Il met l'entrée de l'hôte en DROP par défaut. Le cluster (CAPMOX après le pivot, CSI, CCM) joint l'API Proxmox par l'IP
     mgmt de l'hôte (`host.mgmt_ip`, `10.20.10.2:8006`) depuis la zone PROD : autorisez-le, sans rien ouvrir côté Internet.
     Les flux publics de la plateforme (80, 443, NetBird) sont redirigés vers OPNsense et ne passent pas par cette règle.
 
@@ -445,8 +448,8 @@ Toutes les commandes se lancent depuis la racine du dépôt, dans `nix develop`,
 
 ### Phase 9 : le cluster Kubernetes
 
-- **Fait** (`bootstrap/scripts/cluster.sh`, reprenable à chaque étape) : un cluster `kind` éphémère sur votre poste reçoit Cluster API (`clusterctl init`), applique `gitops/clusters/prod`, CAPMOX clone le template et démarre les VM Talos, les `kubeconfig`/`talosconfig` sont extraits dans `.state/`, les CRD Prometheus (`ServiceMonitor`, requises par les values des charts suivants), cert-manager et Cilium sont installés, puis `clusterctl move` transfère la gestion au cluster lui-même (**pivot**) et `kind` est supprimé. Voir [Bootstrap](architecture/bootstrap.md), [Cluster API](composants/cluster-api.md), [kind](composants/kind.md).
-- **Commande** : `task phase:9-cluster` (30 à 45 min ; docker doit tourner, la route vers `10.20.60.0/24` doit exister).
+- **Fait** (`bootstrap/scripts/cluster.sh`, reprenable à chaque étape) : un cluster `kind` éphémère sur votre poste reçoit Cluster API (`clusterctl init`), applique `gitops/clusters/prod`, CAPMOX clone le template et démarre les VM Talos, les `kubeconfig`/`talosconfig` sont extraits dans `.state/`, les CRD Prometheus (`ServiceMonitor`, requises par les values des charts suivants), cert-manager, Cilium puis le cloud controller manager Proxmox sont installés (le CCM retire des nœuds le taint `node.cloudprovider.kubernetes.io/uninitialized` et pose le providerID attendu par CAPMOX ; sa configuration est le Secret du CSI, déchiffré par sops et appliqué sans passer par le disque), puis `clusterctl move` transfère la gestion au cluster lui-même (**pivot**) et `kind` est supprimé. Voir [Bootstrap](architecture/bootstrap.md), [Cluster API](composants/cluster-api.md), [kind](composants/kind.md).
+- **Commande** : `task phase:9-cluster` (30 à 45 min ; docker doit tourner, la route vers `10.20.60.0/24` doit exister ; `gitops/platform/proxmox-csi/secret.sops.yaml` doit être complet, avec `features.provider: capmox`, voir 2.3).
 - **Créé** : VM Talos dans la plage VMID `300-399` : 1 control plane (`10.20.60.10-14`), 2 workers `platform` (`10.20.60.20-39`), 1 worker `challenges` (`10.20.70.20-39`) ; VIP de l'API `10.20.60.5`.
 - **Vérifier** :
 
@@ -454,11 +457,13 @@ Toutes les commandes se lancent depuis la racine du dépôt, dans `nix develop`,
   export KUBECONFIG=$PWD/.state/kubeconfig TALOSCONFIG=$PWD/.state/talosconfig
   qm list                                             # sur l'hôte : les VM pad-prod-*
   kubectl get nodes -o wide                           # tous Ready
+  kubectl get nodes -o custom-columns=NOM:.metadata.name,PROVIDERID:.spec.providerID,TAINTS:.spec.taints[*].key
+                                                      # providerID proxmox://<uuid>, plus de taint uninitialized
   kubectl -n pad-cluster get cluster,machines         # Cluster Provisioned, Machines Running
   talosctl -e 10.20.60.5 -n 10.20.60.5 health
   kind get clusters                                   # doit être vide : kind est supprimé après le pivot
   ```
-- **Erreurs** : bloqué sur `Provisioned` → `kubectl --kubeconfig .state/kind.kubeconfig -n pad-cluster describe machine` (API Proxmox joignable depuis le conteneur kind ? jeton CAPMOX ? template au bon VMID ?). Nœuds `NotReady` → Cilium (`kubectl -n kube-system get pods`). Pivot en échec : kind est **conservé**, relancer la phase.
+- **Erreurs** : bloqué sur `Provisioned` → `kubectl --kubeconfig .state/kind.kubeconfig -n pad-cluster describe machine` (API Proxmox joignable depuis le conteneur kind ? jeton CAPMOX ? template au bon VMID ?). Nœuds `NotReady` → Cilium (`kubectl -n kube-system get pods`). Pods `Pending` (cert-manager) sur des nœuds `Ready` → taint `uninitialized`, voir le dépannage (§9). Pivot en échec : kind est **conservé**, relancer la phase.
 - **Rejouer** : sans risque, les étapes déjà faites sont sautées.
 
 ### Entre les phases 9 et 10 : publier et épingler les images
@@ -479,7 +484,7 @@ Détail et vérification des signatures : [Images signées](operations/images-si
 
 ### Phase 10 : ArgoCD
 
-- **Fait** : vérifie que tout est commité **et poussé**, installe ArgoCD (Helm, version et values de l'Application), crée le Secret `sops-age` (clé du **cluster**, jamais celle de l'opérateur) et le Secret du dépôt (clé de déploiement), applique l'Application `root` (app-of-apps). ArgoCD déroule ensuite tout par vagues : Cilium, cert-manager, Kyverno, Proxmox CSI, Traefik, Garage, Zot, MariaDB, Valkey, KEDA, puis CTFd, le front, chall-manager, netbird-sync. Voir [ArgoCD](composants/argocd.md).
+- **Fait** : vérifie que tout est commité **et poussé**, installe ArgoCD (Helm, version et values de l'Application), crée le Secret `sops-age` (clé du **cluster**, jamais celle de l'opérateur) et le Secret du dépôt (clé de déploiement), applique l'Application `root` (app-of-apps). ArgoCD déroule ensuite tout par vagues : Cilium, Proxmox CCM, cert-manager, Kyverno, Proxmox CSI, Traefik, Garage, Zot, MariaDB, Valkey, KEDA, puis CTFd, le front, chall-manager, netbird-sync. Voir [ArgoCD](composants/argocd.md).
 - **Commande** : `task phase:10-gitops`.
 - **Vérifier** :
 
@@ -611,6 +616,7 @@ Avant d'ouvrir l'événement aux joueurs :
 | Certificat « TRAEFIK DEFAULT CERT » servi par l'edge | les routeurs n'ont pas de `certResolver` (un `tls: {}` écrase la configuration de l'entrypoint ; ils doivent porter `tls: *pad_tls`) : vérifier `docker logs pad-edge-traefik-1 \| grep lego` |
 | `ovh: could not find zone for domain` / timeouts DNS (1.1.1.1, 9.9.9.9) depuis l'edge | règle `i5-egress-dns` (DNS sortant 53 TCP/UDP, nécessaire à ACME DNS-01) non appliquée : `task tofu:apply-stack STACK=60-opnsense-rules` |
 | Phase 9 : workers jamais démarrés, `ProxmoxMachine` en `VMProvisionFailed: unable to render network-config: route already exists for destination/metric in routing table`, deux `IPAddressClaim` par worker | manifeste antérieur au correctif « zones CAPMOX » : CAPMOX force `defaultIPv4: true` sur `net0` et ajoute une IP du control plane à celle du pool. Mettre le dépôt à jour (`zoneConfig` + `network.zone`), supprimer les `MachineDeployment`, les `ProxmoxMachineTemplate` des workers (immuables) et les anciens `InClusterIPPool` `pad-prod-platform`/`pad-prod-challenges`, puis relancer la phase : [CAPMOX, pièges connus](composants/capmox.md#pieges-connus) |
+| Phase 9 : nœuds `Ready` mais avec le taint `node.cloudprovider.kubernetes.io/uninitialized`, pods `Pending` (cert-manager, Hubble, metrics-server ; « cert-manager disponible » expire), Machines CAPI bloquées en `Provisioned`, `spec.providerID` vide | le cloud controller manager Proxmox n'a pas initialisé les nœuds (kubelets en `cloud-provider: external`). `kubectl -n csi-proxmox get pods,secret` puis `kubectl -n csi-proxmox logs deploy/proxmox-cloud-controller-manager` : CCM absent (dépôt antérieur : mettre à jour et relancer la phase, l'étape CNI le réinstalle), `401`/`403` (jeton ou rôle `CSI` : `VM.Audit` et `Sys.Audit`, 2.3), délai vers `10.20.10.2:8006` (règle M9, pare-feu de l'hôte, 2.5), `instance not found` (`features.provider` doit valoir `capmox`). [Proxmox CCM](composants/proxmox-ccm.md) |
 | Une phase échoue à mi-chemin | la corriger puis relancer **la même phase** ; elle reprend là où elle s'est arrêtée |
 | Savoir où l'on en est | `task status` (rapide) ou `task status -- --live` (contacte l'hôte) |
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Crée le cluster Kubernetes pad-prod : kind éphémère -> CAPI/CAPMOX/Talos -> CNI -> pivot -> suppression de kind.
 # Idempotent et reprenable : chaque étape détecte son état et se saute si elle est déjà faite.
-# Prérequis : sops (SOPS_AGE_KEY_FILE), secrets/proxmox.sops.yaml, kind, docker, kubectl, helm, clusterctl, yq.
+# Prérequis : sops (SOPS_AGE_KEY_FILE), secrets/proxmox.sops.yaml, gitops/platform/proxmox-csi/secret.sops.yaml (config du CCM),
+# kind, docker, kubectl, helm, clusterctl, yq.
 # shellcheck source=bootstrap/scripts/capi-common.sh
 source "$(dirname "$0")/capi-common.sh"
 
@@ -21,6 +22,47 @@ control_plane_ready() {
   [[ "$st" == "true "* || "$st" == *" True" ]]
 }
 cluster_phase_prod() { [[ "$(kprod -n "$CLUSTER_NS" get cluster "$CLUSTER_NAME" -o jsonpath='{.status.phase}')" == "Provisioned" ]]; }
+
+# Nœuds initialisés par le cloud controller manager : tous ont un providerID proxmox:// et plus aucun le taint
+# node.cloudprovider.kubernetes.io/uninitialized (kubelets en cloud-provider=external, cf. gitops/clusters/prod).
+nodes_initialized() {
+  local lines
+  lines=$(kprod get nodes -o jsonpath='{range .items[*]}{.spec.providerID}{"|"}{.spec.taints[*].key}{"\n"}{end}') || return 1
+  [[ -n "$lines" ]] || return 1
+  ! grep -qvE '^proxmox://[^|]+\|' <<<"$lines" && ! grep -q 'node.cloudprovider.kubernetes.io/uninitialized' <<<"$lines"
+}
+
+# Cloud controller manager Proxmox (gitops/platform/proxmox-ccm). Sa configuration est le Secret du CSI
+# (proxmox-csi-config, même namespace, même jeton) : ksops n'existe pas encore, on le déchiffre ici avec sops et on
+# l'applique par un pipe (jamais écrit en clair sur disque, jamais affiché). ArgoCD l'adopte ensuite (Application
+# proxmox-csi), comme la release Helm (Application proxmox-ccm). Idempotent.
+install_ccm() {
+  local app="${PLATFORM_DIR}/proxmox-ccm/application.yaml" rel="gitops/platform/proxmox-csi/secret.sops.yaml"
+  local sops_file="${ROOT_DIR}/${rel}" cfg ns secret_name meta provider placeholders
+  # Contenu de la clé config.yaml du Secret (stringData, ou data en base64), lu sur l'entrée standard.
+  cfg='.stringData."config.yaml" // (.data."config.yaml" | @base64d) // ""'
+  ns=$(yq -e '.spec.destination.namespace' "$app")
+  secret_name=$(yq -e '.existingConfigSecret' "$(values_of proxmox-ccm)")
+  [[ -f "$sops_file" ]] || die "secret manquant : ${rel} ('task secrets:init' puis 'sops ${rel}', guide §2.3)"
+  # Contrôles sans rien afficher de secret : seules des métadonnées, un nom de mode et un compteur sortent des pipes.
+  meta=$(sops --decrypt "$sops_file" | yq -r '.kind + "/" + .metadata.namespace + "/" + .metadata.name') \
+    || die "déchiffrement impossible : ${rel} (SOPS_AGE_KEY_FILE ?)"
+  [[ "$meta" == "Secret/${ns}/${secret_name}" ]] || die "${rel} : attendu Secret/${ns}/${secret_name}, trouvé ${meta}"
+  provider=$(sops --decrypt "$sops_file" | yq -r "$cfg" | yq -r '.features.provider // "default"') \
+    || die "${rel} : clé config.yaml illisible"
+  [[ "$provider" == capmox ]] || die "${rel} : features.provider vaut « ${provider} », il faut « capmox » (providerID proxmox://<uuid> attendu par CAPMOX) ; corriger avec 'sops ${rel}'"
+  placeholders=$(sops --decrypt "$sops_file" | yq -r "$cfg" \
+    | yq -r '[(.clusters // [])[] | select(.token_secret == "CHANGEME" or .token_id == "CHANGEME")] | length') \
+    || die "${rel} : clé config.yaml illisible"
+  [[ "$placeholders" == 0 ]] || die "${rel} : jeton encore à CHANGEME (token_secret de csi@pve, guide §2.3)"
+
+  kprod get namespace "$ns" >/dev/null 2>&1 || kprod create namespace "$ns"
+  log "Secret ${ns}/${secret_name} (déchiffré par sops, appliqué par un pipe)"
+  sops --decrypt "$sops_file" \
+    | kprod apply --server-side --force-conflicts --field-manager=pad-bootstrap -f - >/dev/null \
+    || die "application du Secret ${ns}/${secret_name} impossible"
+  helm_from_app proxmox-ccm proxmox-cloud-controller-manager proxmox-ccm "$ns"
+}
 
 # --- 1. Cluster de gestion éphémère ---
 step_kind() {
@@ -77,7 +119,13 @@ step_cni() {
   # l'installation expire. Désactivé ici : l'attente explicite de cert-manager après Cilium fait la même vérification.
   helm_from_app cert-manager cert-manager cert-manager cert-manager --wait=false --set startupapicheck.enabled=false
   helm_from_app cilium cilium cilium kube-system
+  # Kubelets en cloud-provider=external : sans cloud controller manager, chaque nœud garde le taint
+  # node.cloudprovider.kubernetes.io/uninitialized (rien ne s'y planifie, cert-manager reste Pending) et n'a pas de
+  # providerID (les Machines CAPI restent Provisioned). Le CCM tolère ce taint, tourne sur le control plane et a besoin
+  # du réseau des pods : juste après Cilium.
+  install_ccm
   wait_for 1200 "nœuds Ready" kprod wait --for=condition=Ready nodes --all --timeout=10s
+  wait_for 600 "nœuds initialisés par le CCM (providerID, plus de taint uninitialized)" nodes_initialized
   wait_for 900 "cert-manager disponible" \
     kprod -n cert-manager wait --for=condition=Available deployment --all --timeout=10s
 }

@@ -11,7 +11,7 @@ flowchart TD
     C --> D[kubectl apply gitops/clusters/prod<br/>Cluster, TalosControlPlane, MachineDeployments]
     D --> E[CAPMOX clone le template Talos<br/>et démarre les VM via l'API Proxmox]
     E --> F[Cluster Provisioned, kubeconfig et talosconfig extraits]
-    F --> G[CRD Prometheus, cert-manager et Cilium installés<br/>nœuds Ready]
+    F --> G[CRD Prometheus, cert-manager, Cilium et CCM Proxmox installés<br/>nœuds Ready et initialisés]
     G --> H[clusterctl move : kind vers pad-prod]
     H --> I[Vérification : Cluster et Machines présents dans pad-prod]
     I --> J[kind supprimé]
@@ -30,7 +30,7 @@ flowchart TD
 | 2. manifests | idem | `kubectl apply --server-side -k gitops/clusters/prod` | rejouable |
 | 3. attente | idem | `Cluster` Provisioned, control plane prêt (30 min max) | rejouable |
 | 4. accès | idem | extraction du kubeconfig et du talosconfig dans `.state/` | |
-| 5. CNI | idem | CRD Prometheus (`prometheus-operator-crds` : les values des charts déclarent des `ServiceMonitor`), puis cert-manager (sans le hook `startupapicheck`, qui ne peut pas tourner avant le CNI) et Cilium (sans kube-proxy), installés par Helm avec les mêmes versions que les Applications ArgoCD ; attente des nœuds Ready | rejouable |
+| 5. CNI | idem | CRD Prometheus (`prometheus-operator-crds` : les values des charts déclarent des `ServiceMonitor`), puis cert-manager (sans le hook `startupapicheck`, qui ne peut pas tourner avant le CNI) et Cilium (sans kube-proxy), installés par Helm avec les mêmes versions que les Applications ArgoCD ; puis le cloud controller manager Proxmox : Secret `proxmox-csi-config` déchiffré par sops depuis `gitops/platform/proxmox-csi/secret.sops.yaml` et appliqué par un pipe (ksops n'existe pas encore ; jamais en clair sur disque), chart installé dans `csi-proxmox` ; il pose le providerID `proxmox://<uuid>` (CAPMOX) et retire le taint `node.cloudprovider.kubernetes.io/uninitialized` (kubelets en `cloud-provider: external`), sans quoi rien d'autre ne se planifie ; attente des nœuds Ready, des nœuds initialisés et de cert-manager | rejouable |
 | 6. pivot | idem | `clusterctl move` vers `pad-prod`, puis contrôle que le `Cluster` et les `Machine` y sont | **kind conservé** si le contrôle échoue |
 | 7. ArgoCD | `bootstrap/scripts/gitops.sh` | `helm upgrade --install argo-cd`, Secret `sops-age` (clé du **cluster**), Secret du dépôt, Application `root` | idempotent |
 
@@ -43,6 +43,7 @@ L'Application `root` synchronise `gitops/platform` ; l'ApplicationSet `apps` cr�
 |---|---|
 | -10 | namespaces, CRD Prometheus |
 | -9 | Cilium |
+| -8 | Proxmox CCM (initialisation des nœuds ; lit le Secret du CSI) |
 | -7 / -6 | cert-manager / Kyverno |
 | -5 | ArgoCD (auto-géré), Proxmox CSI, CRD mariadb-operator |
 | -4 | mariadb-operator, politiques Kyverno, providers CAPI |

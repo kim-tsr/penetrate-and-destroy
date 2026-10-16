@@ -1,4 +1,6 @@
 # Namespace csi-proxmox : PSS privileged, NetworkPolicy Cilium default-deny + autorisations minimales.
+# Héberge le CSI Proxmox et le cloud controller manager Proxmox (gitops/platform/proxmox-ccm), qui partagent le Secret
+# proxmox-csi-config (un seul jeton) et la sortie vers l'API Proxmox ci-dessous.
 # privileged est imposé par le DaemonSet node du plugin CSI (montages hôte, mount propagation) : un namespace ne peut
 # pas panacher les niveaux. Le contrôleur CSI n'en a pas besoin ; surveiller via les labels audit/warn restricted.
 ---
@@ -46,7 +48,8 @@ spec:
             dns:
               - matchPattern: "*"
     - toEntities: [kube-apiserver]
-    # API Proxmox (le contrôleur CSI crée, attache et supprime les volumes). Hôte en zone MGMT, jeton dans un Secret.
+    # API Proxmox (le contrôleur CSI crée, attache et supprime les volumes ; le CCM lit les VM). Hôte en zone MGMT,
+    # jeton dans un Secret.
     - toCIDR: ["10.20.10.2/32"] # contracts: host.mgmt_ip
       toPorts:
         - ports:

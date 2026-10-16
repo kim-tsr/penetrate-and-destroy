@@ -607,6 +607,12 @@ c_9_cluster() {
   notready=$(kprod get nodes --no-headers 2>/dev/null | grep -vc ' Ready' || true)
   want=$(yq '.kubernetes.control_plane.replicas + .kubernetes.pools.platform.replicas + .kubernetes.pools.challenges.min' "$CONTRACTS")
   ((notready == 0 && total >= want)) && pass "${total} nœud(s) Ready (minimum attendu : ${want})" || fail "${total} nœud(s) dont ${notready} non Ready (minimum attendu : ${want})" "kubectl get nodes -o wide ; kubectl describe node <nœud> ; talosctl -n <ip> dmesg"
+  # Kubelets en cloud-provider=external : le CCM Proxmox pose le providerID (format CAPMOX) et retire le taint uninitialized.
+  local uninit
+  uninit=$(kprod get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"|"}{.spec.providerID}{"|"}{.spec.taints[*].key}{"\n"}{end}' 2>/dev/null \
+    | awk -F'|' '$2 !~ /^proxmox:\/\// || $3 ~ /node\.cloudprovider\.kubernetes\.io\/uninitialized/ {print $1}' | tr '\n' ' ')
+  [[ -z "$uninit" ]] && pass "nœuds initialisés par le CCM Proxmox (providerID proxmox://, sans taint uninitialized)" \
+    || fail "nœud(s) non initialisé(s) par le cloud controller manager : ${uninit}" "kubectl -n csi-proxmox logs deploy/proxmox-cloud-controller-manager ; guide §9 (taint node.cloudprovider.kubernetes.io/uninitialized)"
   local phase
   phase=$(kprod -n "$(c '.kubernetes.capi_namespace')" get cluster "$(c '.kubernetes.cluster_name')" -o jsonpath='{.status.phase}' 2>/dev/null || echo "")
   [[ "$phase" == Provisioned ]] && pass "objet Cluster géré dans pad-prod lui-même (pivot fait), phase Provisioned" || fail "Cluster CAPI : phase « ${phase:-absent} » dans pad-prod" "le pivot (clusterctl move) a-t-il eu lieu ? kubectl -n $(c '.kubernetes.capi_namespace') get cluster,machines"

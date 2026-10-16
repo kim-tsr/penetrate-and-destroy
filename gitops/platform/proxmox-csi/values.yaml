@@ -18,7 +18,7 @@ storageClass:
     cache: none
     annotations:
       storageclass.kubernetes.io/is-default-class: "true"
-    # Region = nom du node Proxmox, zone = idem (single-node) ; posés par le CCM / labels topology.
+    # Region = nom du node Proxmox, zone = idem (single-node) ; labels posés par le CCM (gitops/platform/proxmox-ccm).
     allowedTopologies:
       - matchLabelExpressions:
           - key: topology.kubernetes.io/region

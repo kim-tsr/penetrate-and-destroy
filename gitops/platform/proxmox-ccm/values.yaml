@@ -1,0 +1,70 @@
+# proxmox-cloud-controller-manager chart 0.2.32 (application v0.16.1).
+# Rôle : les kubelets Talos tournent avec cloud-provider=external (gitops/clusters/prod/*.yaml) ; chaque nœud naît avec le
+# taint node.cloudprovider.kubernetes.io/uninitialized. Ce contrôleur retrouve la VM par son SMBIOS UUID, pose le
+# providerID `proxmox://<uuid>` (format attendu par CAPMOX : la Machine CAPI passe alors en Running), les labels
+# topology.kubernetes.io/{region,zone} (utilisés par le CSI) et retire le taint.
+# Installé une première fois par bootstrap/scripts/cluster.sh (étape CNI, mêmes chart/version/values), puis adopté par ArgoCD.
+
+fullnameOverride: proxmox-cloud-controller-manager
+
+image:
+  repository: ghcr.io/sergelogvinov/proxmox-cloud-controller-manager
+  tag: v0.16.1@sha256:474dbfd3be5c2e0866e520bc6ddb60b7accef554ca7401488eee35252cdf8734
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+logVerbosityLevel: 2
+
+# Contrôleurs cloud-provider : initialisation des nœuds (providerID, adresses, labels, taint) et cycle de vie
+# (suppression du Node quand la VM disparaît). Pas de route ni de service (LoadBalancer : Cilium LB-IPAM).
+enabledControllers:
+  - cloud-node
+  - cloud-node-lifecycle
+
+# Le chart passe --use-service-account-credentials : chaque contrôleur obtiendrait alors un jeton d'un compte de service
+# de kube-system (node-controller, et kube-system/proxmox-cloud-controller-manager créé à la volée, sans RBAC puisque le
+# ClusterRoleBinding du chart vise le compte du namespace de la release, csi-proxmox). Désactivé (le dernier drapeau
+# l'emporte) : tous les contrôleurs utilisent le compte de service du pod, lié au ClusterRole du chart.
+extraArgs:
+  - --use-service-account-credentials=false
+
+# Configuration (URL de l'API, jeton, `features.provider: capmox`) : Secret du CSI, chiffré SOPS, jamais ici.
+# config.clusters reste vide : le chart ne crée alors aucun Secret.
+existingConfigSecret: proxmox-csi-config # gitops/platform/proxmox-csi/secret.sops.yaml
+existingConfigSecretKey: config.yaml
+
+# Sur le control plane (toujours présent, jamais mis à l'échelle par l'autoscaler). Le taint uninitialized est toléré :
+# c'est ce contrôleur qui le retire, y compris sur son propre nœud.
+nodeSelector:
+  node-role.kubernetes.io/control-plane: ""
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+  - key: node.cloudprovider.kubernetes.io/uninitialized
+    operator: Exists
+    effect: NoSchedule
+
+priorityClassName: system-cluster-critical
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10258
+  runAsGroup: 10258
+  fsGroup: 10258
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+
+# Certificat de service généré en mémoire (--cert-dir vide) : système de fichiers racine en lecture seule.
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+  seccompProfile:
+    type: RuntimeDefault
+
+resources:
+  requests: { cpu: 10m, memory: 32Mi }
+  limits: { memory: 128Mi }

@@ -68,6 +68,7 @@ Renovate les maintient à jour ([page](renovate-dependabot.md)).
 | [kind (bootstrap)](kind.md) | Cluster de bootstrap éphémère pour créer pad-prod | poste opérateur (Docker requis), le temps de `bootstrap:cluster` | kind v0.33.0, nœud kindest/node:v1.34.11@sha256 |
 | [cluster-autoscaler](cluster-autoscaler.md) | Ajoute et retire des workers du pool challenges | pod du cluster (pool platform) | chart 9.53.0 |
 | [Cilium et Hubble](cilium-hubble.md) | CNI, remplacement de kube-proxy, LoadBalancer, chiffrement, observabilité réseau | DaemonSet sur tous les nœuds + operator, Hubble relay et UI | chart 1.20.3 |
+| [Proxmox CCM](proxmox-ccm.md) | Initialisation des nœuds : providerID CAPMOX, labels de topologie, retrait du taint uninitialized | pod du cluster sur le control plane (namespace `csi-proxmox`) | chart proxmox-cloud-controller-manager 0.2.32 (v0.16.1) |
 | [Proxmox CSI](proxmox-csi.md) | Volumes persistants sur ZFS pour Kubernetes | pods du cluster (namespace `csi-proxmox`) ; node plugin sur tous les nœuds | chart proxmox-csi-plugin 0.5.12 |
 | [Traefik (cluster)](traefik-cluster.md) | Ingress interne du cluster | pods Traefik (2 replicas, pool platform), IP 10.20.60.200 | chart 42.0.0 |
 
