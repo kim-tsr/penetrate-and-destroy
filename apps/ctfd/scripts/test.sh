@@ -12,6 +12,10 @@ REPO_ROOT="$(cd "${HERE}/../.." && pwd)"
 CTFD_VERSION="${CTFD_VERSION:-$(sed -n 's/^ARG CTFD_VERSION=//p' "${HERE}/Dockerfile")}"
 CACHE="${PAD_TEST_CACHE:-${REPO_ROOT}/.state/ctfd-harness}"
 PYTHON="${PYTHON:-python3.11}"
+if ! command -v "${PYTHON}" >/dev/null 2>&1; then
+  echo "interpréteur introuvable : ${PYTHON} (CTFd 3.8 tourne sur Python 3.11 ; 'nix develop' le fournit, sinon PYTHON=/chemin/python3.11)" >&2
+  exit 2
+fi
 SRC="${CACHE}/ctfd-${CTFD_VERSION}"
 VENV="${CACHE}/venv-${CTFD_VERSION}"
 

@@ -12,7 +12,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-for t in age-keygen sops kustomize kubeconform; do
+for t in age-keygen sops ksops kustomize kubeconform; do
   command -v "$t" >/dev/null 2>&1 || { echo "outil manquant : $t (nix develop)" >&2; exit 2; }
 done
 

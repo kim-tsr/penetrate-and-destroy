@@ -62,7 +62,7 @@ if need ansible-lint; then
 fi
 
 step "Manifests Kubernetes (kustomize + ksops + kubeconform, sops factices à clé éphémère)"
-if need age-keygen sops kustomize kubeconform; then
+if need age-keygen sops ksops kustomize kubeconform; then
   scripts/validate-gitops.sh || fail=1
 fi
 
