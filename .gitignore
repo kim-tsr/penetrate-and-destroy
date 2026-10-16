@@ -35,3 +35,4 @@ site/
 apps/chall-manager-scenario/chall-manager-scenario
 apps/netbird-sync/netbird-sync
 .envrc.local
+.task/
