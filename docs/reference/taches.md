@@ -29,7 +29,8 @@ décrit. Le parcours complet, pas à pas : [Guide de déploiement](../guide-depl
 | `check:cluster-detruit`, `check:tout-detruit` | contrôles après destruction |
 | `status` | quelles phases semblent faites (hors ligne) ; `task status -- --live` rejoue les vérifications |
 | `plan:<stack>` | `tofu plan` d'une stack (`plan:00-host-network`, `plan:10-router`, `plan:15-talos-image`, `plan:20-services-lxc`, `plan:30-authentik`, `plan:40-netbird`, `plan:50-warpgate`, `plan:60-opnsense-rules`, `plan:70-dns`) |
-| `host:route` | pose sur l'hôte la route vers les zones via OPNsense, permanente (déjà jouée par la phase 2) |
+| `host:route` | rejoue le rôle `host-tuning` (tag `host_route`) : route de l'hôte vers les zones via OPNsense, permanente et idempotente (déjà jouée par la phase 2) |
+| `host:lxc-features` | rejoue le rôle `host-tuning` (tag `host_lxc_features`) : `keyctl` sur les LXC de services, réservé à `root@pam` côté API (déjà jouée par la phase 4) |
 | `verify` | smoke tests (`scripts/verify.sh`) |
 
 ## Destruction et reconstruction

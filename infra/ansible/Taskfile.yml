@@ -32,7 +32,7 @@ tasks:
       - ansible-galaxy collection install -r requirements.yml -p .collections
 
   host:
-    desc: "Configure l'hôte Proxmox (ARC ZFS, sysctl, DNAT de repli, exporters, Alloy) ; utilise l'inventaire d'exemple tant que les LXC n'existent pas"
+    desc: "Configure l'hôte Proxmox (ARC ZFS, import ISO, route vers les zones, keyctl LXC, sysctl, DNAT de repli, exporters, Alloy ; tags host_route, host_lxc_features) ; utilise l'inventaire d'exemple tant que les LXC n'existent pas"
     deps: [deps]
     vars:
       INV: '{{if ne .INVENTORY "inventories/prod/hosts.generated.yml"}}{{.INVENTORY}}{{else}}{{.HOST_INVENTORY}}{{end}}'
