@@ -65,6 +65,58 @@
           '';
         };
 
+        # clusterctl : version exacte du contrat (kubernetes.capi.core) ; nixpkgs est en retard (1.10 ne gère pas les
+        # providers v1beta2 récents). Empreintes calculées sur les binaires de la release GitHub v1.14.3.
+        clusterctlVersion = "1.14.3";
+        clusterctlAssets = {
+          x86_64-linux = { os = "linux"; arch = "amd64"; sha256 = "e56f397f55c6fdde6ee8c0fead4fb21270a50e05111180bf68c8ae6c82dfd917"; };
+          aarch64-linux = { os = "linux"; arch = "arm64"; sha256 = "eea3a3ecc64ae155c57eea35378d833285a92cb549c3298a18765bc40a7a3f7b"; };
+          x86_64-darwin = { os = "darwin"; arch = "amd64"; sha256 = "decec263200ff5790593fcff64a0f9d42799410b91b1e23c86ec1437607bb1fd"; };
+          aarch64-darwin = { os = "darwin"; arch = "arm64"; sha256 = "5915523f13949884d29d5254445b8d294ba314b5dacb3e8eff9e42f1c9d2e684"; };
+        };
+        clusterctlAsset = clusterctlAssets.${system};
+        clusterctl = pkgs.stdenvNoCC.mkDerivation {
+          pname = "clusterctl-bin";
+          version = clusterctlVersion;
+          src = pkgs.fetchurl {
+            url = "https://github.com/kubernetes-sigs/cluster-api/releases/download/v${clusterctlVersion}/clusterctl-${clusterctlAsset.os}-${clusterctlAsset.arch}";
+            inherit (clusterctlAsset) sha256;
+          };
+          dontUnpack = true;
+          dontConfigure = true;
+          dontBuild = true;
+          dontFixup = true; # binaire statique
+          installPhase = ''
+            install -Dm755 $src $out/bin/clusterctl
+          '';
+        };
+
+        # talosctl : doit suivre la version de Talos du contrat (kubernetes.talos_version). Empreintes tirées du
+        # fichier sha256sum.txt de la release v1.11.3.
+        talosctlVersion = "1.11.3";
+        talosctlAssets = {
+          x86_64-linux = { os = "linux"; arch = "amd64"; sha256 = "7cd3a0d25a8f2dea343c2815431cc07d3e80bab124e7c3e22738819dc09c1b3f"; };
+          aarch64-linux = { os = "linux"; arch = "arm64"; sha256 = "f9eb22164686929da6071febb0283a0d9c4e45e3b05a4f92788090516245ea2c"; };
+          x86_64-darwin = { os = "darwin"; arch = "amd64"; sha256 = "c85a1558a7225cfa5226747927156b3e3eb719b0bb88293de9d3160a63c117fb"; };
+          aarch64-darwin = { os = "darwin"; arch = "arm64"; sha256 = "1277288b6c334addbe05b5ce8c9daf595b5008bb08baf7a933a7ba1f1ad9a628"; };
+        };
+        talosctlAsset = talosctlAssets.${system};
+        talosctl = pkgs.stdenvNoCC.mkDerivation {
+          pname = "talosctl-bin";
+          version = talosctlVersion;
+          src = pkgs.fetchurl {
+            url = "https://github.com/siderolabs/talos/releases/download/v${talosctlVersion}/talosctl-${talosctlAsset.os}-${talosctlAsset.arch}";
+            inherit (talosctlAsset) sha256;
+          };
+          dontUnpack = true;
+          dontConfigure = true;
+          dontBuild = true;
+          dontFixup = true; # binaire statique
+          installPhase = ''
+            install -Dm755 $src $out/bin/talosctl
+          '';
+        };
+
         # Le plugin kustomize `ksops` (nixpkgs : kustomize-sops) doit être dans le PATH pour que `kustomize build
         # --enable-alpha-plugins --enable-exec` déchiffre les secrets. On expose explicitement `bin/ksops`, quel que
         # soit le nom sous lequel le paquet installe l'exécutable.
@@ -90,12 +142,14 @@
             pkgs.python311
             opentofu
             kind
+            clusterctl
+            talosctl
             ksops
           ] ++ (with pkgs; [
             # IaC
             ansible ansible-lint python3Packages.jmespath python3Packages.netaddr
             # Kubernetes
-            kubectl kubernetes-helm kustomize clusterctl talosctl cilium-cli argocd kubeconform
+            kubectl kubernetes-helm kustomize cilium-cli argocd kubeconform
             # Secrets
             sops age
             # task secrets:* (htpasswd : hash bcrypt de Zot/OPNsense ; ssh-keygen : clé de déploiement) et lint local

@@ -194,6 +194,18 @@ c_0_prereqs() {
     have_k=$(kind version 2>/dev/null | awk '{print $2}')
     [[ "$have_k" == "$want" ]] && pass "kind ${have_k} (version du contrat)" || fail "kind ${have_k:-absent}, le contrat exige ${want}" "nix develop"
   fi
+  if have clusterctl; then
+    local want_c have_c
+    want_c=$(c '.kubernetes.capi.core')
+    have_c=$(clusterctl version -o short 2>/dev/null)
+    [[ "$have_c" == "$want_c" ]] && pass "clusterctl ${have_c} (version du contrat)" || fail "clusterctl ${have_c:-absent}, le contrat exige ${want_c}" "nix develop / direnv reload"
+  fi
+  if have talosctl; then
+    local want_t have_t
+    want_t=$(c '.kubernetes.talos_version')
+    have_t=$(talosctl version --client --short 2>/dev/null | awk '/Talos/ {print $NF}')
+    [[ "$have_t" == "$want_t" ]] && pass "talosctl ${have_t} (version du contrat)" || fail "talosctl ${have_t:-absent}, le contrat exige ${want_t}" "nix develop / direnv reload"
+  fi
   if have docker && docker info >/dev/null 2>&1; then
     pass "démon Docker joignable (kind en a besoin)"
   else

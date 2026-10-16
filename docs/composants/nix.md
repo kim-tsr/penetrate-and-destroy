@@ -7,6 +7,8 @@
 `nix develop` fournit **tous** les outils aux versions figées par `flake.lock` (OpenTofu, Ansible, kubectl, Helm, kustomize, kind, clusterctl, talosctl, cilium-cli, argocd, kubeconform, sops, age, go-task, Go,
 Node, pnpm, Python, cosign, trivy, k6...). Chaque contributeur et la CI exécutent donc les mêmes binaires.
 
+`clusterctl` et `talosctl` (comme `kind` et OpenTofu) sont épinglés par le devshell à la version du contrat (`kubernetes.capi.core`, `kubernetes.talos_version`) : binaires officiels vérifiés par sha256, nixpkgs étant en retard.
+
 ## Où elle tourne et comment elle est déployée
 
 Sur le poste de l'opérateur : `nix develop`. En CI : `cachix/install-nix-action` puis `nix develop -c <commande>`. Le shell positionne `SOPS_AGE_KEY_FILE`, `KUBECONFIG` et `TALOSCONFIG`.

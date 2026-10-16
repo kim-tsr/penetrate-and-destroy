@@ -47,6 +47,8 @@ git clone <URL DE VOTRE FORK PRIVÉ> penetrate-and-destroy && cd penetrate-and-d
 nix develop            # tous les outils aux versions épinglées : task, tofu, ansible, sops, age, kubectl, helm, clusterctl, kind, talosctl...
 ```
 
+`clusterctl` et `talosctl` sont épinglés par le devshell aux versions du contrat (Cluster API `kubernetes.capi.core`, Talos `kubernetes.talos_version`), comme `kind` ; la phase 0 vérifie qu'elles correspondent.
+
 Deux outils ne viennent pas de Nix : un **démon Docker** local (le cluster `kind` éphémère du bootstrap) et, pour construire l'ISO de
 configuration d'OPNsense, `xorriso` (ou `mkisofs`/`genisoimage`) si `nix` n'est pas disponible dans le shell. `task phase:0-prereqs` vérifie tout cela.
 
