@@ -8,7 +8,8 @@ RUN gcc -std=gnu99 -O0 -fno-stack-protector -no-pie -fcf-protection=none -z noex
       -o chall chall.c
 
 FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587
-RUN apt-get update && apt-get install -y --no-install-recommends socat \
+# perl-base est nommé pour recevoir ses correctifs de sécurité (HIGH/CRITICAL corrigeables) postérieurs au digest de la base.
+RUN apt-get update && apt-get install -y --no-install-recommends socat perl-base \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --system --uid 10001 --no-create-home chall
 COPY --from=build /src/chall /opt/chall
