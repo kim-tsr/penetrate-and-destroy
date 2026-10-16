@@ -18,6 +18,7 @@ includes:
   bootstrap: { taskfile: ./bootstrap/Taskfile.yml, dir: ./bootstrap, optional: true }
   apps: { taskfile: ./apps/Taskfile.yml, dir: ./apps, optional: true }
   secrets: { taskfile: ./scripts/Taskfile.secrets.yml, dir: . }
+  docs: { taskfile: ./scripts/Taskfile.docs.yml, dir: . }
 
 tasks:
   default:
