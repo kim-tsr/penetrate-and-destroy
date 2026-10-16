@@ -73,7 +73,9 @@ step_cni() {
   # CRDs Prometheus (ServiceMonitor, PodMonitor...) d'abord : les values de cert-manager et de Cilium en déclarent ;
   # sans elles, helm échoue (« no matches for kind ServiceMonitor »). Chart sans pod : pas besoin de CNI.
   helm_from_app prometheus-crds prometheus-operator-crds prometheus-crds "$(contract '.namespaces.monitoring_agents')"
-  helm_from_app cert-manager cert-manager cert-manager cert-manager --wait=false
+  # startupapicheck = hook post-install que helm attend même avec --wait=false : sans CNI, son pod reste Pending et
+  # l'installation expire. Désactivé ici : l'attente explicite de cert-manager après Cilium fait la même vérification.
+  helm_from_app cert-manager cert-manager cert-manager cert-manager --wait=false --set startupapicheck.enabled=false
   helm_from_app cilium cilium cilium kube-system
   wait_for 1200 "nœuds Ready" kprod wait --for=condition=Ready nodes --all --timeout=10s
   wait_for 900 "cert-manager disponible" \

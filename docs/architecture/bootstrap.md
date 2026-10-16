@@ -30,7 +30,7 @@ flowchart TD
 | 2. manifests | idem | `kubectl apply --server-side -k gitops/clusters/prod` | rejouable |
 | 3. attente | idem | `Cluster` Provisioned, control plane prêt (30 min max) | rejouable |
 | 4. accès | idem | extraction du kubeconfig et du talosconfig dans `.state/` | |
-| 5. CNI | idem | CRD Prometheus (`prometheus-operator-crds` : les values des charts déclarent des `ServiceMonitor`), puis cert-manager et Cilium (sans kube-proxy), installés par Helm avec les mêmes versions que les Applications ArgoCD ; attente des nœuds Ready | rejouable |
+| 5. CNI | idem | CRD Prometheus (`prometheus-operator-crds` : les values des charts déclarent des `ServiceMonitor`), puis cert-manager (sans le hook `startupapicheck`, qui ne peut pas tourner avant le CNI) et Cilium (sans kube-proxy), installés par Helm avec les mêmes versions que les Applications ArgoCD ; attente des nœuds Ready | rejouable |
 | 6. pivot | idem | `clusterctl move` vers `pad-prod`, puis contrôle que le `Cluster` et les `Machine` y sont | **kind conservé** si le contrôle échoue |
 | 7. ArgoCD | `bootstrap/scripts/gitops.sh` | `helm upgrade --install argo-cd`, Secret `sops-age` (clé du **cluster**), Secret du dépôt, Application `root` | idempotent |
 
