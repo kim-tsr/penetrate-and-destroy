@@ -4,6 +4,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -37,9 +38,17 @@ var (
 	reconcileErrors = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "netbird_sync_reconcile_errors_total", Help: "Réconciliations en erreur.",
 	})
+	openPolicies = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "netbird_sync_open_policies", Help: "Policies NetBird actives dont la source est le groupe All (doit rester à 0).",
+	})
+	memberChanges = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "netbird_sync_team_member_changes_total", Help: "Pairs ajoutés ou retirés des groupes d'équipe.",
+	}, []string{"op"})
 )
 
-func init() { metrics.Registry.MustRegister(reconcileTotal, reconcileErrors) }
+func init() {
+	metrics.Registry.MustRegister(reconcileTotal, reconcileErrors, openPolicies, memberChanges)
+}
 
 // NetBird est la partie de l'API NetBird utilisée par le contrôleur.
 type NetBird interface {
@@ -49,6 +58,54 @@ type NetBird interface {
 	DeleteResource(ctx context.Context, networkID, name string) error
 	UpsertPolicy(ctx context.Context, p netbird.Policy) error
 	DeletePolicy(ctx context.Context, name string) error
+	// OpenPolicies liste les policies actives dont la source est « All » (policy Default All<->All).
+	OpenPolicies(ctx context.Context) ([]string, error)
+	// SyncGroupMembers ajuste les pairs du groupe aux utilisateurs NetBird des e-mails donnés.
+	SyncGroupMembers(ctx context.Context, groupID string, emails []string) (added, removed int, err error)
+}
+
+// Members donne les e-mails des membres d'une équipe CTFd (source de vérité du rattachement joueur -> équipe).
+type Members interface {
+	TeamEmails(ctx context.Context, teamID string) ([]string, error)
+}
+
+// ErrOpenPolicy signale une policy NetBird qui ouvre l'accès à tous les pairs : aucune écriture n'est faite.
+var ErrOpenPolicy = errors.New("policy NetBird ouverte à tous (source « All », ex. policy Default) : à supprimer, aucune synchronisation tant qu'elle existe")
+
+// GuardOpenPolicies refuse de continuer si une policy active a le groupe « All » en source. Sans cela, supprimer ou
+// désactiver la policy Default serait une étape manuelle oubliable, et toute l'isolation par équipe serait vaine.
+func GuardOpenPolicies(ctx context.Context, nb NetBird) error {
+	open, err := nb.OpenPolicies(ctx)
+	if err != nil {
+		return err
+	}
+	openPolicies.Set(float64(len(open)))
+	if len(open) > 0 {
+		return fmt.Errorf("%w : %s", ErrOpenPolicy, strings.Join(open, ", "))
+	}
+	return nil
+}
+
+// SyncTeamGroup aligne les pairs du groupe `ctf-team-<team>` sur les membres CTFd de l'équipe.
+func SyncTeamGroup(ctx context.Context, nb NetBird, m Members, log *slog.Logger, groupID, team string) error {
+	emails, err := m.TeamEmails(ctx, team)
+	if err != nil {
+		return err
+	}
+	added, removed, err := nb.SyncGroupMembers(ctx, groupID, emails)
+	if err != nil {
+		return err
+	}
+	if added > 0 {
+		memberChanges.WithLabelValues("added").Add(float64(added))
+	}
+	if removed > 0 {
+		memberChanges.WithLabelValues("removed").Add(float64(removed))
+	}
+	if added+removed > 0 {
+		log.Info("membres du groupe d'équipe synchronisés", "team", team, "added", added, "removed", removed)
+	}
+	return nil
 }
 
 // Config paramètre le contrôleur (valeurs issues de infra/contracts.yaml).
@@ -62,9 +119,10 @@ type Config struct {
 // ServiceReconciler implémente reconcile.Reconciler.
 type ServiceReconciler struct {
 	client.Client
-	NB  NetBird
-	Cfg Config
-	Log *slog.Logger
+	NB      NetBird
+	Members Members
+	Cfg     Config
+	Log     *slog.Logger
 }
 
 // SetupWithManager enregistre le contrôleur (Services LoadBalancer des namespaces d'instances).
@@ -154,8 +212,17 @@ func (r *ServiceReconciler) reconcile(ctx context.Context, key types.NamespacedN
 		return ctrl.Result{}, fmt.Errorf("namespace %s sans label %s", ns.Name, TeamLabel)
 	}
 
+	if r.Members == nil {
+		return ctrl.Result{}, errors.New("source des membres d'équipe (CTFd) non configurée")
+	}
+	if err := GuardOpenPolicies(ctx, r.NB); err != nil {
+		return ctrl.Result{}, err
+	}
 	teamGroup, err := r.NB.EnsureGroup(ctx, r.Cfg.TeamGroupPrefix+team)
 	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := SyncTeamGroup(ctx, r.NB, r.Members, r.Log, teamGroup, team); err != nil {
 		return ctrl.Result{}, err
 	}
 	resGroup, err := r.NB.EnsureGroup(ctx, r.Cfg.NetworkName)

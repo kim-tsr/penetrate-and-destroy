@@ -41,8 +41,10 @@ kubectl get policyreport -A -o json \
 ## Remédiation
 
 1. **Image d'un challenge refusée par `restricted`** : l'image doit tourner en utilisateur non-root, sans élévation de privilèges, avec `capabilities: drop ALL`. Corriger le `Dockerfile` du challenge, pas la politique.
-2. **Violations en Audit** (`verify-images`) : normal tant que la clé publique cosign n'est pas renseignée. Pour passer en `Enforce`, renseigner `cosign-pubkey`, vérifier que toutes les images du registry sont signées par la CI, puis changer `validationFailureAction` par commit.
-3. **Webhook indisponible** : la politique est en `failurePolicy: Ignore` pour `verify-images`, mais les politiques Enforce peuvent bloquer des créations si Kyverno est down. Relancer `kyverno-admission-controller`.
+2. **Violations en Audit** (`verify-images-audit`) : normal tant que la clé publique cosign n'est pas renseignée. Le passage en `enforce` se fait par le ConfigMap `pad-image-policy` (clé `mode`), pas en éditant les politiques : voir [Images signées](../operations/images-signees.md).
+3. **Webhook indisponible** : `verify-images` (Enforce) est en `failurePolicy: Fail` sur `inst-*`, `ctfd`, `frontend` et `netbird-sync`, comme `restrict-instance-images` et `pss-restricted` : un Kyverno down y bloque la création de pods. Relancer `kyverno-admission-controller`. En urgence, repasser `mode: audit` dans `pad-image-policy` (la politique Fail ne s'applique plus ; le webhook reste enregistré).
+4. **Pod d'instance refusé pour son image** (`restrict-instance-images`) : l'image doit être sous `registry.pad.internal/ctf/` et épinglée par `@sha256`. Corriger le `challenge.yml`, pas la politique.
+5. **Quota ou LimitRange manquant dans un `inst-*`** : générés par `instance-guardrails` à la création du namespace. `kubectl -n inst-<id> get resourcequota,limitrange` ; si absents, vérifier le background controller (`kubectl -n kyverno logs deploy/kyverno-background-controller`).
 4. **Métriques absentes** : vérifier le ServiceMonitor du namespace `kyverno`.
 
 ## Escalade

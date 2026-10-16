@@ -28,14 +28,20 @@ spec:
           type: RuntimeDefault
       containers:
         - name: netbird-sync
-          # Digest renseigné par la CI (push registry) puis maintenu par Renovate : tag@sha256.
-          image: registry.CHANGEME.example.net/pad/netbird-sync:0.1.0 # contracts: apps.registry
+          # Référence par empreinte obligatoire (Kyverno verify-images, CONVENTIONS.md). L'empreinte nulle ci-dessous est un
+          # PLACEHOLDER : à la 1re publication CI (images.yml, résumé du digest) Renovate (:pinDigests) la remplace par la
+          # vraie ; l'image ne démarre pas tant qu'elle est nulle (échec de pull, volontaire).
+          image: ghcr.io/kim-tsr/pad-netbird-sync:0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000
           args: ["--resync=10m"]
           env:
             - name: NETBIRD_API_URL
               valueFrom: { secretKeyRef: { name: netbird-sync, key: NETBIRD_API_URL } }
             - name: NETBIRD_API_TOKEN
               valueFrom: { secretKeyRef: { name: netbird-sync, key: NETBIRD_API_TOKEN } }
+            # Membres d'équipe (rattachement joueur -> groupe NetBird ctf-team-<id>) : endpoint interne de CTFd (pad_teams).
+            - { name: CTFD_URL, value: "http://ctfd.ctfd.svc.cluster.local:8000" } # contracts: apps.ctfd.service
+            - name: PAD_INTERNAL_TOKEN # = PAD_INTERNAL_TOKEN du Secret ctfd-secrets (même valeur)
+              valueFrom: { secretKeyRef: { name: netbird-sync, key: PAD_INTERNAL_TOKEN } }
             - name: NETBIRD_NETWORK_NAME
               value: pad-instances # contracts: netbird.network_name
             - name: NETBIRD_TEAM_GROUP_PREFIX

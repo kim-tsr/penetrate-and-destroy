@@ -15,8 +15,13 @@
 #   M7  Toutes zones -> MONITORING : push uniquement
 #   M8  MONITORING -> toutes zones : scrape uniquement
 #   M9  PROD -> API Proxmox (CAPMOX, CSI)
-#   M10 CHALLENGES -> API kube + DNS interne ; egress Internet uniquement vers l'allowlist
+#   M10 CHALLENGES -> API kube (depuis les NOEUDS challenges uniquement, ni le routing peer NetBird ni les IP
+#       d'instances) + DNS interne ; egress Internet uniquement vers l'allowlist
 #   I*  DNS des zones, egress Internet, OIDC back-channel, inter-nœuds Kubernetes, status page
+#       I3 (inter-nœuds) est asymétrique : un worker challenges compromis n'atteint ni kubelet ni apid du control plane.
+#         PROD -> CHALLENGES : kubelet 10250 (control plane seul), Cilium health/Hubble, VXLAN/WireGuard
+#         CHALLENGES -> PROD : trustd 50001 (control plane seul : certificats OS des workers), Cilium health, VXLAN/WireGuard
+#         apid 50000 : BASTION uniquement (M6), jamais entre zones de nœuds
 
 locals {
   zones = local.c.zones
@@ -46,16 +51,18 @@ locals {
       net_private   = { type = "network", content = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10"], description = "Plages privées/CGNAT (exclues de l'egress Internet)" }
 
       # Hôtes de services (contrat)
-      host_edge         = { type = "host", content = [local.svc.edge.ip], description = "LXC edge (Traefik + CrowdSec)" }
-      host_netbird      = { type = "host", content = [local.svc.netbird.ip], description = "LXC netbird (management, signal, relay, coturn ; routing peer staff)" }
-      host_warpgate     = { type = "host", content = [local.svc.warpgate.ip], description = "LXC warpgate (bastion)" }
-      host_authentik    = { type = "host", content = [local.svc.authentik.ip], description = "LXC authentik (IdP)" }
-      host_monitoring   = { type = "host", content = [local.svc.monitoring.ip], description = "LXC monitoring" }
-      host_k8s_ingress  = { type = "host", content = [local.k8s.ingress_ip], description = "Traefik interne du cluster (LB Cilium)" }
-      host_k8s_api      = { type = "host", content = [local.k8s.control_plane_endpoint], description = "VIP API Kubernetes (Talos)" }
-      host_proxmox_api  = { type = "host", content = [local.c.host.mgmt_ip], description = "API Proxmox (hôte en zone mgmt)" }
-      host_k8s_nodes    = { type = "host", content = values(local.ip_range), description = "Plages d'IP des nœuds Talos (cp, platform, challenges)" }
-      host_chall_egress = { type = "host", content = var.challenges_egress_allowlist, description = "Allowlist egress Internet des challenges" }
+      host_edge           = { type = "host", content = [local.svc.edge.ip], description = "LXC edge (Traefik + CrowdSec)" }
+      host_netbird        = { type = "host", content = [local.svc.netbird.ip], description = "LXC netbird (management, signal, relay, coturn ; routing peer staff)" }
+      host_warpgate       = { type = "host", content = [local.svc.warpgate.ip], description = "LXC warpgate (bastion)" }
+      host_authentik      = { type = "host", content = [local.svc.authentik.ip], description = "LXC authentik (IdP)" }
+      host_monitoring     = { type = "host", content = [local.svc.monitoring.ip], description = "LXC monitoring" }
+      host_k8s_ingress    = { type = "host", content = [local.k8s.ingress_ip], description = "Traefik interne du cluster (LB Cilium)" }
+      host_k8s_api        = { type = "host", content = [local.k8s.control_plane_endpoint], description = "VIP API Kubernetes (Talos)" }
+      host_proxmox_api    = { type = "host", content = [local.c.host.mgmt_ip], description = "API Proxmox (hôte en zone mgmt)" }
+      host_k8s_cp         = { type = "host", content = [local.ip_range.cp, local.k8s.control_plane_endpoint], description = "Nœuds control plane Talos (plage + VIP)" }
+      host_k8s_prod       = { type = "host", content = [local.ip_range.cp, local.ip_range.platform, local.k8s.control_plane_endpoint], description = "Nœuds de la zone PROD (control plane + pool platform + VIP)" }
+      host_k8s_challenges = { type = "host", content = [local.ip_range.challenges], description = "Workers du pool challenges (hors routing peer NetBird et IP d'instances)" }
+      host_chall_egress   = { type = "host", content = var.challenges_egress_allowlist, description = "Allowlist egress Internet des challenges" }
 
       # Ports
       port_web          = { type = "port", content = [tostring(local.p.http), tostring(local.p.https)], description = "HTTP/HTTPS" }
@@ -64,7 +71,7 @@ locals {
       port_mon_push     = { type = "port", content = local.port_list.monitoring_push, description = "Push monitoring (remote_write, Loki, OTLP)" }
       port_mon_scrape   = { type = "port", content = local.port_list.monitoring_scrape, description = "Scrape monitoring (exporters, kubelet, Alloy)" }
       port_admin_self   = { type = "port", content = [tostring(local.p.ssh), tostring(local.p.https)], description = "Admin OPNsense (SSH, GUI)" }
-      port_k8s_node_tcp = { type = "port", content = [for x in [local.p.kubelet, local.p.talos_api, local.p.talos_trustd, local.p.cilium.health_tcp, local.p.cilium.hubble_tcp] : tostring(x)], description = "Inter-nœuds TCP (kubelet, apid, trustd, Cilium health, Hubble)" }
+      port_cilium_ctl   = { type = "port", content = [for x in [local.p.cilium.health_tcp, local.p.cilium.hubble_tcp] : tostring(x)], description = "Cilium health + Hubble (PROD -> workers challenges)" }
       port_k8s_node_udp = { type = "port", content = [tostring(local.p.cilium.vxlan_udp), tostring(local.p.cilium.wireguard_udp)], description = "Inter-nœuds UDP (Cilium VXLAN, WireGuard)" }
       port_egress_tcp   = { type = "port", content = [tostring(local.p.http), tostring(local.p.https)], description = "Egress Internet TCP" }
     },
@@ -110,7 +117,7 @@ locals {
     { id = "m9-prod-proxmox", seq = 600, ifaces = [local.iface["prod"]], proto = "TCP", src = "net_prod", dst = "host_proxmox_api", port = tostring(local.p.proxmox_api), desc = "M9 PROD -> API Proxmox" },
 
     # M10 - CHALLENGES : API kube + DNS interne + allowlist Internet, rien d'autre
-    { id = "m10-chall-kubeapi", seq = 700, ifaces = [local.iface["challenges"]], proto = "TCP", src = "net_challenges", dst = "host_k8s_api", port = tostring(local.p.kube_api), desc = "M10 CHALLENGES -> API kube" },
+    { id = "m10-chall-kubeapi", seq = 700, ifaces = [local.iface["challenges"]], proto = "TCP", src = "host_k8s_challenges", dst = "host_k8s_api", port = tostring(local.p.kube_api), desc = "M10 workers CHALLENGES -> API kube" },
     { id = "m10-chall-dns", seq = 710, ifaces = [local.iface["challenges"]], proto = "TCP/UDP", src = "net_challenges", dst = "(self)", port = tostring(local.p.dns), desc = "M10 CHALLENGES -> DNS interne (Unbound)" },
   ]
 
@@ -134,8 +141,14 @@ locals {
       { id = "i2-zones-oidc", seq = 810, ifaces = local.all_zone_ifaces, proto = "TCP", src = "net_all_zones", dst = "host_authentik", port = tostring(local.p.https), desc = "I2 zones -> authentik 443 (OIDC back-channel)" },
     ],
     !var.allow_kube_cross_zone ? [] : [
-      { id = "i3-k8s-nodes-tcp", seq = 820, ifaces = [local.iface["prod"], local.iface["challenges"]], proto = "TCP", src = "host_k8s_nodes", dst = "host_k8s_nodes", port = "port_k8s_node_tcp", desc = "I3 nœuds k8s inter-zones TCP" },
-      { id = "i3-k8s-nodes-udp", seq = 821, ifaces = [local.iface["prod"], local.iface["challenges"]], proto = "UDP", src = "host_k8s_nodes", dst = "host_k8s_nodes", port = "port_k8s_node_udp", desc = "I3 nœuds k8s inter-zones UDP (Cilium)" },
+      # PROD -> CHALLENGES : l'API server (control plane) joint le kubelet des workers (logs, exec, métriques).
+      { id = "i3-cp-chall-kubelet", seq = 820, ifaces = [local.iface["prod"]], proto = "TCP", src = "host_k8s_cp", dst = "host_k8s_challenges", port = tostring(local.p.kubelet), desc = "I3 control plane -> kubelet des workers challenges" },
+      { id = "i3-prod-chall-cilium", seq = 821, ifaces = [local.iface["prod"]], proto = "TCP", src = "host_k8s_prod", dst = "host_k8s_challenges", port = "port_cilium_ctl", desc = "I3 PROD -> challenges Cilium health/Hubble" },
+      { id = "i3-prod-chall-udp", seq = 822, ifaces = [local.iface["prod"]], proto = "UDP", src = "host_k8s_prod", dst = "host_k8s_challenges", port = "port_k8s_node_udp", desc = "I3 PROD -> challenges Cilium VXLAN/WireGuard" },
+      # CHALLENGES -> PROD : trustd du control plane seul, health Cilium, tunnels. Ni kubelet ni apid.
+      { id = "i3-chall-cp-trustd", seq = 823, ifaces = [local.iface["challenges"]], proto = "TCP", src = "host_k8s_challenges", dst = "host_k8s_cp", port = tostring(local.p.talos_trustd), desc = "I3 workers challenges -> trustd du control plane" },
+      { id = "i3-chall-prod-health", seq = 824, ifaces = [local.iface["challenges"]], proto = "TCP", src = "host_k8s_challenges", dst = "host_k8s_prod", port = tostring(local.p.cilium.health_tcp), desc = "I3 challenges -> PROD Cilium health" },
+      { id = "i3-chall-prod-udp", seq = 825, ifaces = [local.iface["challenges"]], proto = "UDP", src = "host_k8s_challenges", dst = "host_k8s_prod", port = "port_k8s_node_udp", desc = "I3 challenges -> PROD Cilium VXLAN/WireGuard" },
     ],
     !var.allow_edge_status_page ? [] : [
       { id = "i4-edge-status", seq = 830, ifaces = [local.iface["dmz"]], proto = "TCP", src = "host_edge", dst = "host_monitoring", port = tostring(local.p.uptime_kuma), desc = "I4 edge -> status page Uptime Kuma" },

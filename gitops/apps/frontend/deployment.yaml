@@ -65,8 +65,10 @@ spec:
               app.kubernetes.io/component: web
       containers:
         - name: frontend
-          # TODO(renovate) : remplacer le tag par `tag@sha256:<digest>` dès le premier build signé (scripts/build-image.sh).
-          image: ghcr.io/kim-tsr/pad-frontend:0.1.0
+          # Référence par empreinte obligatoire (Kyverno verify-images, CONVENTIONS.md). L'empreinte nulle ci-dessous est un
+          # PLACEHOLDER : à la 1re publication CI (images.yml, résumé du digest) Renovate (:pinDigests) la remplace par la
+          # vraie ; l'image ne démarre pas tant qu'elle est nulle (échec de pull, volontaire).
+          image: ghcr.io/kim-tsr/pad-frontend:0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000
           ports:
             - name: http
               containerPort: 3000
@@ -93,7 +95,7 @@ spec:
             # --- Métriques (jeton Bearer attendu par /api/metrics) ---
             - name: METRICS_TOKEN
               valueFrom: { secretKeyRef: { name: frontend-secrets, key: METRICS_TOKEN } }
-            # --- NetBird : guide d'onboarding et état du tunnel (lecture seule) ---
+            # --- NetBird : guide d'onboarding et état du tunnel. Jeton = PAT d'un service user de rôle auditor (lecture seule), distinct de celui de netbird-sync ---
             - { name: NETBIRD_MANAGEMENT_URL, value: "https://vpn.CHANGEME.example.net" } # contracts: hostnames.vpn + domain
             - { name: NETBIRD_API_URL, value: "https://vpn.CHANGEME.example.net/api" } # contracts: netbird.api_url
             - name: NETBIRD_API_TOKEN

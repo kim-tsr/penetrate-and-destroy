@@ -26,3 +26,7 @@ keys.txt
 *.dec.yml
 *.dec.json
 CLAUDE.md
+
+# Documentation : venv local et site généré (task docs:serve, task docs:build).
+.venv-docs/
+site/

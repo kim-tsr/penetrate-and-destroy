@@ -45,7 +45,7 @@ variable "allow_oidc_all_zones" {
 }
 
 variable "allow_kube_cross_zone" {
-  description = "Trafic inter-nœuds Kubernetes PROD <-> CHALLENGES (Cilium VXLAN/WireGuard/health/Hubble, kubelet, apid/trustd)."
+  description = "Trafic inter-nœuds Kubernetes PROD <-> CHALLENGES, asymétrique : Cilium (VXLAN/WireGuard/health/Hubble), kubelet du control plane vers les workers, trustd des workers vers le control plane. Ni kubelet ni apid du control plane depuis les workers (apid : bastion seul)."
   type        = bool
   default     = true
 }

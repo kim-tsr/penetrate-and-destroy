@@ -45,8 +45,24 @@ describe("schéma challenge.yml", () => {
   it("refuse une image sans registry, un bloc instance inconnu et zéro flag", () => {
     const base = { name: "a", category: "c", description: "d", value: 1, flags: ["f"] };
     expect(challengeYmlSchema.safeParse({ ...base, instance: { image: "nginx", ports: [80] } }).success).toBe(false);
-    expect(challengeYmlSchema.safeParse({ ...base, instance: { image: "registry.example.test/a/b:1", ports: [80], privileged: true } }).success).toBe(false);
+    const digest = "@sha256:" + "0".repeat(64);
+    expect(challengeYmlSchema.safeParse({ ...base, instance: { image: `registry.pad.internal/ctf/b:1${digest}`, ports: [80], privileged: true } }).success).toBe(false);
     expect(challengeYmlSchema.safeParse({ ...base, flags: [] }).success).toBe(false);
+  });
+  it("impose le registre interne, l'empreinte et les plafonds de ressources", () => {
+    const base = { name: "a", category: "c", description: "d", value: 1, flags: ["f"] };
+    const digest = "@sha256:" + "0".repeat(64);
+    const ok = (instance: object) => challengeYmlSchema.safeParse({ ...base, instance }).success;
+    expect(ok({ image: `registry.pad.internal/ctf/b:1${digest}`, ports: [80] })).toBe(true);
+    expect(ok({ image: `registry.pad.internal/ctf/b${digest}`, ports: [80] })).toBe(true);
+    expect(ok({ image: "registry.pad.internal/ctf/b:1", ports: [80] })).toBe(false); // sans empreinte
+    expect(ok({ image: `docker.io/library/nginx${digest}`, ports: [80] })).toBe(false); // hors registre
+    expect(ok({ image: `registry.pad.internal/ctf/../x${digest}`, ports: [80] })).toBe(false);
+    const image = `registry.pad.internal/ctf/b:1${digest}`;
+    expect(ok({ image, ports: [80], limits: { cpu: "2", memory: "1Gi" } })).toBe(true);
+    expect(ok({ image, ports: [80], limits: { cpu: "3" } })).toBe(false);
+    expect(ok({ image, ports: [80], limits: { memory: "2Gi" } })).toBe(false);
+    expect(ok({ image, ports: [80], limits: { memory: "1025Mi" } })).toBe(false);
   });
 });
 

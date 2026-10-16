@@ -32,10 +32,10 @@ Aucun autre champ n'est accepté dans ce bloc.
 
 | Champ | Type | Notes |
 |---|---|---|
-| `image` | référence de registry | obligatoire ; image déjà présente dans Zot, par exemple `registry.pad.internal/ctf/web-sqli:0.1.0` (idéalement épinglée par `@sha256:`) |
+| `image` | référence de registry | obligatoire ; image déjà présente dans Zot, **sous `registry.pad.internal/ctf/`** et **épinglée par empreinte**, par exemple `registry.pad.internal/ctf/web-sqli:0.1.0@sha256:<64 hex>`. Toute autre référence est refusée (schéma, scénario et Kyverno). |
 | `ports` | liste | obligatoire ; entiers 1-65535 ou `{port, protocol: tcp ou udp, name?}` |
 | `ttl` | `60` à `21600` secondes, ou `90s`, `30m`, `2h` | défaut 1 h |
-| `limits` | `{cpu, memory}` | défaut `500m` / `256Mi` ; format Kubernetes |
+| `limits` | `{cpu, memory}` | défaut `500m` / `256Mi` ; plafonds **2 CPU** et **1Gi** (unités `Mi` ou `Gi`). Le disque éphémère est limité à `256Mi` par la plateforme (plafond `1Gi`), les PIDs à 256 par pod. |
 
 Le challenge devient du type CTFd `dynamic_instance`. La décroissance de points est conservée si `type: dynamic`. Le
 scénario générique de chall-manager (namespace, Deployment, Service, NetworkPolicy) est enregistré automatiquement.
@@ -90,7 +90,7 @@ hints:
 tags: [sqli, flask]
 state: hidden
 instance:
-  image: registry.pad.internal/ctf/web-sqli-instanced:0.1.0
+  image: registry.pad.internal/ctf/web-sqli-instanced:0.1.0@sha256:0000000000000000000000000000000000000000000000000000000000000000
   ports:
     - port: 8080
       protocol: tcp
@@ -132,8 +132,14 @@ Les trois exemples complets sont dans `challenges/` du dépôt (`crypto-xor-stat
 Les instances tournent sous la politique Kyverno PSS `restricted` (voir [Kyverno](../runbooks/kyverno.md)) :
 
 - utilisateur **non-root** (UID numérique), sans élévation de privilèges, `capabilities: drop ALL` ;
-- pas de tag `latest` ; `requests/limits` fournis par le bloc `limits` ;
-- système de fichiers : prévoir les répertoires inscriptibles (`emptyDir`) si l'application écrit.
+- image sous `registry.pad.internal/ctf/` **avec empreinte `@sha256:`** (pas de tag mutable) ; `requests/limits` fournis par le bloc `limits` ;
+- système de fichiers : le disque inscriptible est plafonné (`ephemeral-storage` 256Mi par défaut, 1Gi maximum) ;
+- au plus 256 processus par pod (fork bomb) ;
+- **aucun accès réseau sortant**, DNS compris : l'instance ne résout rien et ne joint rien. Seule l'entrée depuis le routing
+  peer NetBird est ouverte ; un challenge qui doit résoudre des noms du cluster est une exception à demander à un admin
+  (clé `dns=cluster`, limitée à `cluster.local`) ;
+- le conteneur tourne dans un user namespace (`hostUsers: false`) : root dans le conteneur n'est pas root sur l'hôte, mais
+  l'image doit de toute façon tourner en non-root.
 
 Une image qui ne les respecte pas est refusée à l'admission et l'instance échoue à démarrer.
 

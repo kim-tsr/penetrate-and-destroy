@@ -16,10 +16,10 @@ déclarés dans la stack OpenTofu `60-opnsense-rules`, à partir des ports du co
 | M7 | toutes les zones | `monitoring` | 8428, 3100, 4317, 4318 | push uniquement (remote_write, Loki, OTLP) |
 | M8 | `monitoring` | toutes les zones | 9000-9999, 10249, 10250, 12345 | scrape uniquement |
 | M9 | PROD | API Proxmox (`10.20.10.2:8006`) | 8006 | CAPMOX et CSI |
-| M10 | CHALLENGES | API Kubernetes, DNS interne | 6443, 53 | rien d'autre ; egress Internet par allowlist |
+| M10 | workers CHALLENGES (6443) ; zone CHALLENGES (DNS) | API Kubernetes ; DNS interne | 6443, 53 | l'API kube n'est ouverte qu'aux IP des workers (ni routing peer NetBird, ni IP d'instances) ; egress Internet par allowlist |
 | I1 | toutes les zones | OPNsense | 53 | DNS Unbound |
 | I2 | toutes les zones | `authentik` | 443 | back-channel OIDC |
-| I3 | nœuds Kubernetes PROD et CHALLENGES | nœuds Kubernetes | kubelet, apid, trustd, Cilium (VXLAN 8472, WireGuard 51871, health 4240, Hubble 4244) | cluster étendu sur deux zones |
+| I3 | nœuds Kubernetes PROD et CHALLENGES, **asymétrique** | nœuds Kubernetes de l'autre zone | PROD vers CHALLENGES : kubelet 10250 (control plane seul), Cilium health 4240 et Hubble 4244, VXLAN 8472, WireGuard 51871. CHALLENGES vers PROD : trustd 50001 (control plane seul), Cilium health 4240, VXLAN 8472, WireGuard 51871 | cluster étendu sur deux zones ; un worker challenges compromis n'atteint ni kubelet ni apid du control plane (apid : bastion seul, M6) |
 | I4 | `edge` | `monitoring` | 3001 | page de statut Uptime Kuma |
 | I5 | zones listées | Internet (hors plages privées) | 80, 443, 123/udp | mises à jour, ACME ; activable par zone |
 

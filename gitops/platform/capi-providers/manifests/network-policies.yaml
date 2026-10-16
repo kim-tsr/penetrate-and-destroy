@@ -1,0 +1,207 @@
+# NetworkPolicy Cilium des namespaces des providers Cluster API : ils portent des identifiants sensibles
+# (jeton de l'API Proxmox dans capmox-system, accès aux machine configs / CA Talos), sans filtrage jusqu'ici.
+# Base commune par namespace : tout endpoint est sélectionné (=> default-deny en entrée ET en sortie), puis on autorise :
+# trafic intra-namespace, DNS (kube-dns), API Kubernetes, scrape depuis observability, webhooks depuis l'API server,
+# et les seuls flux sortants propres au provider (API Proxmox pour CAPMOX, apid des nœuds CP pour CACPPT).
+# Les Namespace eux-mêmes (et leurs labels PSS, cf. kustomization.yaml) viennent du rendu clusterctl.
+# Source des IP : infra/contracts.yaml.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-baseline
+  namespace: capi-system
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: capi-system
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: observability # contracts: namespaces.monitoring_agents
+    # Webhooks d'admission et de conversion appelés par l'API server.
+    - fromEntities: [kube-apiserver, remote-node, host]
+      toPorts:
+        - ports:
+            - { port: "9443", protocol: TCP }
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: capi-system
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: ANY }
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toEntities: [kube-apiserver]
+    # API Kubernetes via la VIP du control plane (kubeconfig du cluster géré, auto-hébergé).
+    - toCIDR: ["10.20.60.5/32"] # contracts: kubernetes.control_plane_endpoint
+      toPorts:
+        - ports:
+            - { port: "6443", protocol: TCP } # contracts: flow_ports.kube_api
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-baseline
+  namespace: cabpt-system
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: cabpt-system
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: observability # contracts: namespaces.monitoring_agents
+    # Webhooks d'admission et de conversion appelés par l'API server.
+    - fromEntities: [kube-apiserver, remote-node, host]
+      toPorts:
+        - ports:
+            - { port: "9443", protocol: TCP }
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: cabpt-system
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: ANY }
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toEntities: [kube-apiserver]
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-baseline
+  namespace: cacppt-system
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: cacppt-system
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: observability # contracts: namespaces.monitoring_agents
+    # Webhooks d'admission et de conversion appelés par l'API server.
+    - fromEntities: [kube-apiserver, remote-node, host]
+      toPorts:
+        - ports:
+            - { port: "9443", protocol: TCP }
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: cacppt-system
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: ANY }
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toEntities: [kube-apiserver]
+    # API Kubernetes via la VIP du control plane (kubeconfig du cluster géré, auto-hébergé).
+    - toCIDR: ["10.20.60.5/32"] # contracts: kubernetes.control_plane_endpoint
+      toPorts:
+        - ports:
+            - { port: "6443", protocol: TCP } # contracts: flow_ports.kube_api
+    # API Talos (apid) des nœuds du control plane : CACPPT pilote la configuration et les certificats des CP.
+    - toCIDR: ["10.20.60.0/24"] # contracts: zones.prod.cidr (nœuds CP 10.20.60.10-14 et VIP)
+      toPorts:
+        - ports:
+            - { port: "50000", protocol: TCP } # contracts: flow_ports.talos_api
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-baseline
+  namespace: capmox-system
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: capmox-system
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: observability # contracts: namespaces.monitoring_agents
+    # Webhooks d'admission et de conversion appelés par l'API server.
+    - fromEntities: [kube-apiserver, remote-node, host]
+      toPorts:
+        - ports:
+            - { port: "9443", protocol: TCP }
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: capmox-system
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: ANY }
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toEntities: [kube-apiserver]
+    # API Kubernetes via la VIP du control plane (kubeconfig du cluster géré, auto-hébergé).
+    - toCIDR: ["10.20.60.5/32"] # contracts: kubernetes.control_plane_endpoint
+      toPorts:
+        - ports:
+            - { port: "6443", protocol: TCP } # contracts: flow_ports.kube_api
+    # API Proxmox (CAPMOX : clonage, démarrage et suppression des VM). Hôte en zone MGMT.
+    - toCIDR: ["10.20.10.2/32"] # contracts: host.mgmt_ip
+      toPorts:
+        - ports:
+            - { port: "8006", protocol: TCP } # contracts: flow_ports.proxmox_api
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: default-deny-baseline
+  namespace: capi-ipam-in-cluster-system
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: capi-ipam-in-cluster-system
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: observability # contracts: namespaces.monitoring_agents
+    # Webhooks d'admission et de conversion appelés par l'API server.
+    - fromEntities: [kube-apiserver, remote-node, host]
+      toPorts:
+        - ports:
+            - { port: "9443", protocol: TCP }
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: capi-ipam-in-cluster-system
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - { port: "53", protocol: ANY }
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toEntities: [kube-apiserver]
