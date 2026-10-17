@@ -287,8 +287,28 @@ c_0_prereqs() {
     check_privileges
     check_storage
     check_bridges_free
+    check_pveproxy_allow
   else
     fail "API Proxmox injoignable ou jeton refusé" "proxmox_url (site.sops.yaml), api_token (proxmox.sops.yaml), pare-feu du port 8006 ; curl -k <url>/api2/json/version"
+  fi
+}
+
+# pveproxy peut restreindre les sources de l'API (ALLOW_FROM de /etc/default/pveproxy) : le cluster (CAPMOX après le
+# pivot, CSI, CCM) la joint depuis la zone PROD, et la zone mgmt sert à OpenTofu/OPNsense. Sans elles : « connection reset ».
+check_pveproxy_allow() {
+  local allow need miss=() c
+  allow=$(host_ssh "grep -E '^ALLOW_FROM=' /etc/default/pveproxy 2>/dev/null" 2>/dev/null | cut -d'"' -f2)
+  if [[ -z "$allow" ]]; then
+    pass "pveproxy : aucune restriction ALLOW_FROM"
+    return
+  fi
+  need="$(c '.zones.prod.cidr') $(c '.zones.mgmt.cidr')"
+  for c in $need; do [[ ",${allow}," == *",${c},"* ]] || miss+=("$c"); done
+  if ((${#miss[@]})); then
+    fail "pveproxy : ALLOW_FROM n'autorise pas ${miss[*]} (API Proxmox refusée au cluster : connection reset)" \
+      "sur l'hôte : ajouter ${miss[*]// /,} à ALLOW_FROM dans /etc/default/pveproxy puis systemctl restart pveproxy"
+  else
+    pass "pveproxy : ALLOW_FROM autorise les zones PROD et mgmt"
   fi
 }
 

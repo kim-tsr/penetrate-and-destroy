@@ -224,6 +224,11 @@ Depuis le poste : `ssh -i ~/.ssh/pad_admin pad-admin@<hôte> sudo -n true && ech
 
 ### 2.5 Réseau de l'hôte
 
+!!! warning "API Proxmox restreinte par pveproxy (`ALLOW_FROM` de `/etc/default/pveproxy`)"
+    Si vous limitez les sources de l'interface/API Proxmox, ajoutez la zone **PROD** (`10.20.60.0/24` : CAPMOX après le pivot,
+    CSI, cloud controller manager) et la zone **mgmt** (`10.20.10.0/24`), puis `systemctl restart pveproxy`. Sinon pveproxy coupe
+    les connexions du cluster (`connection reset`) et les nœuds restent `uninitialized`. Contrôlé par `task check:0-prereqs`.
+
 !!! warning "Pare-feu Proxmox activé (`/etc/pve/firewall/cluster.fw`, `enable: 1`)"
     Il met l'entrée de l'hôte en DROP par défaut. Le cluster (CAPMOX après le pivot, CSI, CCM) joint l'API Proxmox par l'IP
     mgmt de l'hôte (`host.mgmt_ip`, `10.20.10.2:8006`) depuis la zone PROD : autorisez-le, sans rien ouvrir côté Internet.
@@ -613,6 +618,7 @@ Avant d'ouvrir l'événement aux joueurs :
 | Ansible : hôtes `UNREACHABLE` au hasard (`Connection timed out during banner exchange`, `Data could not be sent`) alors que les LXC tournent | OpenSSH >= 9.8 sur l'hôte (`PerSourcePenalties`) refuse temporairement le poste qui ouvre trop de sessions. Le rebond est multiplexé (une seule session sur l'hôte, `~/.ansible/cp/pad-jump-*`) : vérifier que le dépôt est à jour ; en dernier recours, sur l'hôte, `PerSourcePenaltyExemptList` avec la plage du VPN |
 | Worker `challenges` créé mais absent de `kubectl get nodes` ; `talosctl -n <IP> service kubelet` : `Waiting for time sync` | pas d'NTP Internet en zone CHALLENGES : règle `m10-chall-ntp` (stack 60) et `machine.time.servers` du modèle Talos `pad-prod-challenges-v2` ; sur un nœud déjà créé : `talosctl -n <IP> patch mc -p '[{"op":"add","path":"/machine/time","value":{"servers":["10.20.70.1"]}}]'` |
 | Nœud `challenges` absent ou `NotReady`, pods `ImagePullBackOff` / `ErrImagePull` sur ce nœud (Cilium, CSI, Alloy, node-exporter), `talosctl -n <IP> logs kubelet` ou `talosctl -n <IP> dmesg` : échec de pull de `ghcr.io/siderolabs/kubelet` | la zone CHALLENGES n'a **aucun egress Internet** : toutes ses images passent par le miroir Zot (`registry.pad.internal/mirror/<registre>/`), disponible seulement après la phase 10. Vérifier dans l'ordre : Application `zot` `Synced/Healthy` ; `dig @10.20.70.1 registry.pad.internal` doit répondre `10.20.60.200` (override Unbound, stack 60) ; règle `m10-chall-registry` (CHALLENGES vers ingress 443) appliquée (`task tofu:apply-stack STACK=60-opnsense-rules`) ; `crane digest --insecure registry.pad.internal/mirror/ghcr.io/siderolabs/kubelet:v1.34.1` depuis un poste staff ; journaux `kubectl -n registry logs sts/zot \| grep -i sync` (`filtered out by content` : dépôt absent de la liste blanche `content` de `gitops/platform/zot/values.yaml`). Le nœud réessaie seul, rien à relancer. [Zot, miroir pull-through](composants/zot.md#miroir-pull-through-zone-challenges) |
+| Nœuds `uninitialized` ; journaux du CCM ou du CSI : `read: connection reset` vers `10.20.10.2:8006` | pveproxy refuse la source (`ALLOW_FROM` de `/etc/default/pveproxy`) : y ajouter `10.20.60.0/24,10.20.10.0/24`, puis `systemctl restart pveproxy` (§2.5) |
 | `tofu` : `Error acquiring the state` ou illisible | `TF_VAR_state_passphrase` différent de celui du state ; ne jamais en changer sans détruire |
 | `tofu` : authentification Proxmox | jeton (2.2), `proxmox_url`, `proxmox.insecure` ; `task check:0-prereqs` |
 | Depuis le poste, aucune zone ne répond hors mgmt (SYN sans SYN-ACK) alors que l'hôte les joint | table `inet pad_raw` absente de l'hôte (`sudo nft list table inet pad_raw`) : `task ansible:host -- --tags host_bridge_notrack` |
