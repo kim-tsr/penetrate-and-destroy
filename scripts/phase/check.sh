@@ -297,7 +297,13 @@ c_0_prereqs() {
 # pivot, CSI, CCM) la joint depuis la zone PROD, et la zone mgmt sert à OpenTofu/OPNsense. Sans elles : « connection reset ».
 check_pveproxy_allow() {
   local allow need miss=() c
-  allow=$(host_ssh "grep -E '^ALLOW_FROM=' /etc/default/pveproxy 2>/dev/null" 2>/dev/null | cut -d'"' -f2)
+  # Marqueur : distingue « pas d'ALLOW_FROM » d'un SSH en échec (sinon faux OK).
+  allow=$(host_ssh "grep -E '^ALLOW_FROM=' /etc/default/pveproxy 2>/dev/null; echo __pad_ok" 2>/dev/null) || allow=""
+  if [[ "$allow" != *__pad_ok* ]]; then
+    warn "pveproxy : ALLOW_FROM non vérifiable (SSH vers l'hôte impossible)" "grep ^ALLOW_FROM /etc/default/pveproxy sur l'hôte"
+    return
+  fi
+  allow=$(grep -E '^ALLOW_FROM=' <<<"$allow" | cut -d'"' -f2)
   if [[ -z "$allow" ]]; then
     pass "pveproxy : aucune restriction ALLOW_FROM"
     return
