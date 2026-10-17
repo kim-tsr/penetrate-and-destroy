@@ -21,7 +21,7 @@ spec:
         releaseName: mariadb-operator
         valueFiles:
           - $values/gitops/platform/mariadb-operator/values.yaml
-    - repoURL: git@github.com:kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
+    - repoURL: ssh://git@ssh.github.com:443/kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
       targetRevision: main # contracts: git.branch
       ref: values
   destination:

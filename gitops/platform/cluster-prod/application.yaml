@@ -25,7 +25,7 @@ metadata:
 spec:
   project: cluster
   source:
-    repoURL: git@github.com:kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
+    repoURL: ssh://git@ssh.github.com:443/kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
     targetRevision: main # contracts: git.branch
     path: gitops/clusters/prod
   destination:

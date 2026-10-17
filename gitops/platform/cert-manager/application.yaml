@@ -29,10 +29,10 @@ spec:
         releaseName: cert-manager-webhook-ovh
         valueFiles:
           - $values/gitops/platform/cert-manager/values-webhook-ovh.yaml
-    - repoURL: git@github.com:kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
+    - repoURL: ssh://git@ssh.github.com:443/kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
       targetRevision: main # contracts: git.branch
       ref: values
-    - repoURL: git@github.com:kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
+    - repoURL: ssh://git@ssh.github.com:443/kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
       targetRevision: main # contracts: git.branch
       path: gitops/platform/cert-manager/resources
   destination:

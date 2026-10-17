@@ -10,7 +10,8 @@ dns_zone: ""                            # zone DNS OVH qui le contient (ex. mond
 internal_domain: pad.internal           # domaine de recherche interne (OPNsense, LXC) ; non publié
 git:
   repo: https://github.com/kim-tsr/penetrate-and-destroy.git
-  ssh: git@github.com:kim-tsr/penetrate-and-destroy.git
+  # SSH sur le port 443 (ssh.github.com) : les zones n'ont d'egress Internet qu'en 80/443. Suivi par ArgoCD (clé de déploiement).
+  ssh: ssh://git@ssh.github.com:443/kim-tsr/penetrate-and-destroy.git
   branch: main
 
 host:

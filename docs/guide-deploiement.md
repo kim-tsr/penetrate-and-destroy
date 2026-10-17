@@ -276,7 +276,7 @@ Il y a **deux familles** de valeurs propres à votre installation, qui ne vont p
 task site:set -- --show                         # valeurs courantes
 task site:set -- node=pve2 datastore_vm=vmdata datastore_iso=local datastore_vm_type=zfspool
 task site:set -- domain=ctf.example.org acme_email=ops@ctf.example.org
-task site:set -- git_repo=https://github.com/<vous>/<fork>.git git_ssh=git@github.com:<vous>/<fork>.git
+task site:set -- git_repo=https://github.com/<vous>/<fork>.git git_ssh=ssh://git@ssh.github.com:443/<vous>/<fork>.git
 ```
 
 | Clé | Remplace | Dans le contrat |
@@ -619,6 +619,7 @@ Avant d'ouvrir l'événement aux joueurs :
 | Worker `challenges` créé mais absent de `kubectl get nodes` ; `talosctl -n <IP> service kubelet` : `Waiting for time sync` | pas d'NTP Internet en zone CHALLENGES : règle `m10-chall-ntp` (stack 60) et `machine.time.servers` du modèle Talos `pad-prod-challenges-v2` ; sur un nœud déjà créé : `talosctl -n <IP> patch mc -p '[{"op":"add","path":"/machine/time","value":{"servers":["10.20.70.1"]}}]'` |
 | Nœud `challenges` absent ou `NotReady`, pods `ImagePullBackOff` / `ErrImagePull` sur ce nœud (Cilium, CSI, Alloy, node-exporter), `talosctl -n <IP> logs kubelet` ou `talosctl -n <IP> dmesg` : échec de pull de `ghcr.io/siderolabs/kubelet` | la zone CHALLENGES n'a **aucun egress Internet** : toutes ses images passent par le miroir Zot (`registry.pad.internal/mirror/<registre>/`), disponible seulement après la phase 10. Vérifier dans l'ordre : Application `zot` `Synced/Healthy` ; `dig @10.20.70.1 registry.pad.internal` doit répondre `10.20.60.200` (override Unbound, stack 60) ; règle `m10-chall-registry` (CHALLENGES vers ingress 443) appliquée (`task tofu:apply-stack STACK=60-opnsense-rules`) ; `crane digest --insecure registry.pad.internal/mirror/ghcr.io/siderolabs/kubelet:v1.34.1` depuis un poste staff ; journaux `kubectl -n registry logs sts/zot \| grep -i sync` (`filtered out by content` : dépôt absent de la liste blanche `content` de `gitops/platform/zot/values.yaml`). Le nœud réessaie seul, rien à relancer. [Zot, miroir pull-through](composants/zot.md#miroir-pull-through-zone-challenges) |
 | Nœuds `uninitialized` ; journaux du CCM ou du CSI : `read: connection reset` vers `10.20.10.2:8006` | pveproxy refuse la source (`ALLOW_FROM` de `/etc/default/pveproxy`) : y ajouter `10.20.60.0/24,10.20.10.0/24`, puis `systemctl restart pveproxy` (§2.5) |
+| Application `root` en `Unknown` : `authentication required: Repository not found` ou `context deadline exceeded` | ArgoCD lit le dépôt avec la clé de déploiement, donc en SSH (`git.ssh`), et les zones n'ont d'egress qu'en 80/443 : `git_ssh` doit être `ssh://git@ssh.github.com:443/<vous>/<fork>.git` (`task site:set`), puis commit, push et `task phase:10-gitops` |
 | `tofu` : `Error acquiring the state` ou illisible | `TF_VAR_state_passphrase` différent de celui du state ; ne jamais en changer sans détruire |
 | `tofu` : authentification Proxmox | jeton (2.2), `proxmox_url`, `proxmox.insecure` ; `task check:0-prereqs` |
 | Depuis le poste, aucune zone ne répond hors mgmt (SYN sans SYN-ACK) alors que l'hôte les joint | table `inet pad_raw` absente de l'hôte (`sudo nft list table inet pad_raw`) : `task ansible:host -- --tags host_bridge_notrack` |

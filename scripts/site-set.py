@@ -44,7 +44,7 @@ UPSTREAM_DEFAULTS = {
     "domain": "CHANGEME.example.net",
     "acme_email": "CHANGEME@CHANGEME.example.net",
     "git_repo": "https://github.com/kim-tsr/penetrate-and-destroy.git",
-    "git_ssh": "git@github.com:kim-tsr/penetrate-and-destroy.git",
+    "git_ssh": "ssh://git@ssh.github.com:443/kim-tsr/penetrate-and-destroy.git",
 }
 
 
