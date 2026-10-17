@@ -45,8 +45,9 @@ kprod -n "$ARGO_NS" create secret generic repo-pad \
 # 4. Application root (app-of-apps).
 log "Application root"
 kprod apply -f "$ROOT_APP"
-root_name=$(yq -e '.metadata.name' "$ROOT_APP")
-root_ns=$(yq -e '.metadata.namespace // "argocd"' "$ROOT_APP")
+# root.yaml est multi-documents (AppProjects, ApplicationSet) : ne retenir que l'Application.
+root_name=$(yq -e 'select(.kind == "Application") | .metadata.name' "$ROOT_APP")
+root_ns=$(yq -e 'select(.kind == "Application") | .metadata.namespace // "argocd"' "$ROOT_APP")
 
 root_synced() { [[ "$(kprod -n "$root_ns" get application "$root_name" -o jsonpath='{.status.sync.status}')" == "Synced" ]]; }
 wait_for 900 "Application ${root_name} Synced" root_synced

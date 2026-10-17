@@ -23,7 +23,7 @@ spec:
         releaseName: prometheus-crds
         valueFiles:
           - $values/gitops/platform/prometheus-crds/values.yaml
-    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+    - repoURL: git@github.com:kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
       targetRevision: main # contracts: git.branch
       ref: values
   destination:

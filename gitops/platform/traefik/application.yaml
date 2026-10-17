@@ -20,10 +20,10 @@ spec:
         releaseName: traefik
         valueFiles:
           - $values/gitops/platform/traefik/values.yaml
-    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+    - repoURL: git@github.com:kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
       targetRevision: main # contracts: git.branch
       ref: values
-    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+    - repoURL: git@github.com:kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
       targetRevision: main # contracts: git.branch
       path: gitops/platform/traefik/resources
   destination:

@@ -23,10 +23,10 @@ spec:
         releaseName: garage
         valueFiles:
           - $values/gitops/platform/garage/values.yaml
-    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+    - repoURL: git@github.com:kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
       targetRevision: main # contracts: git.branch
       ref: values
-    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+    - repoURL: git@github.com:kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
       targetRevision: main # contracts: git.branch
       path: gitops/platform/garage/manifests
   destination:

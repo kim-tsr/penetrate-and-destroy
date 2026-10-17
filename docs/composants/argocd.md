@@ -26,7 +26,7 @@ Chart `argo-cd` 10.10.5 dans `gitops/platform/argocd/application.yaml` ; init co
 
 ## Interactions avec les autres briques
 
-- Lit le dépôt Git (clé de déploiement) et déchiffre via [ksops](sops-age-ksops.md).
+- Lit le dépôt Git par SSH (`git.ssh` du contrat, clé de déploiement ; un `repoURL` HTTPS ne correspondrait pas au Secret `repo-pad` : « authentication required ») et déchiffre via [ksops](sops-age-ksops.md).
 - Authentifie par [Authentik](authentik.md) (client `pad-argocd`, **seul** le groupe `infra-admins` est admin ; `ctf-admins`, qui n'administre qu'un événement, n'a aucun accès).
 - Applique tous les composants : [Cilium](cilium-hubble.md), [Kyverno](kyverno.md), [cert-manager](cert-manager.md), les [applications CTF](ctfd.md)...
 

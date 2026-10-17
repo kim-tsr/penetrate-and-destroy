@@ -30,10 +30,10 @@ spec:
         releaseName: cilium
         valueFiles:
           - $values/gitops/platform/cilium/values.yaml
-    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+    - repoURL: git@github.com:kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
       targetRevision: main # contracts: git.branch
       ref: values
-    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+    - repoURL: git@github.com:kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
       targetRevision: main # contracts: git.branch
       path: gitops/platform/cilium/resources
   destination:

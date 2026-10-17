@@ -21,10 +21,10 @@ spec:
         releaseName: zot
         valueFiles:
           - $values/gitops/platform/zot/values.yaml
-    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+    - repoURL: git@github.com:kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
       targetRevision: main # contracts: git.branch
       ref: values
-    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+    - repoURL: git@github.com:kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
       targetRevision: main # contracts: git.branch
       path: gitops/platform/zot/resources # PodMonitor (un seul scrape par pod)
   destination:

@@ -14,7 +14,7 @@ metadata:
 spec:
   description: Socle de la plateforme (CNI, cert-manager, ingress, ArgoCD, opérateurs, observabilité)
   sourceRepos:
-    - https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+    - git@github.com:kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
     # Registres de charts Helm autorisés (à compléter à chaque nouveau chart du socle).
     - https://helm.cilium.io
     - https://charts.jetstack.io
@@ -66,7 +66,7 @@ metadata:
 spec:
   description: Applications CTF (ctfd, frontend, chall-manager, netbird-sync)
   sourceRepos:
-    - https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+    - git@github.com:kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
   destinations:
     - { server: https://kubernetes.default.svc, namespace: ctfd } # contracts: namespaces.ctfd
     - { server: https://kubernetes.default.svc, namespace: frontend } # contracts: namespaces.frontend
@@ -98,7 +98,7 @@ metadata:
 spec:
   description: Objets Cluster API du cluster pad-prod (auto-hébergé)
   sourceRepos:
-    - https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+    - git@github.com:kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
   destinations:
     - { server: https://kubernetes.default.svc, namespace: pad-cluster } # contracts: kubernetes.capi_namespace
   clusterResourceWhitelist:
@@ -116,7 +116,7 @@ metadata:
 spec:
   project: platform
   source:
-    repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+    repoURL: git@github.com:kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
     targetRevision: main # contracts: git.branch
     path: gitops/platform
   destination:
@@ -146,7 +146,7 @@ spec:
   goTemplateOptions: ["missingkey=error"]
   generators:
     - git:
-        repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+        repoURL: git@github.com:kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
         revision: main # contracts: git.branch
         directories:
           - path: gitops/apps/*
@@ -160,7 +160,7 @@ spec:
     spec:
       project: apps
       source:
-        repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+        repoURL: git@github.com:kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
         targetRevision: main # contracts: git.branch
         path: "{{ .path.path }}"
       destination:

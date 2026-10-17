@@ -24,10 +24,10 @@ spec:
         releaseName: proxmox-ccm
         valueFiles:
           - $values/gitops/platform/proxmox-ccm/values.yaml
-    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+    - repoURL: git@github.com:kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
       targetRevision: main # contracts: git.branch
       ref: values
-    - repoURL: https://github.com/kim-tsr/penetrate-and-destroy.git # contracts: git.repo
+    - repoURL: git@github.com:kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
       targetRevision: main # contracts: git.branch
       path: gitops/platform/proxmox-ccm/resources # PodMonitor (métriques du contrôleur)
   destination:

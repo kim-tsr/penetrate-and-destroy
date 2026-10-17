@@ -257,7 +257,7 @@ c_0_prereqs() {
   local origin
   origin=$(git -C "$ROOT_DIR" remote get-url origin 2>/dev/null || echo "")
   if [[ -n "$origin" && "$origin" != "$(c '.git.repo')" && "$origin" != "$(c '.git.ssh')" ]]; then
-    warn "git.repo du contrat diffère de 'origin' : ArgoCD suivra git.repo, pas origin" "aligner infra/contracts.yaml (git.repo, git.ssh) et les manifests marqués '# contracts: git.repo'"
+    warn "git.repo du contrat diffère de 'origin' : ArgoCD suivra git.ssh, pas origin" "aligner infra/contracts.yaml (git.repo, git.ssh) et les manifests marqués '# contracts: git.ssh'"
   fi
 
   section "Secrets"

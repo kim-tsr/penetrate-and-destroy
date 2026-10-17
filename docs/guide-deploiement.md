@@ -286,7 +286,7 @@ task site:set -- git_repo=https://github.com/<vous>/<fork>.git git_ssh=git@githu
 | `datastore_iso` | stockage des ISO, templates, images | `host.datastore_iso` |
 | `domain` | domaine public racine (et `netbird.api_url`, `acme.email` s'ils le suivaient) | `domain` |
 | `acme_email` | contact Let's Encrypt | `acme.email` |
-| `git_repo`, `git_ssh` | dépôt suivi par ArgoCD | `git.repo`, `git.ssh` |
+| `git_repo`, `git_ssh` | dépôt : URL HTTPS (identité des images signées, liens de runbooks) et URL SSH, celle que suit ArgoCD avec la clé de déploiement | `git.repo`, `git.ssh` |
 | `dns_zone` | zone OVH qui contient `domain` quand la plateforme vit sur un sous-domaine (ex. `domain=lab.example.net dns_zone=example.net` : `ctf.lab.example.net`... ; le jeton OVH porte sur cette zone) ; vide = `domain` est la zone | `dns_zone` |
 | `zones_bridge`, `transit_bridge` | noms des ponts créés en phase 1 (`vmbr2`, `vmbr1` par défaut) ; à changer si l'hôte les utilise déjà (`ip -br link`) | `host.zones_bridge`, `host.transit_bridge` |
 | `wan_mode` | `routed_ip` (IP supplémentaire routée vers OPNsense) ou `nat` (IP de l'hôte, ports redirigés) | `wan.mode` |
