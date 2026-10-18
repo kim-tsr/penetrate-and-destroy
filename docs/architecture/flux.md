@@ -9,6 +9,7 @@ déclarés dans la stack OpenTofu `60-opnsense-rules`, à partir des ports du co
 | Réf. | Source | Destination | Ports | Pourquoi |
 |---|---|---|---|---|
 | M0 | hôte Proxmox (IP mgmt `10.20.10.2`) | toutes les zones | 22, 443, 6443, 50000 | le rebond SSH d'Ansible vers les LXC passe par l'hôte, et le trafic du poste opérateur vers `10.20.0.0/16` arrive par la route annoncée du VPN maillé, traduit (SNAT) vers l'IP mgmt de l'hôte ; sans M0, le blocage par défaut refuse SSH hôte vers LXC (phase 4 en échec « SSH injoignable ») |
+| M0 | hôte Proxmox (IP mgmt) | LXC warpgate | 8888, 2222 | UI d'administration de Warpgate (jeton d'API créé avant la phase 11, quand NetBird ne route pas encore le staff) et API appelée par la stack tofu `50-warpgate` depuis le poste opérateur (règle `m0-host-warpgate`) |
 | M1 | Internet | `edge` (DMZ), `netbird` (DMZ) | 443/tcp, 80/tcp ; 3478/udp et plage TURN | seule exposition publique |
 | M2 | `edge` | ingress du cluster (`10.20.60.200`) | 80, 443 | proxy vers le front et CTFd |
 | M3 | `edge` | `authentik` (IDENTITY) | 443 | proxy vers l'IdP |
