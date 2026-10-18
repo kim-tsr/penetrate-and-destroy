@@ -254,7 +254,7 @@ flowchart LR
     KEDA -->|2 à 4 replicas| APP[front, CTFd]
     APP -->|pods Pending| CA[cluster-autoscaler]
     INST[instances en attente] -->|pods Pending| CA
-    CA -->|1 à 3 nœuds| MD[MachineDeployment challenges]
+    CA -->|1 à 2 nœuds| MD[MachineDeployment challenges]
     MD --> CAPI[Cluster API + CAPMOX]
     CAPI -->|clone le template Talos| NODE[nouvelle VM worker]
     Q[quotas, cooldown, TTL] -.->|bornent la demande| INST
@@ -262,7 +262,7 @@ flowchart LR
 
 1. **Pods : [KEDA](composants/keda.md).** Un `ScaledObject` par Deployment, deux déclencheurs : le CPU (70 %) et une métrique métier lue dans VictoriaMetrics (`ctfd_active_users`, `pad_frontend_active_sessions`).
    Agrégation par `max()` (jamais `sum()`), car les gauges sont identiques sur chaque pod.
-2. **Nœuds : [cluster-autoscaler](composants/cluster-autoscaler.md).** Quand des pods d'instance restent `Pending`, il augmente le `MachineDeployment` du pool `challenges` (1 à 3 nœuds). [CAPMOX](composants/capmox.md) clone le template
+2. **Nœuds : [cluster-autoscaler](composants/cluster-autoscaler.md).** Quand des pods d'instance restent `Pending`, il augmente le `MachineDeployment` du pool `challenges` (1 à 2 nœuds). [CAPMOX](composants/capmox.md) clone le template
    [Talos](composants/talos.md), [IPAM](composants/ipam-in-cluster.md) donne l'IP statique, [CABPT](composants/cabpt-cacppt.md) fournit la configuration. Le nœud rejoint le cluster, ses pods démarrent, et il est retiré quand il se vide.
 3. **Instances : quotas et TTL.** 3 instances par équipe, 30 s entre deux créations, TTL borné, nettoyage par le janitor chaque minute.
 

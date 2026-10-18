@@ -30,7 +30,7 @@ dépôt, les valeurs à fournir valent `CHANGEME`.
 | `flow_ports` | ports de la matrice de flux (SSH, API Kubernetes, Talos, monitoring...) | `kube_api: 6443` |
 | `router` | VM OPNsense : vmid, version, ressources | `vmid: 200` |
 | `services` | LXC : vmid, zone, IP, ressources | `edge: 210, 10.20.20.10` |
-| `kubernetes` | version de Talos et Kubernetes, VIP, control plane, pools, CIDR pods/services, pools Cilium, versions des providers CAPI, image de `kind` | pool `challenges` min 1, max 3 |
+| `kubernetes` | version de Talos et Kubernetes, VIP, control plane, pools, CIDR pods/services, pools Cilium, versions des providers CAPI, image de `kind` | pool `challenges` min 1, max 2 |
 | `acme` | e-mail ACME, endpoint OVH, groupe du webhook | |
 | `hostnames` | sous-domaines de `domain` : `front` (`ctf`), `auth`, `vpn`, `bastion`, `grafana`, `argocd`, `ctfd_admin`, `registry`, `status`... | `ctf.example.net` |
 | `identity` | fournisseur, groupes, `client_id` OIDC par application | `ctf-players`, `pad-frontend` |

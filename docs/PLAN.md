@@ -50,7 +50,7 @@ Décisions validées par l'utilisateur :
 | authentik (avec PostgreSQL ; plus de Redis depuis 2025.10) | LXC | 2 | 1,5 Go |
 | monitoring (VictoriaMetrics, Loki, Tempo, Grafana, Alertmanager, Uptime Kuma) | LXC | 2 | 3 Go |
 | Talos, control plane | VM ×1 | 2 | 4 Go |
-| Talos, workers `platform` | VM ×2 | 2 | 5 Go chacun |
+| Talos, workers `platform` | VM ×2 | 2 | 4,5 Go chacun |
 | Talos, workers `challenges` | VM, autoscalés de 1 à 3 | 2 | 2,5 Go chacun |
 
 Le total va d'environ 17 Go (minimum) à 22 Go (maximum). Une tâche Ansible sur l'hôte limite l'ARC ZFS à 4 Go. Les bornes min et max de l'autoscaler sont des variables, et la doc explique comment les ajuster selon les ressources de l'hôte.

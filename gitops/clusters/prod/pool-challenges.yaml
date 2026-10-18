@@ -141,7 +141,7 @@ metadata:
     pad.io/bootstrap: gitops # créé par ArgoCD après la phase 10 (voir en tête de fichier)
     # contracts: kubernetes.pools.challenges.min / max
     cluster.x-k8s.io/cluster-api-autoscaler-node-group-min-size: "1"
-    cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size: "3"
+    cluster.x-k8s.io/cluster-api-autoscaler-node-group-max-size: "2"
     # Gabarit pour la simulation (utile si min passe à 0) : ressources + taint du pool.
     capacity.cluster-autoscaler.kubernetes.io/cpu: "2"
     capacity.cluster-autoscaler.kubernetes.io/memory: "2560Mi"
@@ -150,6 +150,12 @@ metadata:
     capacity.cluster-autoscaler.kubernetes.io/taints: "pad.io/pool=challenges:NoSchedule"
 spec:
   clusterName: pad-prod
+  # Jamais de VM temporaire en plus : remplacer un nœud = le supprimer puis le recréer. Avec une surge, le rolling update
+  # ajoutait un worker complet au budget et a épuisé la RAM de l'hôte (OOM, hôte figé).
+  rollout:
+    strategy:
+      type: RollingUpdate
+      rollingUpdate: { maxSurge: 0, maxUnavailable: 1 }
   selector:
     matchLabels:
       cluster.x-k8s.io/cluster-name: pad-prod

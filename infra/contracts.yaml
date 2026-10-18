@@ -22,7 +22,7 @@ host:
   datastore_vm: local-zfs               # stockage des disques de VM/LXC ; autre nom : task site:set -- datastore_vm=<nom>
   datastore_vm_type: zfspool            # zfspool | lvmthin | lvm | dir : type de ce stockage (task site:set -- datastore_vm_type=...)
   datastore_iso: local
-  zfs_arc_max_bytes: 4294967296         # 4 GiB
+  zfs_arc_max_bytes: 2147483648         # 2 GiB : à 4 GiB, le budget des invités + l'ARC dépassait la RAM de l'hôte (OOM)
   mgmt_ip: 10.20.10.2                   # IP de l'hôte sur vmbr2.10 (API Proxmox pour CAPMOX/CSI, accès tofu -> OPNsense)
                                         # route retour 10.20.0.0/16 via zones.mgmt.gw à poser sur l'hôte (ansible host-tuning)
 
@@ -89,8 +89,8 @@ kubernetes:
   vmid_range: [300, 399]
   control_plane: { replicas: 1, cores: 2, memory_mb: 4096, disk_gb: 20, ip_pool: [10.20.60.10, 10.20.60.14] }
   pools:
-    platform:   { zone: prod,       replicas: 2, cores: 2, memory_mb: 5120, disk_gb: 40, ip_pool: [10.20.60.20, 10.20.60.39] }
-    challenges: { zone: challenges, min: 1, max: 3, cores: 2, memory_mb: 2560, disk_gb: 30, ip_pool: [10.20.70.20, 10.20.70.39],
+    platform:   { zone: prod,       replicas: 2, cores: 2, memory_mb: 4608, disk_gb: 40, ip_pool: [10.20.60.20, 10.20.60.39] }
+    challenges: { zone: challenges, min: 1, max: 2, cores: 2, memory_mb: 2560, disk_gb: 30, ip_pool: [10.20.70.20, 10.20.70.39],
                   taint: "pad.io/pool=challenges:NoSchedule" }
   pod_cidr: 10.244.0.0/16
   service_cidr: 10.96.0.0/12

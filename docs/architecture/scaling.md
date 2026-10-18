@@ -51,15 +51,21 @@ CHALLENGES si besoin, et vérifier le budget :
 |---|---|---|
 | OPNsense | 2 | 1,5 Go |
 | edge / netbird / warpgate | 1 / 1 / 1 | 512 Mo / 1 Go / 512 Mo |
+| authentik / monitoring / nbrouter | 2 / 2 / 1 | 1,5 Go / 3 Go / 512 Mo |
+| Talos control plane | 2 | 4 Go (kube-apiserver dépasse 1,2 Go une fois les CRD de la plateforme installées : 2,5 Go saturait le nœud) |
+| Talos workers `platform` (x2) | 2 chacun | 4,5 Go chacun (à 3,5 Go, les requests de la plateforme dépassaient la capacité : Zot, Garage, Valkey restaient Pending) |
+| Talos workers `challenges` (1 à 2) | 2 chacun | 2,5 Go chacun |
+| ARC ZFS (plafond) | | 2 Go |
+| Réserve de l'hôte (Proxmox, noyau) | | 2 Go |
 
 > 256 Mo ne suffisent pas aux LXC warpgate et nbrouter : agent NetBird + Alloy + `apt-get` y déclenchent l'OOM killer du
 > cgroup (`dmesg` : `oom_memcg=/lxc/<vmid>`, tâche Ansible en `rc: -9`). Minimum : 512 Mo.
-| authentik / monitoring | 2 / 2 | 1,5 Go / 3 Go |
-| Talos control plane | 2 | 4 Go (kube-apiserver dépasse 1,2 Go une fois les CRD de la plateforme installées : 2,5 Go saturait le nœud) |
-| Talos workers `platform` (x2) | 2 chacun | 5 Go chacun (à 3,5 Go, les requests de la plateforme dépassaient la capacité : Zot, Garage, Valkey restaient Pending) |
-| Talos workers `challenges` (1 à 3) | 2 chacun | 2,5 Go chacun |
 
-Le total va d'environ 17 Go à 22 Go, pour un budget cible d'environ 26 Go (l'ARC ZFS est limité à 4 Go).
+**Pic** (pool `challenges` à son maximum) : environ 30,5 Go, pour un hôte de 32 Go. `task check:0-prereqs` le calcule
+depuis le contrat et **échoue** s'il dépasse la RAM de l'hôte. Les pools sont remplacés sans surge (`maxSurge: 0`) :
+un rolling update n'ajoute jamais de VM au budget. Dépasser la RAM n'échoue pas proprement : l'hôte entre en
+récupération mémoire (ZFS + invités), se fige (`rcu_preempt detected stalls`) et ne se récupère que par un redémarrage
+matériel (cas vécu avec l'ARC à 4 Go, des workers à 5 Go et une surge de rolling update).
 
 ## Instances
 

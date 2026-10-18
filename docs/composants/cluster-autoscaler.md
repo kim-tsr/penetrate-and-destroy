@@ -4,7 +4,7 @@
 
 ## À quoi elle sert ici et pourquoi ce choix
 
-Quand des instances de challenges ne tiennent plus sur les workers existants, l'autoscaler augmente le `MachineDeployment` `challenges` (1 à 3 nœuds) ; il le réduit
+Quand des instances de challenges ne tiennent plus sur les workers existants, l'autoscaler augmente le `MachineDeployment` `challenges` (1 à 2 nœuds) ; il le réduit
 quand les nœuds se vident. Il utilise le provider `clusterapi`. Décision : [ADR 6](../adr/006-autoscaling-noeuds.md) ; vue d'ensemble : [Scaling](../architecture/scaling.md).
 
 ## Où elle tourne et comment elle est déployée
@@ -18,7 +18,7 @@ Chart `cluster-autoscaler` 9.53.0 dans `gitops/platform/cluster-autoscaler/appli
 ## Fichiers de configuration dans le dépôt
 
 - `gitops/platform/cluster-autoscaler/values.yaml` (expander `least-waste`, `scale-down-unneeded-time: 5m`, seuil d'utilisation 0.5).
-- `gitops/clusters/prod/pool-challenges.yaml` : annotations `cluster-api-autoscaler-node-group-min-size: "1"` / `max-size: "3"` et capacités déclarées (2 CPU, 2560 Mi).
+- `gitops/clusters/prod/pool-challenges.yaml` : annotations `cluster-api-autoscaler-node-group-min-size: "1"` / `max-size: "2"` et capacités déclarées (2 CPU, 2560 Mi).
 
 ## Interactions avec les autres briques
 
@@ -43,7 +43,7 @@ kubectl -n pad-cluster get machinedeployment
 
 - Seul le pool `challenges` est autoscalé ; `platform` reste à 2 replicas.
 - Le pool `challenges` porte un taint : les pods d'instance doivent le tolérer.
-- Le plafond est à 3 nœuds (RAM de l'hôte) : au-delà, les instances restent `Pending`.
+- Le plafond est à 2 nœuds (RAM de l'hôte, voir le budget de `task check:0-prereqs`) : au-delà, les instances restent `Pending`.
 
 ## Documentation officielle
 

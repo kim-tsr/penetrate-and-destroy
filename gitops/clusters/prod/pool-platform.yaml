@@ -4,7 +4,7 @@ apiVersion: infrastructure.cluster.x-k8s.io/v1alpha2
 kind: ProxmoxMachineTemplate
 metadata:
   # Immuable : tout changement de taille passe par un nouveau nom (-vN), déployé en rolling update par la MachineDeployment.
-  name: pad-prod-platform-v2
+  name: pad-prod-platform-v3
 spec:
   template:
     spec:
@@ -16,7 +16,7 @@ spec:
       vmIDRange: { start: 300, end: 399 } # contracts: kubernetes.vmid_range
       numSockets: 1
       numCores: 2 # contracts: kubernetes.pools.platform.cores
-      memoryMiB: 5120 # contracts: kubernetes.pools.platform.memory_mb
+      memoryMiB: 4608 # contracts: kubernetes.pools.platform.memory_mb
       disks:
         bootVolume: { disk: scsi0, sizeGb: 40 } # contracts: kubernetes.pools.platform.disk_gb
       tags: [pad, talos, pad-prod, platform]
@@ -40,7 +40,7 @@ apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
 kind: TalosConfigTemplate
 metadata:
   # Immuable : tout changement passe par un nouveau nom (-vN), déployé en rolling update par la MachineDeployment.
-  name: pad-prod-platform-v2
+  name: pad-prod-platform-v3
 spec:
   template:
     spec:
@@ -71,6 +71,12 @@ metadata:
 spec:
   clusterName: pad-prod
   replicas: 2 # contracts: kubernetes.pools.platform.replicas
+  # Jamais de VM temporaire en plus : remplacer un nœud = le supprimer puis le recréer. Avec une surge, le rolling update
+  # ajoutait un worker complet au budget et a épuisé la RAM de l'hôte (OOM, hôte figé).
+  rollout:
+    strategy:
+      type: RollingUpdate
+      rollingUpdate: { maxSurge: 0, maxUnavailable: 1 }
   selector:
     matchLabels:
       cluster.x-k8s.io/cluster-name: pad-prod
@@ -87,8 +93,8 @@ spec:
         configRef:
           apiGroup: bootstrap.cluster.x-k8s.io
           kind: TalosConfigTemplate
-          name: pad-prod-platform-v2
+          name: pad-prod-platform-v3
       infrastructureRef:
         apiGroup: infrastructure.cluster.x-k8s.io
         kind: ProxmoxMachineTemplate
-        name: pad-prod-platform-v2
+        name: pad-prod-platform-v3

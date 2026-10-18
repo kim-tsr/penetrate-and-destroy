@@ -385,14 +385,18 @@ check_storage() {
     [[ ",${content}," == *",import,"* ]] && pass "stockage ${dsi} : contenu import présent" \
       || warn "stockage ${dsi} : contenu import absent (actuel : ${content})" "posé par la phase 1 (rôle host-tuning, tag host_iso_import : task ansible:host)"
   fi
-  local mem need
+  # Budget au PIC : pool challenges à son maximum (autoscaler), ARC ZFS plafonné et réserve de l'hôte. Le dépasser ne
+  # donne pas une erreur propre : l'hôte se fige en récupération mémoire et ne revient que par un redémarrage matériel.
+  local mem need peak reserve=2048
   mem=$(pve_get "/nodes/$(node)/status" 2>/dev/null | jq -r '.data.memory.total // 0')
-  need=$(yq '.router.memory_mb, .services[].memory_mb, .kubernetes.control_plane.memory_mb, .kubernetes.pools.platform.memory_mb * .kubernetes.pools.platform.replicas, .kubernetes.pools.challenges.memory_mb * .kubernetes.pools.challenges.min' "$CONTRACTS" | awk '{s+=$1} END {print s+0}')
+  need=$(yq '.router.memory_mb, .services[].memory_mb, .kubernetes.control_plane.memory_mb, .kubernetes.pools.platform.memory_mb * .kubernetes.pools.platform.replicas, .kubernetes.pools.challenges.memory_mb * .kubernetes.pools.challenges.max' "$CONTRACTS" | awk '{s+=$1} END {print s+0}')
+  peak=$((need + $(c '.host.zfs_arc_max_bytes') / 1048576 + reserve))
   if ((mem > 0)); then
-    if ((mem / 1048576 < need + $(c '.host.zfs_arc_max_bytes') / 1048576)); then
-      warn "RAM de l'hôte $((mem / 1073741824)) Gio, minimum de la plateforme ≈ $(((need + 4096) / 1024)) Gio (invités + ARC)" "réduire replicas/memory_mb dans infra/contracts.yaml"
+    if ((mem / 1048576 < peak)); then
+      fail "RAM de l'hôte $((mem / 1048576)) Mio < pic de la plateforme ${peak} Mio (invités ${need}, pool challenges au maximum, + ARC + ${reserve} Mio de réserve)" \
+        "réduire memory_mb, replicas, pools.challenges.max ou host.zfs_arc_max_bytes dans infra/contracts.yaml"
     else
-      pass "RAM de l'hôte suffisante pour le minimum de la plateforme (≈ $((need / 1024)) Gio d'invités)"
+      pass "RAM de l'hôte $((mem / 1048576)) Mio ≥ pic de la plateforme ${peak} Mio (marge $((mem / 1048576 - peak)) Mio)"
     fi
   fi
 }

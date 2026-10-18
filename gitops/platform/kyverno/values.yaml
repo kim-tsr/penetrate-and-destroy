@@ -1,4 +1,4 @@
-# kyverno chart 3.9.1 (app v1.19.1). Budget RAM serré : platform pool uniquement (2 workers de 5 Go).
+# kyverno chart 3.9.1 (app v1.19.1). Budget RAM serré : platform pool uniquement (2 workers de 4,5 Go).
 # Le webhook d'admission est fail-closed (failurePolicy Fail) sur les namespaces ciblés par les politiques : une panne
 # du contrôleur d'admission bloque la création de pods. Le contrôleur d'admission tourne donc en 2 réplicas, un par worker
 # (anti-affinité préférée sur le nom d'hôte), avec un PodDisruptionBudget minAvailable 1 : un drain ou la perte d'un worker

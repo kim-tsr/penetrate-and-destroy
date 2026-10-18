@@ -28,7 +28,7 @@ Aucune version n'est épinglée par le dépôt (l'hôte est un prérequis : Prox
 |---|---|---|
 | nom du nœud | `pve` | `infra/contracts.yaml` (`host.node`) |
 | datastore des VM | `local-zfs` | `infra/contracts.yaml` (`host.datastore_vm`) |
-| ARC ZFS plafonné | 4 GiB | `infra/contracts.yaml` (`host.zfs_arc_max_bytes`) |
+| ARC ZFS plafonné | 2 GiB | `infra/contracts.yaml` (`host.zfs_arc_max_bytes`) |
 | plage de VMID du cluster | 300 à 399 | `infra/contracts.yaml` (`kubernetes.vmid_range`) |
 
 ## Fichiers de configuration dans le dépôt
