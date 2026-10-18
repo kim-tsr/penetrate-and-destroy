@@ -118,22 +118,55 @@ def gitops_files():
             yield p
 
 
+def sops_files():
+    # Secrets chiffrés de gitops/ : leurs lignes marquées (ex. region du CSI) suivent aussi le contrat. Sinon un
+    # `site:set node=...` laisse l'ancienne valeur dans le Secret (cas vécu : region du CSI/CCM != StorageClass).
+    for p in sorted((ROOT / "gitops").rglob("*.sops.yaml")):
+        if "node_modules" not in p.parts:
+            yield p
+
+
+def sops_rewrite(p, fn):
+    """Déchiffre p en mémoire, applique fn(texte) -> texte, rechiffre seulement si le clair a changé."""
+    rel = str(p.relative_to(ROOT))
+    dec = subprocess.run(["sops", "--decrypt", rel], cwd=ROOT, capture_output=True, text=True)
+    if dec.returncode != 0:
+        print(f"site-set : {rel} non déchiffrable (clé age ?), ignoré", file=sys.stderr)
+        return False
+    new = fn(dec.stdout)
+    if new == dec.stdout:
+        return False
+    enc = subprocess.run(["sops", "--encrypt", "--filename-override", rel, "--input-type", "yaml",
+                          "--output-type", "yaml", "/dev/stdin"], cwd=ROOT, input=new, capture_output=True, text=True)
+    if enc.returncode != 0:
+        die(f"{rel} : rechiffrement impossible ({enc.stderr.strip()})")
+    p.write_text(enc.stdout)
+    return True
+
+
+def marked_text(text, tag, old, new, mode):
+    out = []
+    for ln in text.splitlines(keepends=True):
+        if tag.search(ln):
+            if mode == "word":
+                ln = re.sub(rf"(?<![\w.@!-]){re.escape(old)}(?![\w.@!-])", new, ln)
+            else:
+                ln = ln.replace(old, new)
+        out.append(ln)
+    return "".join(out)
+
+
 def replace_marked(marker, old, new, mode):
     changed = []
     tag = re.compile(rf"# contracts: .*\b{re.escape(marker)}(?![\w.-])")
     for p in gitops_files():
-        out, touched = [], False
-        for ln in p.read_text().splitlines(keepends=True):
-            if tag.search(ln):
-                if mode == "word":
-                    nl = re.sub(rf"(?<![\w.@!-]){re.escape(old)}(?![\w.@!-])", new, ln)
-                else:
-                    nl = ln.replace(old, new)
-                touched |= nl != ln
-                ln = nl
-            out.append(ln)
-        if touched:
-            p.write_text("".join(out))
+        text = p.read_text()
+        nt = marked_text(text, tag, old, new, mode)
+        if nt != text:
+            p.write_text(nt)
+            changed.append(p)
+    for p in sops_files():
+        if sops_rewrite(p, lambda t: marked_text(t, tag, old, new, mode)):
             changed.append(p)
     return changed
 
@@ -144,6 +177,9 @@ def replace_domain(old, new):
         text = p.read_text()
         if old in text:
             p.write_text(text.replace(old, new))
+            changed.append(p)
+    for p in sops_files():
+        if sops_rewrite(p, lambda t: t.replace(old, new)):
             changed.append(p)
     return changed
 

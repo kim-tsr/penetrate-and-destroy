@@ -28,3 +28,6 @@ Le cloud controller manager (`gitops/platform/proxmox-ccm`) lit le même Secret 
    non chiffrée (voir docs/SECRETS.md).
 
 L'URL de l'API passe par `host.mgmt_ip` (10.20.10.2) : les nodes (VLAN 60) doivent pouvoir joindre le port 8006 (matrice de flux OPNsense).
+
+- La `region` du Secret (chiffré) et celle de la StorageClass doivent être égales (`host.node`) : `task site:set` /
+  `site:sync` réécrivent aussi les lignes marquées des fichiers `*.sops.yaml` (déchiffrés en mémoire, rechiffrés).
