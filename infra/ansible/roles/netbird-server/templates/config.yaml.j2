@@ -24,7 +24,9 @@ server:
 {% if netbird_server_owner_password | length > 0 %}
     owner:
       email: "{{ netbird_server_owner_email }}"
-      password: "{{ netbird_server_owner_password }}"
+      # Le serveur (IdP Dex embarqué) attend un hash bcrypt, pas le mot de passe en clair (sinon « hashedSecret too short »
+      # et aucune connexion possible). Sel dérivé d'un secret stable : même hash à chaque passage (rôle idempotent).
+      password: "{{ netbird_server_owner_password | password_hash('bcrypt', salt=((netbird_server_datastore_key ~ '-netbird-owner') | hash('sha256'))[:22], ident='2b') }}"
 {% endif %}
 
   reverseProxy:

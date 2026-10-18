@@ -61,6 +61,8 @@ task tofu:apply-netbird          # groupes, networks, policies (PAT requis)
 - Le serveur combiné embarque toujours un IdP interne (Dex) : Authentik est ajouté comme connecteur par l'API, pas dans `config.yaml`.
 - Le LXC doit pouvoir joindre `https://<auth>.<domaine>` pour la découverte OIDC.
 - La plage `turn_relay_range` du contrat reste inutilisée sans Coturn.
+- Mot de passe du propriétaire local : `config.yaml` attend un **hash bcrypt** (Dex), produit par le template à partir de
+  `netbird_server_owner_password` ; en clair, toute connexion échoue (« Login error », journal : `hashedSecret too short`).
 
 ## Documentation officielle
 
