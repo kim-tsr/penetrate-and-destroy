@@ -44,3 +44,23 @@ spec:
             dns:
               - matchPattern: "*"
     - toEntities: [kube-apiserver]
+---
+# repo-server : seul composant d'ArgoCD qui sort du cluster (Git en SSH sur 443 = git.ssh, dépôts Helm/OCI en HTTPS).
+# Sans cette règle, default-deny-baseline coupe ArgoCD de Git dès qu'il a appliqué ce fichier, et il ne peut plus se
+# réparer (bootstrap/scripts/gitops.sh applique donc ce fichier AVANT ArgoCD). Internet public uniquement, port 443.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: argocd-repo-server-egress
+  namespace: argocd
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: argocd-repo-server
+  egress:
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10] # privées/CGNAT (= alias net_private d'OPNsense)
+      toPorts:
+        - ports:
+            - { port: "443", protocol: TCP }

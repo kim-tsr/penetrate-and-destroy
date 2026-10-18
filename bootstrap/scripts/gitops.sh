@@ -24,6 +24,13 @@ DEPLOY_KEY_SOPS="${ROOT_DIR}/secrets/github-deploy-key.sops.yaml"
 ROOT_APP="${GITOPS_DIR}/bootstrap/root.yaml"
 [[ -f "$ROOT_APP" ]] || die "manquant : ${ROOT_APP}"
 
+# 0. Namespace argocd et ses CiliumNetworkPolicy (default-deny + egress du repo-server vers Git/Helm) : appliqués avant
+# ArgoCD, sinon l'Application namespaces les pose plus tard sans que l'égress soit garanti, et un ArgoCD coupé de Git
+# ne peut plus se corriger lui-même.
+log "Namespace ${ARGO_NS} et NetworkPolicy (egress Git/Helm du repo-server)"
+kprod apply --server-side --field-manager=argocd-controller --force-conflicts \
+  -f "${GITOPS_DIR}/platform/namespaces/resources/argocd.yaml"
+
 # 1. ArgoCD (version et values lues dans gitops/platform/argocd/).
 helm_from_app argocd argo-cd argocd "$ARGO_NS"
 

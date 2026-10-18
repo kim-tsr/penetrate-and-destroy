@@ -27,6 +27,7 @@ Chart `argo-cd` 10.10.5 dans `gitops/platform/argocd/application.yaml` ; init co
 ## Interactions avec les autres briques
 
 - Lit le dépôt Git par SSH sur le port 443 (`git.ssh` du contrat = `ssh://git@ssh.github.com:443/...`, les zones n'ayant d'egress qu'en 80/443 ; clé de déploiement ; un `repoURL` HTTPS ne correspondrait pas au Secret `repo-pad` : « authentication required ») et déchiffre via [ksops](sops-age-ksops.md).
+- Egress : le namespace `argocd` est en default-deny (`gitops/platform/namespaces/resources/argocd.yaml`) ; seul le repo-server sort, vers l'Internet public en 443 (Git, dépôts Helm/OCI), par la CiliumNetworkPolicy `argocd-repo-server-egress`. Ce fichier est appliqué par le bootstrap **avant** ArgoCD : sans cette règle, ArgoCD se coupe lui-même de Git en appliquant l'Application `namespaces` et ne peut plus se réparer.
 - Authentifie par [Authentik](authentik.md) (client `pad-argocd`, **seul** le groupe `infra-admins` est admin ; `ctf-admins`, qui n'administre qu'un événement, n'a aucun accès).
 - Applique tous les composants : [Cilium](cilium-hubble.md), [Kyverno](kyverno.md), [cert-manager](cert-manager.md), les [applications CTF](ctfd.md)...
 
