@@ -49,7 +49,7 @@ Décisions validées par l'utilisateur :
 | warpgate | LXC | 1 | 512 Mo |
 | authentik (avec PostgreSQL ; plus de Redis depuis 2025.10) | LXC | 2 | 1,5 Go |
 | monitoring (VictoriaMetrics, Loki, Tempo, Grafana, Alertmanager, Uptime Kuma) | LXC | 2 | 3 Go |
-| Talos, control plane | VM ×1 | 2 | 2,5 Go |
+| Talos, control plane | VM ×1 | 2 | 4 Go |
 | Talos, workers `platform` | VM ×2 | 2 | 3,5 Go chacun |
 | Talos, workers `challenges` | VM, autoscalés de 1 à 3 | 2 | 2,5 Go chacun |
 

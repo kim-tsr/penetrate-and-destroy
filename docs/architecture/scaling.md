@@ -55,7 +55,7 @@ CHALLENGES si besoin, et vérifier le budget :
 > 256 Mo ne suffisent pas aux LXC warpgate et nbrouter : agent NetBird + Alloy + `apt-get` y déclenchent l'OOM killer du
 > cgroup (`dmesg` : `oom_memcg=/lxc/<vmid>`, tâche Ansible en `rc: -9`). Minimum : 512 Mo.
 | authentik / monitoring | 2 / 2 | 1,5 Go / 3 Go |
-| Talos control plane | 2 | 2,5 Go |
+| Talos control plane | 2 | 4 Go (kube-apiserver dépasse 1,2 Go une fois les CRD de la plateforme installées : 2,5 Go saturait le nœud) |
 | Talos workers `platform` (x2) | 2 chacun | 3,5 Go chacun |
 | Talos workers `challenges` (1 à 3) | 2 chacun | 2,5 Go chacun |
 
