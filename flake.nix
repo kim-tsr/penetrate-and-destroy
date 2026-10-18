@@ -92,13 +92,13 @@
         };
 
         # talosctl : doit suivre la version de Talos du contrat (kubernetes.talos_version). Empreintes tirées du
-        # fichier sha256sum.txt de la release v1.11.3.
-        talosctlVersion = "1.11.3";
+        # fichier sha256sum.txt de la release v1.11.6.
+        talosctlVersion = "1.11.6";
         talosctlAssets = {
-          x86_64-linux = { os = "linux"; arch = "amd64"; sha256 = "7cd3a0d25a8f2dea343c2815431cc07d3e80bab124e7c3e22738819dc09c1b3f"; };
-          aarch64-linux = { os = "linux"; arch = "arm64"; sha256 = "f9eb22164686929da6071febb0283a0d9c4e45e3b05a4f92788090516245ea2c"; };
-          x86_64-darwin = { os = "darwin"; arch = "amd64"; sha256 = "c85a1558a7225cfa5226747927156b3e3eb719b0bb88293de9d3160a63c117fb"; };
-          aarch64-darwin = { os = "darwin"; arch = "arm64"; sha256 = "1277288b6c334addbe05b5ce8c9daf595b5008bb08baf7a933a7ba1f1ad9a628"; };
+          x86_64-linux = { os = "linux"; arch = "amd64"; sha256 = "a248ef5c5f9cab08013281e6e14d8d8862e7363515e58e2fba8c94ca05c5cf34"; };
+          aarch64-linux = { os = "linux"; arch = "arm64"; sha256 = "39c4e3d1bda2870a2de5a4f30a6f728914d3d27da5bf75380387717d75ed694a"; };
+          x86_64-darwin = { os = "darwin"; arch = "amd64"; sha256 = "cf2fb9d1fbd42a09386de19d6dbb766e0a532209b001dfe2ac5e7d471f967b63"; };
+          aarch64-darwin = { os = "darwin"; arch = "arm64"; sha256 = "72f77fbc522ddb215df7c262d0f65b2074cf3874f233f29e952694b32da06dd3"; };
         };
         talosctlAsset = talosctlAssets.${system};
         talosctl = pkgs.stdenvNoCC.mkDerivation {

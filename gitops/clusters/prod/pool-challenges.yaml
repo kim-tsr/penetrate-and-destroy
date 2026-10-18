@@ -53,20 +53,20 @@ apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
 kind: TalosConfigTemplate
 metadata:
   # v2 : miroirs de registres vers Zot (v1, sans miroir, ne pouvait tirer aucune image).
-  name: pad-prod-challenges-v2
+  name: pad-prod-challenges-v3
   annotations:
     pad.io/bootstrap: gitops # créé par ArgoCD après la phase 10 (voir en tête de fichier)
 spec:
   template:
     spec:
       generateType: worker
-      talosVersion: v1.11.3 # contracts: kubernetes.talos_version
+      talosVersion: v1.11.6 # contracts: kubernetes.talos_version
       strategicPatches:
         - |
           machine:
             install:
               disk: /dev/sda
-              image: factory.talos.dev/nocloud-installer/ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515:v1.11.3
+              image: factory.talos.dev/nocloud-installer/ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515:v1.11.6
             # Pas d'egress Internet dans la zone CHALLENGES : heure prise sur OPNsense (passerelle de la zone, règle m10-chall-ntp).
             time:
               servers: [10.20.70.1] # contracts: zones.challenges.gw
@@ -166,7 +166,7 @@ spec:
         configRef:
           apiGroup: bootstrap.cluster.x-k8s.io
           kind: TalosConfigTemplate
-          name: pad-prod-challenges-v2
+          name: pad-prod-challenges-v3
       infrastructureRef:
         apiGroup: infrastructure.cluster.x-k8s.io
         kind: ProxmoxMachineTemplate

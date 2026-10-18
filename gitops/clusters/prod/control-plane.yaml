@@ -8,7 +8,7 @@ spec:
   template:
     spec:
       sourceNode: pve # contracts: host.node
-      templateID: 299 # contracts: kubernetes.talos_template.vmid (talos-v1.11.3-template, stack tofu 15-talos-image)
+      templateID: 299 # contracts: kubernetes.talos_template.vmid (talos-v1.11.6-template, stack tofu 15-talos-image)
       full: true
       format: raw # raw convient à tous les types de stockage (zfspool, lvmthin, dir) ; host.datastore_vm_type
       storage: local-zfs # contracts: host.datastore_vm
@@ -45,14 +45,14 @@ spec:
   controlPlaneConfig:
     controlplane:
       generateType: controlplane
-      talosVersion: v1.11.3 # contracts: kubernetes.talos_version
+      talosVersion: v1.11.6 # contracts: kubernetes.talos_version
       strategicPatches:
         - |
           machine:
             install:
               disk: /dev/sda
               # contracts: kubernetes.talos_installer_image (schematic qemu-guest-agent)
-              image: factory.talos.dev/nocloud-installer/ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515:v1.11.3
+              image: factory.talos.dev/nocloud-installer/ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515:v1.11.6
             network:
               interfaces:
                 # IP statique fournie par CAPMOX (datasource nocloud) ; on ajoute la VIP de l'API.

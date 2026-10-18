@@ -60,7 +60,7 @@ Renovate les maintient à jour ([page](renovate-dependabot.md)).
 
 | Brique | Rôle | Où elle tourne | Version épinglée |
 |---|---|---|---|
-| [Talos Linux](talos.md) | Système d'exploitation immuable des nœuds Kubernetes | VM Proxmox (control plane en zone PROD, workers PROD et CHALLENGES) | v1.11.3 (Kubernetes v1.34.1) |
+| [Talos Linux](talos.md) | Système d'exploitation immuable des nœuds Kubernetes | VM Proxmox (control plane en zone PROD, workers PROD et CHALLENGES) | v1.11.6 (Kubernetes v1.34.1) |
 | [Cluster API (core)](cluster-api.md) | Cycle de vie déclaratif du cluster (Cluster, Machine, MachineDeployment) | pods du cluster `pad-prod` (auto-hébergé) ; kind pendant le bootstrap | v1.14.3 (contrat v1beta2) |
 | [CAPMOX (provider Proxmox)](capmox.md) | Provider d'infrastructure Cluster API pour Proxmox | pods du cluster (namespace des providers CAPI) | v0.9.1 (contrat v1beta2) |
 | [CABPT et CACPPT (providers Talos)](cabpt-cacppt.md) | Génération de la configuration Talos et gestion du control plane | pods du cluster | CABPT v0.6.13, CACPPT v0.5.14 (contrat v1beta1) |

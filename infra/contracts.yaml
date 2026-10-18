@@ -83,7 +83,7 @@ services:            # LXC non privilégiés, Debian 13, Docker Compose
 
 kubernetes:
   cluster_name: pad-prod
-  talos_version: v1.11.3
+  talos_version: v1.11.6
   kubernetes_version: v1.34.1
   control_plane_endpoint: 10.20.60.5     # VIP Talos
   vmid_range: [300, 399]
@@ -102,10 +102,10 @@ kubernetes:
   lb_pool_label: pad.io/lb-pool
   ingress_ip: 10.20.60.200
   # Template VM Talos créé par tofu (stack 15-talos-image), cloné par CAPMOX. Source unique du VMID (stack 15 + templateID des manifests CAPI) ; volontairement hors vmid_range (299 < 300) pour ne jamais être alloué par CAPMOX.
-  talos_template: { name: talos-v1.11.3-template, vmid: 299 }
+  talos_template: { name: talos-v1.11.6-template, vmid: 299 }
   # Schematic Image Factory : siderolabs/qemu-guest-agent uniquement (POST https://factory.talos.dev/schematics).
   talos_schematic_id: ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515
-  talos_installer_image: factory.talos.dev/nocloud-installer/ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515:v1.11.3
+  talos_installer_image: factory.talos.dev/nocloud-installer/ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515:v1.11.6
   capi:                                   # providers clusterctl épinglés (bootstrap + gitops/platform/capi-providers)
     core: v1.14.3                         # cluster-api (contrat v1beta2 ; mgmt k8s v1.33 -> v1.36)
     bootstrap_talos: v0.6.13              # CABPT (contrat v1beta1, toléré jusqu'à CAPI v1.16)

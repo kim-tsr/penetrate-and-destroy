@@ -4,7 +4,7 @@ variable "node_name" {
 }
 
 variable "talos_version" {
-  description = "Version de Talos (ex : v1.11.3)."
+  description = "Version de Talos (ex : v1.11.6)."
   type        = string
 }
 

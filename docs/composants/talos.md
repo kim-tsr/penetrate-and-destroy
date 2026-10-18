@@ -1,6 +1,6 @@
 # Talos Linux
 
-**Couche** : Cluster Kubernetes · **Où** : VM Proxmox (control plane en zone PROD, workers PROD et CHALLENGES) · **Version** : v1.11.3 (Kubernetes v1.34.1)
+**Couche** : Cluster Kubernetes · **Où** : VM Proxmox (control plane en zone PROD, workers PROD et CHALLENGES) · **Version** : v1.11.6 (Kubernetes v1.34.1)
 
 ## À quoi elle sert ici et pourquoi ce choix
 
@@ -18,10 +18,10 @@ cloud-init (datasource `nocloud`). Le control plane expose une **VIP** (`10.20.6
 
 | Élément | Valeur | Où |
 |---|---|---|
-| Talos | v1.11.3 | `infra/contracts.yaml` (`kubernetes.talos_version`) |
+| Talos | v1.11.6 | `infra/contracts.yaml` (`kubernetes.talos_version`) |
 | Kubernetes | v1.34.1 | `kubernetes.kubernetes_version` |
 | schematic Image Factory | `ce4c9805...c7515` | `kubernetes.talos_schematic_id` |
-| image d'installation | `factory.talos.dev/nocloud-installer/<schematic>:v1.11.3` | `kubernetes.talos_installer_image` |
+| image d'installation | `factory.talos.dev/nocloud-installer/<schematic>:v1.11.6` | `kubernetes.talos_installer_image` |
 | provider tofu | `siderolabs/talos` 0.12.0 | `infra/tofu/stacks/15-talos-image/versions.tf` |
 
 ## Fichiers de configuration dans le dépôt
@@ -69,3 +69,20 @@ talosctl --nodes <ip> dmesg | tail
 [talos.dev/docs](https://www.talos.dev/latest/)
 
 [Retour à l'index des composants](index.md){ .md-button }
+
+## Redémarrage des nœuds et configuration réseau
+
+CAPMOX (v0.9.x) éjecte puis supprime l'ISO cloud-init (nocloud, qui porte l'IP statique du nœud) dès que la Machine est
+disponible ; aucun réglage ne la conserve. Au redémarrage, Talos réutilise la configuration réseau mise en cache dans
+la partition STATE au premier démarrage. **Talos v1.11.3 écrase ce cache par une configuration vide quand l'ISO est
+absente** (régression [siderolabs/talos#12097](https://github.com/siderolabs/talos/issues/12097), corrigée en v1.11.4) :
+le nœud redémarre sans IP. D'où la version minimale v1.11.6 du contrat.
+
+Monter de version : `kubernetes.talos_version` et `talos_installer_image` dans le contrat, `tofu` stack `15-talos-image`
+(template), puis nouveaux noms de `TalosConfigTemplate` (immuables) ; les nœuds existants passent par
+`talosctl upgrade --image <talos_installer_image>` un par un, **avant** tout redémarrage.
+
+Nœud déjà redémarré sans IP (cache vide) : recréer une ISO `cidata` (meta-data, network-config v2 avec son IP, user-data
+`#cloud-config` vide, la machine config étant persistée dans STATE), l'attacher en `ide2` (CAPMOX nettoie `ide0`),
+redémarrer, puis `talosctl upgrade`. Ou supprimer la Machine pour que CAPI la recrée (perte de l'etcd si c'est l'unique
+control plane).
