@@ -44,9 +44,11 @@ configs:
 # --- Composants ---
 controller:
   replicas: 1
+  # Le contrôleur garde en cache toutes les ressources du cluster (CAPI, Kyverno, cert-manager...) : 640Mi le faisait
+  # tuer par l'OOM killer en boucle pendant le premier déploiement, sans qu'aucune Application ne se synchronise.
   resources:
-    requests: { cpu: 100m, memory: 256Mi }
-    limits: { memory: 640Mi }
+    requests: { cpu: 100m, memory: 512Mi }
+    limits: { memory: 1536Mi }
   metrics:
     enabled: true
     serviceMonitor: { enabled: true } # CRDs : Application prometheus-crds (wave -10), lus par Alloy
