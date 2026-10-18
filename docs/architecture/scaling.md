@@ -56,7 +56,7 @@ CHALLENGES si besoin, et vérifier le budget :
 > cgroup (`dmesg` : `oom_memcg=/lxc/<vmid>`, tâche Ansible en `rc: -9`). Minimum : 512 Mo.
 | authentik / monitoring | 2 / 2 | 1,5 Go / 3 Go |
 | Talos control plane | 2 | 4 Go (kube-apiserver dépasse 1,2 Go une fois les CRD de la plateforme installées : 2,5 Go saturait le nœud) |
-| Talos workers `platform` (x2) | 2 chacun | 3,5 Go chacun |
+| Talos workers `platform` (x2) | 2 chacun | 5 Go chacun (à 3,5 Go, les requests de la plateforme dépassaient la capacité : Zot, Garage, Valkey restaient Pending) |
 | Talos workers `challenges` (1 à 3) | 2 chacun | 2,5 Go chacun |
 
 Le total va d'environ 17 Go à 22 Go, pour un budget cible d'environ 26 Go (l'ARC ZFS est limité à 4 Go).
