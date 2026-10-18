@@ -844,7 +844,30 @@ pre_gitops() {
   else
     pass "gitops/ poussé vers ${up}"
   fi
+  check_deploy_key
   pending_report 10-gitops
+}
+
+# La clé de déploiement (secrets:init) doit être ajoutée au dépôt par l'opérateur : on lit le dépôt exactement comme
+# ArgoCD (même clé, même URL git.ssh). Sans elle : Application root en Unknown, « unable to authenticate ».
+check_deploy_key() {
+  local key url out
+  url=$(c '.git.ssh')
+  key=$(mktemp) || return
+  if ! sops --decrypt --extract '["github"]["deploy_key"]' "${ROOT_DIR}/secrets/github-deploy-key.sops.yaml" >"$key" 2>/dev/null; then
+    rm -f "$key"; fail "clé de déploiement illisible (secrets/github-deploy-key.sops.yaml)" "task secrets:init"; return
+  fi
+  chmod 600 "$key"
+  out=$(GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o IdentityAgent=none -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10" \
+    timeout 30 git ls-remote "$url" "refs/heads/$(c '.git.branch')" 2>&1)
+  local rc=$?
+  rm -f "$key"
+  if ((rc == 0)) && [[ -n "$out" ]]; then
+    pass "clé de déploiement acceptée par ${url}"
+  else
+    fail "la clé de déploiement ne lit pas ${url} : ${out##*$'\n'}" \
+      "ajouter sa partie publique au dépôt (Settings > Deploy keys, lecture seule) : sops -d --extract '[\"github\"][\"deploy_key\"]' secrets/github-deploy-key.sops.yaml | ssh-keygen -y -f /dev/stdin"
+  fi
 }
 
 # pre_acces : les jetons créés à la main dans les dashboards doivent exister avant les stacks 40 et 50.
