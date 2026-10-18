@@ -452,10 +452,11 @@ Toutes les commandes se lancent depuis la racine du dépôt, dans `nix develop`,
 - **Erreurs** : le LXC netbird n'atteint pas `https://auth.<domaine>` : les zones internes doivent résoudre les noms publics (`public_hostnames` du contrat) vers l'IP **interne** de l'edge, pas l'IP publique (pas de réflexion NAT). C'est posé par la stack `60-opnsense-rules` (overrides Unbound, `task check:2-routeur` les contrôle) et le flux I2 (toutes zones vers l'edge en 443). Vérifier : `dig +short auth.<domaine> @10.20.20.1` depuis un LXC doit rendre `10.20.20.10`.
 - **Rejouer** : sans risque.
 - **Actions manuelles à faire maintenant (avant la phase 11)** :
-    1. Ouvrir `https://vpn.<domaine>`, se connecter par Authentik, **supprimer la policy « Default »** (*Access Control > Policies*) : sinon tout pair joint tout pair (action 4).
+    1. Ouvrir `https://vpn.<domaine>` et se connecter avec le **compte local propriétaire** (formulaire e-mail / mot de passe, pas le SSO : le connecteur Authentik n'est ajouté qu'en phase 11, avec le PAT ci-dessous) : `admin@<domaine>`, mot de passe `netbird_server_owner_password` de `secrets/netbird.sops.yaml` (`sops -d --extract '["netbird_server_owner_password"]' secrets/netbird.sops.yaml`). **Supprimer la policy « Default »** (*Access Control > Policies*) : sinon tout pair joint tout pair (action 4).
     2. Créer un **PAT administrateur** NetBird (*Settings > Personal Access Tokens*), le placer dans `secrets/netbird-tofu.sops.yaml` (`api_token`) **et** `secrets/netbird.sops.yaml` (`netbird_server_api_token`).
-    3. Dans l'UI de Warpgate (`https://10.20.30.10:8888`, compte `admin`, mot de passe `warpgate_admin_password` de `secrets/warpgate.sops.yaml`), créer un jeton d'API (*Config > API tokens*) → `secrets/warpgate-tofu.sops.yaml`.
-    4. Après la phase 11 : PAT des utilisateurs de service `netbird-sync` et `pad-frontend-readonly` (voir phase 11).
+    3. Console admin d'Authentik (pour créer son compte staff, dans `infra-admins`) : non publiée, ouvrir `https://<IP du LXC authentik>/if/admin/` via la route VPN (compte `akadmin`, `bootstrap_password` de `secrets/authentik.sops.yaml`) ; un utilisateur créé là n'a pas de mot de passe : *Set password*.
+    4. Dans l'UI de Warpgate (`https://10.20.30.10:8888`, compte `admin`, mot de passe `warpgate_admin_password` de `secrets/warpgate.sops.yaml`), créer un jeton d'API (*Config > API tokens*) → `secrets/warpgate-tofu.sops.yaml`.
+    5. Après la phase 11 : PAT des utilisateurs de service `netbird-sync` et `pad-frontend-readonly` (voir phase 11).
 
 ### Phase 9 : le cluster Kubernetes
 
