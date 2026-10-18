@@ -11,11 +11,13 @@ tasks:
   venv:
     desc: Crée .venv-docs et y installe docs/requirements.txt si absent ou périmé
     dir: "{{.ROOT_DIR}}"
+    # mkdocs doit s'exécuter, pas seulement exister : un venv copié depuis un autre répertoire (ex. dépôt privé créé par
+    # copie du public) ou dont le Python Nix a été collecté garde des shebangs morts (« fork/exec ... no such file »).
     status:
-      - test -x {{.VENV}}/bin/mkdocs
+      - "{{.VENV}}/bin/mkdocs --version >/dev/null 2>&1"
       - cmp -s {{.REQS}} {{.VENV}}/requirements.installed
     cmds:
-      - python3 -m venv {{.VENV}}
+      - python3 -m venv --clear {{.VENV}}
       - "{{.VENV}}/bin/pip install --no-cache-dir -r {{.REQS}}"
       - cp {{.REQS}} {{.VENV}}/requirements.installed
 
