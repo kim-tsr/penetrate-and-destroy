@@ -7,6 +7,7 @@ resources:
   - deployment.yaml
   - servicemonitor.yaml
   - networkpolicy.yaml
+  - apiserver-egress.yaml
 generators:
   # Secret `netbird-sync` (chiffré SOPS) : secret.sops.yaml, créé par `task secrets:init` (cf. docs/SECRETS.md).
   - secret-generator.yaml

@@ -51,3 +51,18 @@ spec:
             dns:
               - matchPattern: "*"
     - toEntities: [kube-apiserver]
+    # ACME Let's Encrypt et API OVH (webhook DNS-01) : Internet public en 443 uniquement. Sans cette sortie, le
+    # ClusterIssuer letsencrypt-ovh échoue (« Failed to register ACME account ... i/o timeout ») et la synchronisation
+    # s'arrête avant la CA interne pad-internal-ca.
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10] # privées/CGNAT (= alias net_private d'OPNsense)
+      toPorts:
+        - ports:
+            - { port: "443", protocol: TCP }
+    # Vérification de propagation DNS-01 : résolveurs publics de --dns01-recursive-nameservers (gitops/platform/cert-manager/values.yaml).
+    - toCIDR: [1.1.1.1/32, 9.9.9.9/32]
+      toPorts:
+        - ports:
+            - { port: "53", protocol: UDP }
+            - { port: "53", protocol: TCP }

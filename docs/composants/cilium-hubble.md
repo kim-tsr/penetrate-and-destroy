@@ -60,7 +60,10 @@ kubectl get ciliumloadbalancerippools
   cluster doit le déclarer (repo-server d'ArgoCD : egress 443).
 - Un flux entre namespaces s'autorise **des deux côtés** : egress chez le client, ingress chez le serveur. `storage` (Valkey,
   Garage) accepte le front (6379) et `ctfd` (6379, 3900) ; un nouveau consommateur doit y être ajouté. De même, `mariadb-operator` sort vers `ctfd` en 3306 (il crée l'utilisateur, la base et les
-  droits) : une nouvelle base MariaDB dans un autre namespace doit y être ajoutée. `keda` sort vers VictoriaMetrics (`10.20.50.10:8428`) pour les déclencheurs Prometheus des ScaledObject.
+  droits) : une nouvelle base MariaDB dans un autre namespace doit y être ajoutée. `keda` sort vers VictoriaMetrics (`10.20.50.10:8428`) pour les déclencheurs Prometheus des ScaledObject. `cert-manager` sort vers Internet en 443 (ACME, API OVH) et vers ses résolveurs DNS-01 en 53.
+- Les `NetworkPolicy` Kubernetes en `ipBlock` ne couvrent pas les IP des nœuds avec Cilium (classées en entités) : la
+  sortie vers l'API server se déclare par une `CiliumNetworkPolicy` `toEntities: [kube-apiserver]` (netbird-sync,
+  chall-manager : `apiserver-egress.yaml`).
 
 ## Documentation officielle
 

@@ -1,0 +1,11 @@
+# Sortie vers l'API Kubernetes. Cilium ne compare pas les IP des nœuds aux ipBlock des NetworkPolicy (il les classe en
+# entités kube-apiserver / host / remote-node) : la règle ipBlock de networkpolicy.yaml ne laisse donc jamais passer
+# l'API server (caches jamais synchronisés, CrashLoop). Cette politique Cilium s'ajoute (union) à networkpolicy.yaml.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: apiserver-egress
+spec:
+  endpointSelector: {}
+  egress:
+    - toEntities: [kube-apiserver]

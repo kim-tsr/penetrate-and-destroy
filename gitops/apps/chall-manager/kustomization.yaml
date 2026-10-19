@@ -7,6 +7,7 @@ resources:
   - deployment.yaml
   - scaledobject.yaml
   - networkpolicy.yaml
+  - apiserver-egress.yaml
 # Secret OCI (chiffré SOPS) : secret.sops.yaml, créé par `task secrets:init` à partir de secret.example.yaml
 # (cf. docs/SECRETS.md) ; secret.example.yaml n'est jamais appliqué.
 generators:
