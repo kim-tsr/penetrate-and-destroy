@@ -29,6 +29,13 @@ spec:
     - fromEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: observability # contracts: namespaces.monitoring_agents
+    # Appels de l'API server (webhooks d'admission (9443) et API agrégée external.metrics.k8s.io (6443)) : sans cette règle, la default-deny fait échouer toute admission
+    # (« failed calling webhook ... context deadline exceeded »).
+    - fromEntities: [kube-apiserver, remote-node, host]
+      toPorts:
+        - ports:
+            - { port: "9443", protocol: TCP }
+            - { port: "6443", protocol: TCP }
   egress:
     - toEndpoints:
         - matchLabels:

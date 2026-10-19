@@ -29,6 +29,12 @@ spec:
     - fromEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: observability # contracts: namespaces.monitoring_agents
+    # Appels de l'API server (webhook de validation/conversion de mariadb-operator) : sans cette règle, la default-deny fait échouer toute admission
+    # (« failed calling webhook ... context deadline exceeded »).
+    - fromEntities: [kube-apiserver, remote-node, host]
+      toPorts:
+        - ports:
+            - { port: "9443", protocol: TCP }
   egress:
     - toEndpoints:
         - matchLabels:

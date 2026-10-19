@@ -52,6 +52,13 @@ kubectl get ciliumloadbalancerippools
 - Cilium choisit le pool d'IP par `serviceSelector` (label), pas par annotation : un Service sans le label `pad.io/lb-pool` n'a pas d'IP.
 - Le trafic intra-zone ne passe pas par OPNsense : c'est Cilium qui l'isole.
 
+- Namespaces de la plateforme en `default-deny-baseline` (`gitops/platform/namespaces/resources/`) : un namespace qui
+  héberge un **webhook** (admission, conversion) ou une **API agrégée** doit autoriser en entrée les entités
+  `kube-apiserver, remote-node, host` sur le port du conteneur (cert-manager 10250/8443, mariadb-operator 9443, keda
+  9443/6443, kyverno et CAPI 9443). Sans cette règle, toute création d'objet concerné échoue (« failed calling webhook
+  ... context deadline exceeded ») : CTFd est resté sans base de données. De même, un namespace dont un pod sort du
+  cluster doit le déclarer (repo-server d'ArgoCD : egress 443).
+
 ## Documentation officielle
 
 [docs.cilium.io](https://docs.cilium.io/)
