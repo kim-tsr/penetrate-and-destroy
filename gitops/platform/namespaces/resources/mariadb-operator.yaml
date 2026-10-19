@@ -50,3 +50,12 @@ spec:
             dns:
               - matchPattern: "*"
     - toEntities: [kube-apiserver]
+    # L'opérateur se connecte aux bases qu'il gère (création de l'utilisateur, de la base et des droits, sauvegardes) :
+    # sans cette sortie, User/Database restaient en « dial tcp ...:3306: i/o timeout » et CTFd en « Access denied ».
+    # L'entrée est autorisée côté ctfd (NetworkPolicy mariadb-ingress de gitops/apps/ctfd).
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: ctfd # contracts: namespaces.ctfd
+      toPorts:
+        - ports:
+            - { port: "3306", protocol: TCP }
