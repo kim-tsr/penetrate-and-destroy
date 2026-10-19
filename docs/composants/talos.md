@@ -70,6 +70,13 @@ talosctl --nodes <ip> dmesg | tail
 
 [Retour à l'index des composants](index.md){ .md-button }
 
+## Labels et taints des nœuds
+
+`machine.nodeLabels` est appliqué par Talos après l'enregistrement du nœud (autorisé par NodeRestriction pour les préfixes
+non réservés comme `pad.io/`). Un **taint**, lui, ne peut pas être modifié par le nœud après coup : il se déclare à
+l'enregistrement du kubelet (`kubelet.extraArgs.register-with-taints`, pool `challenges`). Avec `machine.nodeTaints`, l'appel
+de Talos était refusé (« node ... is not allowed to modify taints ») et emportait les labels avec lui.
+
 ## Redémarrage des nœuds et configuration réseau
 
 CAPMOX (v0.9.x) éjecte puis supprime l'ISO cloud-init (nocloud, qui porte l'IP statique du nœud) dès que la Machine est

@@ -53,7 +53,7 @@ apiVersion: bootstrap.cluster.x-k8s.io/v1alpha3
 kind: TalosConfigTemplate
 metadata:
   # v2 : miroirs de registres vers Zot (v1, sans miroir, ne pouvait tirer aucune image).
-  name: pad-prod-challenges-v3
+  name: pad-prod-challenges-v4
   annotations:
     pad.io/bootstrap: gitops # créé par ArgoCD après la phase 10 (voir en tête de fichier)
 spec:
@@ -74,6 +74,12 @@ spec:
               extraArgs:
                 rotate-server-certificates: "true"
                 cloud-provider: external
+                # Taint posé À L'ENREGISTREMENT du kubelet : NodeRestriction interdit à un nœud de modifier ses taints ensuite.
+                # Via machine.nodeTaints, Talos les appliquait après coup : refusé, et le même appel portait les labels, qui
+                # n'étaient donc pas posés non plus (nœud challenges sans pad.io/pool ni taint : aucune instance placée,
+                # et des pods de la plateforme pouvaient s'y retrouver).
+                # contracts: kubernetes.pools.challenges.taint
+                register-with-taints: pad.io/pool=challenges:NoSchedule
               # Pool des instances de joueurs : bornes anti-déni de service et user namespaces.
               extraConfig:
                 podPidsLimit: 256 # contracts: instances.pod_pids_limit (fork bomb)
@@ -127,9 +133,6 @@ spec:
             nodeLabels:
               pad.io/pool: challenges
               pad.io/zone: challenges
-            # contracts: kubernetes.pools.challenges.taint (pad.io/pool=challenges:NoSchedule)
-            nodeTaints:
-              pad.io/pool: challenges:NoSchedule
             features:
               kubePrism: { enabled: true, port: 7445 }
 ---
@@ -178,7 +181,7 @@ spec:
         configRef:
           apiGroup: bootstrap.cluster.x-k8s.io
           kind: TalosConfigTemplate
-          name: pad-prod-challenges-v3
+          name: pad-prod-challenges-v4
       infrastructureRef:
         apiGroup: infrastructure.cluster.x-k8s.io
         kind: ProxmoxMachineTemplate
