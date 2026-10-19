@@ -16,6 +16,8 @@ Commandes (appelées par `task secrets:*`) :
                        par tofu) dans les sops de NetBird, Warpgate, Grafana, du front et d'ArgoCD ; F = JSON (ou - pour stdin)
   netbird-keys-sync [--from-json F]  recopie les setup keys des routing peers (sortie `routing_peer_setup_keys` de la stack tofu
                        40-netbird) dans secrets/netbird-agent.sops.yaml, lu par le rôle ansible netbird-agent
+  netbird-tokens-sync [--from-json F]  recopie les PAT des utilisateurs de service (sortie `service_user_tokens` de la
+                       stack tofu 40-netbird) dans les secrets de gitops/apps/netbird-sync et gitops/apps/frontend
   rotate-cluster-key   nouvelle clé age du cluster : remplace le recipient, updatekeys + rotation des clés de données
 
 Aucune valeur secrète n'est écrite sur disque en clair : tout passe par des pipes vers sops. Seule exception, la
@@ -758,6 +760,37 @@ def cmd_netbird_keys_sync(args: argparse.Namespace) -> None:
     log(f"{len(NETBIRD_KEY_TARGETS)} setup key(s) de routing peer synchronisée(s).")
 
 
+# clé de la sortie tofu `service_user_tokens` -> (secret SOPS de gitops/, clé). Jamais le même jeton pour les deux :
+# le front n'a qu'un rôle en lecture seule.
+NETBIRD_TOKEN_TARGETS = {
+    "netbird_sync": ("gitops/apps/netbird-sync/secret.sops.yaml", "NETBIRD_API_TOKEN"),
+    "frontend": ("gitops/apps/frontend/secret.sops.yaml", "NETBIRD_API_TOKEN"),
+}
+
+
+def cmd_netbird_tokens_sync(args: argparse.Namespace) -> None:
+    need("sops")
+    require_recipients()
+    if args.from_json:
+        raw = sys.stdin.read() if args.from_json == "-" else Path(args.from_json).read_text()
+    else:
+        need("tofu")
+        raw = run(["tofu", f"-chdir={ROOT / NETBIRD_STACK}", "output", "-json", "service_user_tokens"]).stdout
+    try:
+        tokens = json.loads(raw)
+    except json.JSONDecodeError:
+        die("sortie service_user_tokens illisible (stack 40-netbird appliquée ?)")
+    for name, (rel, key) in NETBIRD_TOKEN_TARGETS.items():
+        value = tokens.get(name) if isinstance(tokens, dict) else None
+        if not isinstance(value, str) or not value:
+            die(f"PAT '{name}' absent de la sortie tofu")
+        if not (ROOT / rel).exists():
+            die(f"{rel} absent (task secrets:init)")
+        changed = sops_set_value(rel, key, value)
+        log(f"{'+' if changed else '='} {rel} : {key} {'mis à jour' if changed else 'inchangé'}")
+    log(f"{len(NETBIRD_TOKEN_TARGETS)} PAT d'utilisateur de service synchronisé(s) : commit et push pour qu'ArgoCD les applique.")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -776,6 +809,9 @@ def main() -> None:
     p = sub.add_parser("netbird-keys-sync")
     p.add_argument("--from-json", metavar="FICHIER", help="JSON {challenges, bastion} au lieu de `tofu output` (- = stdin)")
     p.set_defaults(fn=cmd_netbird_keys_sync)
+    p = sub.add_parser("netbird-tokens-sync")
+    p.add_argument("--from-json", metavar="FICHIER", help="JSON {netbird_sync, frontend} au lieu de `tofu output` (- = stdin)")
+    p.set_defaults(fn=cmd_netbird_tokens_sync)
     sub.add_parser("rotate-cluster-key").set_defaults(fn=cmd_rotate_cluster_key)
     args = ap.parse_args()
     args.fn(args)

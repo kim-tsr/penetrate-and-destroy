@@ -147,7 +147,7 @@ tasks:
     env: { PAD_MARK: "1" }
 
   phase:11-acces:
-    desc: "Phase 11 : accès staff/joueurs (NetBird via ansible, tofu 40-netbird, setup keys, agents des routing peers, tofu 50-warpgate) ; exige les PAT créés à la main"
+    desc: "Phase 11 : accès staff/joueurs (NetBird via ansible, tofu 40-netbird, setup keys et PAT des utilisateurs de service, agents des routing peers, tofu 50-warpgate) ; exige les jetons NetBird (owner) et Warpgate créés à la main"
     cmds:
       - "{{.CHECK}} pre-acces"
       # Le PAT du owner (netbird.sops.yaml) active, à ce second passage, le connecteur OIDC Authentik et les groupes JWT.
@@ -156,6 +156,9 @@ tasks:
         vars: { STACK: 40-netbird }
       # Setup keys créées par 40-netbird -> secrets/netbird-agent.sops.yaml -> agents des deux routing peers (CHALLENGES, BASTION).
       - task: netbird:sync-keys
+        vars: { CLI_ARGS: "" } # les options de tofu (ex. -auto-approve) ne concernent pas cette tâche
+      # PAT de netbird-sync et du front (créés par 40-netbird) -> secrets de gitops/apps : à committer ET pousser (ArgoCD).
+      - task: netbird:sync-tokens
         vars: { CLI_ARGS: "" } # les options de tofu (ex. -auto-approve) ne concernent pas cette tâche
       - task: netbird:agents
         vars: { CLI_ARGS: "" } # les options de tofu (ex. -auto-approve) ne concernent pas cette tâche
@@ -168,6 +171,12 @@ tasks:
     desc: "Recopie les setup keys des routing peers (sortie de 40-netbird) dans secrets/netbird-agent.sops.yaml (à committer si vous versionnez les secrets)"
     cmds:
       - task: secrets:netbird-keys-sync
+        vars: { CLI_ARGS: "" } # les options de tofu (ex. -auto-approve) ne concernent pas cette tâche
+
+  netbird:sync-tokens:
+    desc: "Recopie les PAT des utilisateurs de service (netbird-sync, front ; sortie de 40-netbird) dans leurs secrets de gitops/apps (puis commit et push)"
+    cmds:
+      - task: secrets:netbird-tokens-sync
         vars: { CLI_ARGS: "" } # les options de tofu (ex. -auto-approve) ne concernent pas cette tâche
 
   netbird:agents:

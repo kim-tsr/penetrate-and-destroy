@@ -1,6 +1,7 @@
 # Utilisateurs de service. Un PAT hérite du rôle de son propriétaire : un jeton par usage, au rôle minimal.
-# Les PAT ne peuvent pas être créés ici (le provider ne crée un token que pour l'utilisateur courant) : à créer dans
-# le dashboard (Team > Service Users) et à placer dans les secrets SOPS correspondants.
+# Les PAT sont créés ici (netbird_token, provider >= 0.0.10) et recopiés dans les secrets SOPS de gitops/ par
+# `task netbird:sync-tokens` (appelé par la phase 11). Rotation : `tofu apply -replace=netbird_token.<nom>` puis
+# netbird:sync-tokens, commit et push (ArgoCD redéploie).
 
 # apps/netbird-sync : groupes, networks, resources, policies, appartenance des pairs aux groupes d'équipe.
 # Secret : gitops/apps/netbird-sync (NETBIRD_API_TOKEN).
@@ -16,4 +17,16 @@ resource "netbird_user" "frontend_readonly" {
   name            = "pad-frontend-readonly"
   is_service_user = true
   role            = var.frontend_readonly_role
+}
+
+resource "netbird_token" "netbird_sync" {
+  user_id         = netbird_user.netbird_sync.id
+  name            = "netbird-sync"
+  expiration_days = var.service_token_expiration_days
+}
+
+resource "netbird_token" "frontend_readonly" {
+  user_id         = netbird_user.frontend_readonly.id
+  name            = "pad-frontend-readonly"
+  expiration_days = var.service_token_expiration_days
 }

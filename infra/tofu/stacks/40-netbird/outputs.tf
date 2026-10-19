@@ -35,12 +35,12 @@ output "routing_peer_setup_keys" {
 }
 
 output "netbird_sync_service_user_id" {
-  description = "ID de l'utilisateur de service netbird-sync (PAT à créer dans le dashboard)."
+  description = "ID de l'utilisateur de service netbird-sync (son PAT : sortie service_user_tokens)."
   value       = netbird_user.netbird_sync.id
 }
 
 output "frontend_readonly_service_user_id" {
-  description = "ID de l'utilisateur de service en lecture seule (auditor) du front (PAT à créer dans le dashboard, pour NETBIRD_API_TOKEN du front)."
+  description = "ID de l'utilisateur de service en lecture seule (auditor) du front (son PAT : sortie service_user_tokens)."
   value       = netbird_user.frontend_readonly.id
 }
 
@@ -55,4 +55,13 @@ output "routing_peers" {
     challenges = { ip = local.c.services[local.c.netbird.routing_peer_service].ip, zone = local.c.netbird.routing_peer_zone, network = netbird_network.instances.name }
     bastion    = { ip = local.c.services[local.c.netbird.bastion_routing_peer_service].ip, zone = "bastion", network = netbird_network.bastion.name }
   }
+}
+
+output "service_user_tokens" {
+  description = "PAT des utilisateurs de service (clés : netbird_sync, frontend). Recopiés dans les secrets SOPS de gitops/apps par `task netbird:sync-tokens`."
+  value = {
+    netbird_sync = netbird_token.netbird_sync.token
+    frontend     = netbird_token.frontend_readonly.token
+  }
+  sensitive = true
 }

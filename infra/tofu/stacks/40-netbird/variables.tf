@@ -71,3 +71,9 @@ variable "manage_identity_provider" {
   type        = bool
   default     = false
 }
+
+variable "service_token_expiration_days" {
+  description = "Durée de validité des PAT des utilisateurs de service (jours, maximum NetBird : 365). À renouveler avant échéance (voir service_users.tf)."
+  type        = number
+  default     = 365
+}
