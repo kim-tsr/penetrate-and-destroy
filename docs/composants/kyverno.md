@@ -28,6 +28,7 @@ Chart `kyverno` 3.9.1 dans `gitops/platform/kyverno/application.yaml`.
 | `disallow-latest-tag.yaml` | Enforce | pas de tag `latest` |
 | `add-default-networkpolicy.yaml` | génération | `default-deny` (entrée et sortie, **sans** autorisation DNS) dans chaque `inst-*` |
 | `instance-guardrails.yaml` | génération | `ResourceQuota` et `LimitRange` `pad-instance` dans chaque `inst-*` ; `CiliumNetworkPolicy` DNS limitée à `cluster.local` si le namespace porte `pad.io/dns=cluster-local` (opt-in) |
+| `pdb-unhealthy-eviction.yaml` | mutation | tout `PodDisruptionBudget` (y compris ceux des charts) reçoit `unhealthyPodEvictionPolicy: AlwaysAllow` : un pod en échec n'empêche plus le drain d'un nœud |
 | `restrict-instance-images.yaml` | **toujours Enforce** | pods `inst-*` : image sous `registry.pad.internal/ctf/` et épinglée par `@sha256:` |
 | `verify-images.yaml` (`verify-images` et `verify-images-audit`) | selon `pad-image-policy` | signatures cosign, `inst-*` (clé publique) et `ctfd`, `frontend`, `netbird-sync` (keyless) |
 

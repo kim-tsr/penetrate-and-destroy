@@ -148,6 +148,9 @@ metadata:
     app.kubernetes.io/part-of: frontend
 spec:
   minAvailable: 1
+  # Un pod déjà en échec (CrashLoop, non Ready) reste évinçable : sinon le PDB bloque le drain d'un nœud
+  # (remplacement de worker CAPI figé en DrainingNode) alors qu'il ne protège plus rien.
+  unhealthyPodEvictionPolicy: AlwaysAllow
   selector:
     matchLabels:
       app.kubernetes.io/name: frontend

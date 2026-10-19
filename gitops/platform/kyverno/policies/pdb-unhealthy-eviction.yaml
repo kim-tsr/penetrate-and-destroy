@@ -1,0 +1,32 @@
+# Tout PodDisruptionBudget (les nôtres et ceux des charts) laisse évincer un pod déjà en échec : sans cela, un pod en
+# CrashLoop fait tomber le PDB à 0 disponible et bloque à jamais le drain du nœud (remplacement de worker CAPI figé en
+# DrainingNode, cas vécu avec CTFd). Le PDB continue de protéger les pods sains.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: pdb-unhealthy-eviction
+  annotations:
+    # Après le ClusterRole agrégé (rbac-background-controller.yaml) : Kyverno refuse la politique tant que son
+    # background controller n'a pas le droit de modifier les PDB.
+    argocd.argoproj.io/sync-wave: "1"
+    policies.kyverno.io/title: PDB évinçables quand le pod est en échec
+    policies.kyverno.io/category: Disponibilité
+    policies.kyverno.io/severity: medium
+spec:
+  background: false
+  mutateExistingOnPolicyUpdate: true # rattrape aussi les PDB déjà créés
+  rules:
+    - name: always-allow-unhealthy
+      match:
+        any:
+          - resources:
+              kinds: ["PodDisruptionBudget"]
+      mutate:
+        targets:
+          - apiVersion: policy/v1
+            kind: PodDisruptionBudget
+            name: "{{ request.object.metadata.name }}"
+            namespace: "{{ request.object.metadata.namespace }}"
+        patchStrategicMerge:
+          spec:
+            unhealthyPodEvictionPolicy: AlwaysAllow

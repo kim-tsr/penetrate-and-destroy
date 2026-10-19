@@ -1,6 +1,6 @@
 # Droits supplémentaires du background controller Kyverno (agrégés via le label ci-dessous) :
 # nécessaires aux politiques generate : add-default-networkpolicy (NetworkPolicy) et instance-guardrails
-# (ResourceQuota, LimitRange, CiliumNetworkPolicy).
+# (ResourceQuota, LimitRange, CiliumNetworkPolicy) ; mutation des PDB existants (pdb-unhealthy-eviction).
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -17,3 +17,6 @@ rules:
   - apiGroups: ["cilium.io"]
     resources: ["ciliumnetworkpolicies"]
     verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs: ["get", "list", "watch", "update", "patch"]

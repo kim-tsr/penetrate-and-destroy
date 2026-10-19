@@ -20,3 +20,4 @@ resources:
   - restrict-instance-images.yaml
   - add-default-networkpolicy.yaml
   - instance-guardrails.yaml
+  - pdb-unhealthy-eviction.yaml
