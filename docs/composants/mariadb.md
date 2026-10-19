@@ -50,6 +50,9 @@ task restore -- <options>         # avec confirmation (scripts/restore.sh)
 
 - Un seul réplica : pas de haute disponibilité ; la sauvegarde est la protection.
 - Le bucket `backups` est sur le même hôte : exporter hors site avec `secrets/backup-s3` si besoin ([Sauvegarde](../runbooks/backup-restore.md)).
+- Sonde de démarrage de `ctfd-mariadb` allongée (5 min) : avec la valeur par défaut (~50 s), la première initialisation
+  d'un volume neuf était tuée en cours de route et InnoDB restait corrompu (`ibdata1 ... Data structure corruption`) ;
+  il fallait alors supprimer le PVC (vide) pour repartir.
 
 ## Documentation officielle
 

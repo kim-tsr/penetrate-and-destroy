@@ -32,6 +32,14 @@ spec:
   storage:
     size: 10Gi
     storageClassName: pad-zfs
+  # Première initialisation (tables système) plus longue que la sonde par défaut (~50 s) sur un cluster chargé : tué
+  # en plein milieu, InnoDB laissait un ibdata1 vide (« Data structure corruption ») et la base ne démarrait plus.
+  # 30 x 10 s = 5 min de démarrage ; la liveness (inchangée) ne prend le relais qu'une fois démarré.
+  startupProbe:
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 30
   resources:
     requests: { cpu: 250m, memory: 512Mi }
     limits: { cpu: "1", memory: 1Gi }
