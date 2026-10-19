@@ -108,6 +108,9 @@ task phase:9-cluster
 k get proxmoxcluster pad-prod -o jsonpath='{.status.inClusterZoneRef}'
 k get ipaddressclaims -o custom-columns=CLAIM:.metadata.name,POOL:.spec.poolRef.name   # une seule claim par machine
 ```
+- Contrôleurs CAPI (core, CABPT, CACPPT, CAPMOX, IPAM) en `priorityClassName: system-cluster-critical` (patch kustomize de
+  `gitops/platform/capi-providers/manifests`) : pendant un remplacement de worker sans surge, CAPMOX restait `Pending` sur
+  le seul worker restant et ne pouvait plus ni supprimer l'ancienne VM ni créer la nouvelle.
 
 ## Documentation officielle
 

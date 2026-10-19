@@ -38,6 +38,16 @@ patches:
           pod-security.kubernetes.io/warn: restricted
         annotations:
           argocd.argoproj.io/sync-options: Delete=false
+  # Les contrôleurs CAPI gèrent le cluster lui-même (création et suppression des VM) : priorité critique, pour qu'ils
+  # préemptent une charge ordinaire quand les workers sont pleins. Sans cela, pendant un remplacement de worker sans
+  # surge, CAPMOX restait Pending sur l'unique worker restant et ne pouvait ni supprimer l'ancienne VM ni créer la
+  # nouvelle (interblocage de capacité).
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: add
+        path: /spec/template/spec/priorityClassName
+        value: system-cluster-critical
   # Inventaire clusterctl : CRD créée par `clusterctl init` (bootstrap), pas par ce rendu.
   - target:
       kind: Provider
