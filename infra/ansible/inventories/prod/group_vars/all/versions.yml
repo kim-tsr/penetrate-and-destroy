@@ -26,6 +26,9 @@ pad_apt_versions:
   alloy: "1.20.1-1"
   netbird: "0.81.0"   # agent des routing peers (même version que le serveur netbird_server)
 
-# Plugin Traefik (téléchargé au démarrage depuis plugins.traefik.io).
+# Plugin Traefik, chargé en LOCAL (localPlugins) : Ansible dépose les sources (tarball de la release, dépendances dans
+# vendor/) au déploiement. Un téléchargement depuis plugins.traefik.io au démarrage échouait après un redémarrage de
+# l'hôte (edge démarré avant le réseau) : Traefik tournait sans le middleware et toutes les routes répondaient 404.
 pad_traefik_plugins:
   crowdsec_bouncer: v1.7.1   # github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin
+  crowdsec_bouncer_sha256: a50cdfe37d67c48be571417a26d8c5a2b28e4b91e5b1ed3b1ea2bcb0e6b4aa38 # archive/refs/tags/v1.7.1.tar.gz

@@ -36,7 +36,7 @@
     - { path: traefik, mode: "0750" }
     - { path: traefik/dynamic, mode: "0750" }
     - { path: traefik/acme, mode: "0700" }
-    - { path: traefik/plugins, mode: "0750" }
+    - { path: traefik/plugins-local, mode: "0750" }
     - { path: logs, mode: "0750" }
     - { path: logs/traefik, mode: "0750" }
     - { path: crowdsec, mode: "0750" }
@@ -56,6 +56,40 @@
   notify:
     - Redémarrer traefik
     - Redémarrer crowdsec
+
+- name: Télécharger les sources du plugin CrowdSec (release épinglée, empreinte vérifiée)
+  ansible.builtin.get_url:
+    url: "https://{{ edge_traefik_crowdsec_bouncer_plugin_module }}/archive/refs/tags/{{ edge_traefik_crowdsec_bouncer_plugin_version }}.tar.gz"
+    dest: "{{ edge_traefik_crowdsec_dir }}/traefik/crowdsec-bouncer-{{ edge_traefik_crowdsec_bouncer_plugin_version }}.tar.gz"
+    checksum: "sha256:{{ edge_traefik_crowdsec_bouncer_plugin_sha256 }}"
+    owner: root
+    group: root
+    mode: "0640"
+  register: edge_traefik_crowdsec_plugin_archive
+
+- name: Créer le répertoire du plugin local
+  ansible.builtin.file:
+    path: "{{ edge_traefik_crowdsec_dir }}/traefik/plugins-local/src/{{ edge_traefik_crowdsec_bouncer_plugin_module }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Vérifier la présence des sources du plugin
+  ansible.builtin.stat:
+    path: "{{ edge_traefik_crowdsec_dir }}/traefik/plugins-local/src/{{ edge_traefik_crowdsec_bouncer_plugin_module }}/.traefik.yml"
+  register: edge_traefik_crowdsec_plugin_src
+
+- name: Déposer les sources du plugin (localPlugins de Traefik)
+  ansible.builtin.unarchive:
+    src: "{{ edge_traefik_crowdsec_plugin_archive.dest }}"
+    dest: "{{ edge_traefik_crowdsec_dir }}/traefik/plugins-local/src/{{ edge_traefik_crowdsec_bouncer_plugin_module }}"
+    remote_src: true
+    extra_opts: [--strip-components=1]
+    owner: root
+    group: root
+  when: edge_traefik_crowdsec_plugin_archive.changed or not edge_traefik_crowdsec_plugin_src.stat.exists
+  notify: Redémarrer traefik
 
 - name: Déployer la configuration statique de Traefik
   ansible.builtin.template:

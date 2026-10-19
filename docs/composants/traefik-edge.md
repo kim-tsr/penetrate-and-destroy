@@ -18,7 +18,7 @@ Les ports publics arrivent par le DNAT d'[OPNsense](opnsense.md).
 ## Version épinglée
 
 - Image : `pad_images.traefik` dans `infra/ansible/inventories/prod/group_vars/all/versions.yml` (`docker.io/library/traefik:v3.7.15@sha256:...`).
-- Plugin bouncer : `pad_traefik_plugins.crowdsec_bouncer` = v1.7.1 (même fichier), téléchargé au démarrage.
+- Plugin bouncer : `pad_traefik_plugins.crowdsec_bouncer` = v1.7.1 (même fichier, empreinte `crowdsec_bouncer_sha256`), chargé en **plugin local** : Ansible dépose les sources de la release (dépendances dans `vendor/`) dans `traefik/plugins-local/src/<module>`, Traefik n'accède pas au réseau à son démarrage.
 
 ## Fichiers de configuration dans le dépôt
 
@@ -56,7 +56,7 @@ Pour essayer l'ACME sans consommer le quota, renseigner `edge_traefik_crowdsec_a
 
 ## Pièges connus
 
-- Le plugin est téléchargé au démarrage : un LXC sans sortie vers le catalogue de plugins ne démarre pas Traefik correctement.
+- Plugin téléchargé au démarrage (`experimental.plugins`, ancienne configuration) : après un redémarrage de l'hôte, l'edge démarre avant le réseau, le téléchargement échoue, Traefik tourne **sans** le middleware et **toutes** les routes répondent 404 (journal : `unable to download plugin`, puis `invalid middleware "crowdsec-bouncer@file"`). D'où le plugin local (`experimental.localPlugins`).
 - `readTimeout: 0s` sur `websecure` est voulu (flux longs gRPC et websocket de NetBird).
 - Les CIDR des zones sont de confiance pour le bouncer : ils ne sont jamais bannis.
 - Les routeurs dynamiques portent `tls: *pad_tls` (ancre YAML : `certResolver: le`, `main` = domaine, `sans` = `*.domaine`) : un seul certificat wildcard par DNS-01 OVH. Ne jamais remettre `tls: {}` sur un routeur : cela écrase la configuration TLS de l'entrypoint `websecure`, Traefik ne demande alors aucun certificat et sert « TRAEFIK DEFAULT CERT ». Vérifier avec `docker logs pad-edge-traefik-1 | grep lego`.

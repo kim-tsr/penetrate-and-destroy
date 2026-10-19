@@ -75,8 +75,8 @@ certificatesResolvers:
         provider: ovh
         resolvers: {{ edge_traefik_crowdsec_acme_resolvers | to_json }}
 
+# Plugin local (sources déposées par Ansible dans /plugins-local/src/<module>) : aucun accès réseau au démarrage.
 experimental:
-  plugins:
+  localPlugins:
     crowdsec-bouncer:
-      moduleName: github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin
-      version: {{ edge_traefik_crowdsec_bouncer_plugin_version }}
+      moduleName: {{ edge_traefik_crowdsec_bouncer_plugin_module }}

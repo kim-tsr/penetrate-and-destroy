@@ -14,8 +14,9 @@ services:
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - ./traefik/dynamic:/etc/traefik/dynamic:ro
       - ./traefik/acme:/acme
-      - ./traefik/plugins:/plugins-storage
+      - ./traefik/plugins-local:/plugins-local:ro # localPlugins : chemin relatif au répertoire de travail (/)
       - ./logs/traefik:/var/log/traefik
+    working_dir: /
     read_only: true
     tmpfs:
       - /tmp

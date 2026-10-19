@@ -6,6 +6,8 @@ edge_traefik_crowdsec_secrets_file: "{{ pad_secrets_dir }}/edge.sops.yaml"   # v
 edge_traefik_crowdsec_traefik_image: "{{ pad_images.traefik }}"
 edge_traefik_crowdsec_crowdsec_image: "{{ pad_images.crowdsec }}"
 edge_traefik_crowdsec_bouncer_plugin_version: "{{ pad_traefik_plugins.crowdsec_bouncer }}"
+edge_traefik_crowdsec_bouncer_plugin_sha256: "{{ pad_traefik_plugins.crowdsec_bouncer_sha256 }}"
+edge_traefik_crowdsec_bouncer_plugin_module: github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin
 
 # Réseau : 80/443 publics (DNAT OPNsense), métriques publiées sur l'IP du LXC uniquement (scrape MONITORING).
 edge_traefik_crowdsec_listen_ip: "{{ pad.services.edge.ip }}"
