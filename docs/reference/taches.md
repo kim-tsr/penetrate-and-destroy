@@ -25,7 +25,7 @@ décrit. Le parcours complet, pas à pas : [Guide de déploiement](../guide-depl
 | `phase:10-gitops` | contrôle « tout est poussé », `bootstrap:gitops` |
 | `phase:11-acces` | contrôle des jetons, Ansible netbird, `40-netbird`, `netbird:sync-keys`, `netbird:sync-tokens`, `netbird:agents` (routing peers), `50-warpgate` |
 | `netbird:sync-keys` | setup keys de `40-netbird` vers `secrets/netbird-agent.sops.yaml` |
-| `zot:pull-auth` | identifiants de pull Zot (`pad-pull`) sur chaque nœud du pool challenges (API Talos, sans redémarrage) ; à rejouer après chaque nouveau nœud |
+| `zot:pull-auth` | identifiants de pull Zot (`pad-pull`) sur chaque nœud du pool challenges (API Talos) ; redémarre seulement les nœuds qui les reçoivent ; à rejouer après chaque nouveau nœud |
 | `netbird:sync-tokens` | PAT des utilisateurs de service (`netbird_token` de `40-netbird`) vers les secrets de `gitops/apps/netbird-sync` et `gitops/apps/frontend` |
 | `netbird:agents` | `/dev/net/tun` (hôte) puis agents NetBird de `nbrouter` et `warpgate` |
 | `netbird:rotate-keys` | recrée les setup keys, les recopie, rejoue les agents |

@@ -16,7 +16,7 @@ creds="${ROOT_DIR}/secrets/credentials.sops.yaml"
 [[ -f "$creds" ]] || die "manquant : ${creds} (task secrets:init)"
 
 mapfile -t ips < <(kprod get nodes -l "$pool_label" \
-  -o jsonpath='{range .items[*]}{.status.addresses[?(@.type=="InternalIP")].address}{"\n"}{end}')
+  -o jsonpath='{range .items[*]}{.status.addresses[?(@.type=="InternalIP")].address}{"\n"}{end}' | grep -v '^$')
 ((${#ips[@]})) || die "aucun nœud ${pool_label} (pool challenges à 0 ?)"
 
 patch_for() { # patch YAML (stdout) ; le mot de passe n'apparaît que dans le pipe
@@ -26,9 +26,27 @@ patch_for() { # patch YAML (stdout) ; le mot de passe n'apparaît que dans le pi
     "          username: pad-pull" "          password: ${pw}"
 }
 
+tctl() { local ip=$1; shift; talosctl --talosconfig "$PROD_TALOSCONFIG" -n "$ip" -e "$ip" "$@"; }
+# Identifiants déjà posés ? Comparaison en mémoire (rien n'est affiché) : la version de la configuration Talos change à
+# chaque patch, même identique, et ne peut donc pas servir de témoin.
+up_to_date() {
+  local cur want
+  cur=$(tctl "$1" get machineconfig -o yaml 2>/dev/null \
+    | yq ".spec | from_yaml | .machine.registries.config[\"${registry}\"].auth | .username + \":\" + .password" 2>/dev/null) || return 1
+  want="pad-pull:$(sops_get "$creds" '["zot_pad_pull_password"]')"
+  [[ "$cur" == "$want" ]]
+}
+
 for ip in "${ips[@]}"; do
-  [[ -n "$ip" ]] || continue
+  if up_to_date "$ip"; then
+    log "nœud ${ip} : identifiants déjà posés, rien à faire"
+    continue
+  fi
   log "nœud ${ip} : identifiants pad-pull pour ${registry}"
-  talosctl --talosconfig "$PROD_TALOSCONFIG" -n "$ip" -e "$ip" patch machineconfig --mode auto --patch @<(patch_for)
+  tctl "$ip" patch machineconfig --mode no-reboot --patch @<(patch_for)
+  # containerd ne relit les identifiants de registre qu'à son démarrage (constaté : « no basic auth credentials » tant que
+  # le nœud n'a pas redémarré) : redémarrage, seulement quand les identifiants viennent d'être posés.
+  warn "nœud ${ip} : redémarrage pour que containerd charge les identifiants (instances du nœud interrompues)"
+  tctl "$ip" reboot --wait --timeout 10m
 done
-log "${#ips[@]} nœud(s) challenges à jour. Si un pull ctf/ répond encore 401 : talosctl -n <ip> reboot (containerd relit la config au démarrage)."
+log "${#ips[@]} nœud(s) challenges à jour."

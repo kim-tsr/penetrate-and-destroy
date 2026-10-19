@@ -139,8 +139,9 @@ comptes htpasswd (`pad-ci`, `pad-pull`) sont générés par `task secrets:init` 
 `secrets/credentials.sops.yaml`). Il reste à donner aux nœuds du pool `challenges` les identifiants de `pad-pull`, **hors Git**
 (un mot de passe ne peut pas figurer en clair dans le `TalosConfigTemplate`, et Cluster API ne déchiffre pas de configuration SOPS) :
 
-1. **`task zot:pull-auth`** : pose les identifiants sur **tous** les nœuds du pool `challenges` (idempotent, mot de passe jamais
-   sur disque ni affiché ; configuration appliquée sans redémarrage). Équivalent manuel, nœud par nœud
+1. **`task zot:pull-auth`** : pose les identifiants sur **tous** les nœuds du pool `challenges` (mot de passe jamais sur disque
+   ni affiché). Un nœud déjà configuré est laissé tel quel ; un nœud qui reçoit les identifiants est **redémarré** (containerd ne
+   les relit qu'au démarrage : sans cela, `no basic auth credentials`), ce qui interrompt ses instances. Équivalent manuel, nœud par nœud
    (substitution de processus ; `registry.pad.internal` = hôte du registre du contrat) :
 
     ```bash
