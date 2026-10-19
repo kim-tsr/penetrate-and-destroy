@@ -71,8 +71,10 @@ reportsController:
 cleanupController:
   enabled: false
 
-# Sous-chart kyverno-api (CRD policies.kyverno.io) : il rend « labels: {} », que l'API server ne stocke pas -> 11 CRD
-# OutOfSync en permanence. Un label réel supprime l'écart.
+# Sous-chart kyverno-api (CRD policies.kyverno.io) : il rend « labels: {} » et « annotations: {} », que l'API server ne
+# stocke pas -> 11 CRD OutOfSync en permanence. Un label et une annotation réels suppriment l'écart.
 kyverno-api:
   labels:
     app.kubernetes.io/part-of: kyverno-crds
+  annotations:
+    pad.io/managed-by: argocd
