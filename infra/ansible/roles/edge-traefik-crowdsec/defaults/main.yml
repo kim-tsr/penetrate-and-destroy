@@ -68,3 +68,18 @@ edge_traefik_crowdsec_collections:
 edge_traefik_crowdsec_appsec_port: 7422
 edge_traefik_crowdsec_lapi_port: 8080
 edge_traefik_crowdsec_access_log_retention_days: 7
+
+# Page de statut : Uptime Kuma (LXC monitoring) en direct, et uniquement les chemins publics de la page de statut
+# (page liée au domaine status.<domaine> par monitoring/uptime-kuma/monitors.yml, servie sur /).
+edge_traefik_crowdsec_status_url: "http://{{ pad.services.monitoring.ip }}:{{ pad.ports.monitoring.uptime_kuma }}"
+edge_traefik_crowdsec_status_paths:
+  - "Path(`/`)"
+  - "PathPrefix(`/status/`)"
+  - "PathPrefix(`/api/status-page/`)"
+  - "Path(`/api/entry-page`)"
+  - "PathPrefix(`/assets/`)"
+  - "PathPrefix(`/upload/`)"
+  - "Path(`/icon.svg`)"
+  - "Path(`/favicon.ico`)"
+  - "Path(`/manifest.json`)"
+  - "Path(`/apple-touch-icon.png`)"

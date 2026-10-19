@@ -26,7 +26,7 @@ Exposé publiquement par [Traefik edge](traefik-edge.md) (page de statut) ; reç
 
 ## Sécurité
 
-Compte admin créé par `sync.py` (secrets SOPS) ; seule la page de statut est publique, l'UI d'administration ne l'est pas.
+Compte admin créé par `sync.py` (secrets SOPS) ; seule la page de statut est publique, l'UI d'administration ne l'est pas : l'edge ne route que les chemins de la page de statut (`/`, `/status/`, `/api/status-page/`, `/api/entry-page`, ressources statiques ; liste `edge_traefik_crowdsec_status_paths`), le reste répond 404.
 
 ## Supervision
 

@@ -5,7 +5,7 @@
 ## À quoi elle sert ici et pourquoi ce choix
 
 Seul point d'entrée HTTP(S) public : il termine le TLS (certificat générique ACME DNS-01 via OVH) et route les noms
-`front`, `auth`, `vpn` et `status` vers le cluster, Authentik, NetBird et Uptime Kuma. Chaque requête passe par une
+`front`, `auth`, `vpn` et `status` vers le cluster, Authentik, NetBird et Uptime Kuma (en direct sur le LXC monitoring, chemins de la page de statut uniquement : `edge_traefik_crowdsec_status_paths`). Chaque requête passe par une
 chaîne de middlewares : bouncer CrowdSec, limitation de débit, en-têtes de sécurité. La version « cluster » est une autre
 brique : [Traefik (cluster)](traefik-cluster.md).
 

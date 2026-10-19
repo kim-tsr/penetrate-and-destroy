@@ -13,11 +13,13 @@ http:
           - main: {{ pad_domain | to_json }}
             sans:
               - {{ ('*.' ~ pad_domain) | to_json }}
+    # Page de statut publique d'Uptime Kuma (LXC monitoring, flux I4). Seuls les chemins de la page de statut sont
+    # routés : l'UI d'administration (/dashboard, /socket.io, /settings, push...) n'est pas exposée (404 de l'edge).
     status:
       entryPoints: [websecure]
-      rule: "Host(`{{ edge_traefik_crowdsec_host_status }}`)"
+      rule: "Host(`{{ edge_traefik_crowdsec_host_status }}`) && ({% for p in edge_traefik_crowdsec_status_paths %}{{ p }}{% if not loop.last %} || {% endif %}{% endfor %})"
       middlewares: [edge-default@file]
-      service: cluster-ingress
+      service: uptime-kuma
       tls: *pad_tls
     auth:
       entryPoints: [websecure]
@@ -62,6 +64,11 @@ http:
       tls: *pad_tls
 
   services:
+    uptime-kuma:
+      loadBalancer:
+        passHostHeader: true
+        servers:
+          - url: {{ edge_traefik_crowdsec_status_url | to_json }}
     cluster-ingress:
       loadBalancer:
         passHostHeader: true
