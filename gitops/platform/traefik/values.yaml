@@ -66,12 +66,13 @@ ports:
   web:
     port: 8000
     exposedPort: 80
+    # Pas de redirection vers websecure : web reçoit le trafic public déjà en HTTPS côté client, TLS terminé par l'edge
+    # (seule source admise par OPNsense, règle M2). Une redirection renvoyait l'edge sur lui-même (réponse 418).
     http:
-      redirections:
-        entryPoint:
-          to: websecure
-          scheme: https
-          permanent: true
+      middlewares:
+        - traefik-security-headers@kubernetescrd
+        - traefik-rate-limit@kubernetescrd
+        - traefik-in-flight@kubernetescrd
     forwardedHeaders:
       trustedIPs: ["10.20.20.10/32"] # contracts: services.edge.ip (Traefik edge, seul proxy de confiance)
   websecure:

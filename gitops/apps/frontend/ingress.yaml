@@ -10,8 +10,9 @@ metadata:
     app.kubernetes.io/name: frontend
     app.kubernetes.io/part-of: frontend
   annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    traefik.ingress.kubernetes.io/router.tls: "true"
+    # L'edge termine le TLS et joint l'ingress du cluster en HTTP (entrypoint web, règle M2) : routeur sur web, sans TLS.
+    # Sur websecure, la requête de l'edge (HTTP) n'atteignait jamais ce routeur (418 / 'unrecognized name').
+    traefik.ingress.kubernetes.io/router.entrypoints: web
 spec:
   ingressClassName: traefik # contracts: apps.ingress_class
   rules:

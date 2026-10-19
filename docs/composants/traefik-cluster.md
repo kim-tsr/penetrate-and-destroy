@@ -46,6 +46,10 @@ kubectl get ingress -A
 
 - Le `Service` n'est annoncé en L2 que depuis les nœuds portant un pod Traefik (`externalTrafficPolicy: Local`) : les 2 replicas doivent être répartis.
 - Les `Middleware` sont des CRD installées par le chart : `SkipDryRunOnMissingResource` est nécessaire dans l'Application.
+- Le front est routé sur l'entrypoint `web` (HTTP), sans redirection vers `websecure` : l'edge y arrive en HTTP après avoir
+  terminé le TLS. Avec la redirection et un routeur `websecure` seul, l'edge recevait un 418 (front injoignable) ; en HTTPS,
+  aucun certificat du cluster ne couvre le nom public (`sniStrict` : « unrecognized name »). Les noms internes (ArgoCD,
+  registry) restent sur `websecure` avec leurs certificats cert-manager.
 
 ## Documentation officielle
 
