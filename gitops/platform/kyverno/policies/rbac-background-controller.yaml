@@ -7,6 +7,8 @@ metadata:
   name: kyverno-background-controller-instances
   labels:
     rbac.kyverno.io/aggregate-to-background-controller: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 rules:
   - apiGroups: ["networking.k8s.io"]
     resources: ["networkpolicies"]
@@ -20,3 +22,28 @@ rules:
   - apiGroups: ["policy"]
     resources: ["poddisruptionbudgets"]
     verbs: ["get", "list", "watch", "update", "patch"]
+---
+# Lecture pour le contrôleur d'ADMISSION : à la création d'une politique generate/mutate, Kyverno vérifie que ses
+# contrôleurs peuvent lire les ressources cibles ; sans ce rôle, instance-guardrails était refusée (« kyverno-admission-
+# controller requires permissions list,get for resource cilium.io/v2/CiliumNetworkPolicy »). Appliqué avant les politiques.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kyverno-admission-controller-instances
+  labels:
+    rbac.kyverno.io/aggregate-to-admission-controller: "true"
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+rules:
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["resourcequotas", "limitranges"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["cilium.io"]
+    resources: ["ciliumnetworkpolicies"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs: ["get", "list", "watch"]
