@@ -63,7 +63,7 @@ CHALLENGES si besoin, et vérifier le budget :
 
 **Pic** (pool `challenges` à son maximum) : environ 30,5 Go, pour un hôte de 32 Go. `task check:0-prereqs` le calcule
 depuis le contrat et **échoue** s'il dépasse la RAM de l'hôte. Les pools sont remplacés sans surge (`maxSurge: 0`) :
-un rolling update n'ajoute jamais de VM au budget. Dépasser la RAM n'échoue pas proprement : l'hôte entre en
+un rolling update n'ajoute jamais de VM au budget. Contrepartie : avec 2 workers, le nœud restant peut manquer de place pour le second réplica d'un composant protégé par un PDB ; le drain s'arrêterait là, d'où `deletion.nodeDrainTimeoutSeconds: 600` sur les pools (nœud supprimé après 10 min, brève indisponibilité de ces composants pendant la maintenance). Dépasser la RAM n'échoue pas proprement : l'hôte entre en
 récupération mémoire (ZFS + invités), se fige (`rcu_preempt detected stalls`) et ne se récupère que par un redémarrage
 matériel (cas vécu avec l'ARC à 4 Go, des workers à 5 Go et une surge de rolling update).
 

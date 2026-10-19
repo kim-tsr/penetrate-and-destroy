@@ -167,6 +167,12 @@ spec:
         pad.io/pool: challenges
     spec:
       clusterName: pad-prod
+      # Remplacement sans surge sur 2 workers : un PDB (minAvailable 1) dont le second réplica ne trouve pas de place
+      # bloquerait le drain indéfiniment. Passé ce délai, CAPI supprime le nœud quand même (indisponibilité brève et
+      # bornée pendant une maintenance plutôt qu'un rollout figé). Champs propagés sans rollout.
+      deletion:
+        nodeDrainTimeoutSeconds: 600
+        nodeVolumeDetachTimeoutSeconds: 300
       version: v1.34.1 # contracts: kubernetes.kubernetes_version
       bootstrap:
         configRef:
