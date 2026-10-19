@@ -29,6 +29,21 @@ spec:
     - fromEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: observability # contracts: namespaces.monitoring_agents
+    # Consommateurs (leur egress est autorisé de leur côté ; sans l'entrée ici, la default-deny les coupe : journal du
+    # front « valkey indisponible », connect ETIMEDOUT). Front : Valkey ; CTFd et ses sauvegardes MariaDB : Valkey et Garage S3.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: frontend
+      toPorts:
+        - ports:
+            - { port: "6379", protocol: TCP } # contracts: apps.valkey
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: ctfd
+      toPorts:
+        - ports:
+            - { port: "6379", protocol: TCP } # contracts: apps.valkey
+            - { port: "3900", protocol: TCP } # contracts: apps.garage.s3_endpoint
   egress:
     - toEndpoints:
         - matchLabels:

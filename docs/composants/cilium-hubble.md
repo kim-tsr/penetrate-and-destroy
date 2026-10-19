@@ -58,6 +58,8 @@ kubectl get ciliumloadbalancerippools
   9443/6443, kyverno et CAPI 9443). Sans cette règle, toute création d'objet concerné échoue (« failed calling webhook
   ... context deadline exceeded ») : CTFd est resté sans base de données. De même, un namespace dont un pod sort du
   cluster doit le déclarer (repo-server d'ArgoCD : egress 443).
+- Un flux entre namespaces s'autorise **des deux côtés** : egress chez le client, ingress chez le serveur. `storage` (Valkey,
+  Garage) accepte le front (6379) et `ctfd` (6379, 3900) ; un nouveau consommateur doit y être ajouté.
 
 ## Documentation officielle
 
