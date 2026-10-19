@@ -15,9 +15,9 @@ spec:
   source:
     repoURL: ssh://git@ssh.github.com:443/kim-tsr/penetrate-and-destroy.git # contracts: git.ssh
     targetRevision: main # contracts: git.branch
+    # Pas de « directory: { recurse: false } » (valeur par défaut) : ArgoCD le normalise en vide, le retire de l'Application
+    # live et root le remettait sans fin (Application namespaces OutOfSync, des centaines de générations).
     path: gitops/platform/namespaces/resources
-    directory:
-      recurse: false
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd

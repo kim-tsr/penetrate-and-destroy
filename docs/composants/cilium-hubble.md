@@ -60,7 +60,7 @@ kubectl get ciliumloadbalancerippools
   cluster doit le déclarer (repo-server d'ArgoCD : egress 443).
 - Un flux entre namespaces s'autorise **des deux côtés** : egress chez le client, ingress chez le serveur. `storage` (Valkey,
   Garage) accepte le front (6379) et `ctfd` (6379, 3900) ; un nouveau consommateur doit y être ajouté. De même, `mariadb-operator` sort vers `ctfd` en 3306 (il crée l'utilisateur, la base et les
-  droits) : une nouvelle base MariaDB dans un autre namespace doit y être ajoutée.
+  droits) : une nouvelle base MariaDB dans un autre namespace doit y être ajoutée. `keda` sort vers VictoriaMetrics (`10.20.50.10:8428`) pour les déclencheurs Prometheus des ScaledObject.
 
 ## Documentation officielle
 

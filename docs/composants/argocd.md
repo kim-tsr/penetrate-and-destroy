@@ -57,6 +57,11 @@ kubectl -n argocd get applications -o wide
 - Sans le Secret `sops-age`, ksops échoue explicitement (le volume est `optional`) : vérifier qu'il existe après `bootstrap:gitops`.
 - Ne pas faire de `kubectl apply` hors `bootstrap/` : la prochaine synchronisation annule la modification.
 - Les Applications de providers CAPI et du `Cluster` portent des garde-fous (`Prune=false`) : ne pas les retirer.
+- **OutOfSync permanent alors que tout est sain** : avec `ServerSideApply`, ArgoCD possède en bloc les listes et structures
+  atomiques ; une valeur par défaut qu'y ajoute l'API server ou un webhook apparaît comme un écart. Corrigé soit dans le
+  manifeste (valeur explicite : `generate: false` de MariaDB, `namespace` de `infrastructureTemplate`, label des CRD
+  kyverno-api, pas de `directory: { recurse: false }`), soit par `ignoreDifferences` ciblé (`volumeClaimTemplates` des
+  StatefulSet garage et zot, défauts des `spec.rules` des ClusterPolicy).
 
 ## Documentation officielle
 

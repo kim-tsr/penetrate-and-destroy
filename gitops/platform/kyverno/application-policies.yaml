@@ -29,3 +29,14 @@ spec:
     retry:
       limit: 5
       backoff: { duration: 10s, factor: 2, maxDuration: 3m }
+  # spec.rules est atomique : les valeurs par défaut du CRD Kyverno (skipBackgroundRequests, allowExistingViolations,
+  # useCache, signatureAlgorithm) y apparaissent côté live et rendaient toutes les ClusterPolicy OutOfSync.
+  ignoreDifferences:
+    - group: kyverno.io
+      kind: ClusterPolicy
+      jqPathExpressions:
+        - .spec.rules[]?.skipBackgroundRequests
+        - .spec.rules[]?.validate?.allowExistingViolations
+        - .spec.rules[]?.verifyImages[]?.useCache
+        - .spec.rules[]?.verifyImages[]?.attestors[]?.entries[]?.signatureAlgorithm
+        - .spec.rules[]?.verifyImages[]?.attestors[]?.entries[]?.keys?.signatureAlgorithm

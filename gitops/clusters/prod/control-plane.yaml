@@ -42,6 +42,7 @@ spec:
     apiVersion: infrastructure.cluster.x-k8s.io/v1alpha2
     kind: ProxmoxMachineTemplate
     name: pad-prod-cp-v2
+    namespace: pad-cluster # contracts: kubernetes.capi_namespace ; ajouté par le webhook CACPPT, explicite (référence atomique)
   controlPlaneConfig:
     controlplane:
       generateType: controlplane

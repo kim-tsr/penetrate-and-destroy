@@ -70,3 +70,9 @@ reportsController:
 # Désactivé (économie de RAM) : pas de CleanupPolicy utilisée dans la plateforme.
 cleanupController:
   enabled: false
+
+# Sous-chart kyverno-api (CRD policies.kyverno.io) : il rend « labels: {} », que l'API server ne stocke pas -> 11 CRD
+# OutOfSync en permanence. Un label réel supprime l'écart.
+kyverno-api:
+  labels:
+    app.kubernetes.io/part-of: kyverno-crds

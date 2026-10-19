@@ -51,3 +51,10 @@ spec:
             dns:
               - matchPattern: "*"
     - toEntities: [kube-apiserver]
+    # Déclencheurs Prometheus des ScaledObject (front, CTFd) : requêtes vers VictoriaMetrics (LXC monitoring). Sans cette
+    # sortie, les triggers échouaient (ScaledObject non Ready : Applications frontend et ctfd Degraded).
+    - toCIDR:
+        - 10.20.50.10/32 # contracts: services.monitoring.ip
+      toPorts:
+        - ports:
+            - { port: "8428", protocol: TCP } # contracts: ports.monitoring.victoriametrics

@@ -17,12 +17,14 @@ spec:
   rootPasswordSecretKeyRef:
     name: ctfd-secrets
     key: MARIADB_ROOT_PASSWORD
+    generate: false # défaut du CRD, explicite : la référence est atomique (sinon OutOfSync permanent)
   # Base et utilisateur applicatifs créés par l'opérateur (ALL PRIVILEGES sur la base `ctfd`).
   database: ctfd
   username: ctfd
   passwordSecretKeyRef:
     name: ctfd-secrets
     key: DATABASE_PASSWORD
+    generate: false
   myCnf: |
     [mariadb]
     character_set_server=utf8mb4

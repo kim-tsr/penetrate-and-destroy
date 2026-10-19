@@ -38,3 +38,13 @@ spec:
       - ServerSideApply=true
       # PodMonitor : CRD fournie par l'Application prometheus-crds (wave -10).
       - SkipDryRunOnMissingResource=true
+  # volumeClaimTemplates est une liste atomique (possédée en bloc par ArgoCD) : l'API server y ajoute apiVersion, kind,
+  # volumeMode et status, non paramétrables dans le chart -> OutOfSync permanent sans ces exclusions.
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      jqPathExpressions:
+        - .spec.volumeClaimTemplates[]?.apiVersion
+        - .spec.volumeClaimTemplates[]?.kind
+        - .spec.volumeClaimTemplates[]?.spec.volumeMode
+        - .spec.volumeClaimTemplates[]?.status
