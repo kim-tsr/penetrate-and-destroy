@@ -37,3 +37,7 @@ apps/chall-manager-scenario/chall-manager-scenario
 apps/netbird-sync/netbird-sync
 .envrc.local
 .task/
+
+# Lock files des stacks NetBird et Warpgate : non versionnés (choix du mainteneur) ; les autres stacks versionnent le leur.
+infra/tofu/stacks/40-netbird/.terraform.lock.hcl
+infra/tofu/stacks/50-warpgate/.terraform.lock.hcl
