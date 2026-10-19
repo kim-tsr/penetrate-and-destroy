@@ -98,6 +98,17 @@ helm_from_app() {
     set -- --repo "$repo" "$@"
   fi
   log "helm ${release} (${chart}@${version}) -> ${ns}"
+  # Upgrade précédent interrompu (ex. « etcdserver: request timed out ») : la release reste en pending-* et tout nouvel
+  # upgrade échoue (« another operation is in progress »). Retour à la dernière révision déployée, puis upgrade normal.
+  local st last
+  st=$(hprod -n "$ns" status "$release" -o json 2>/dev/null | jq -r '.info.status // empty')
+  if [[ "$st" == pending-* ]]; then
+    last=$(hprod -n "$ns" history "$release" -o json 2>/dev/null | jq -r '[.[] | select(.status=="deployed" or .status=="superseded")] | last | .revision // empty')
+    if [[ -n "$last" ]]; then
+      warn "release ${release} en ${st} : retour à la révision ${last} avant l'upgrade"
+      hprod -n "$ns" rollback "$release" "$last" --wait=false
+    fi
+  fi
   hprod upgrade --install "$release" "$ref" --version "$version" \
     --namespace "$ns" --create-namespace \
     --values "$(values_of "$comp")" --wait --timeout 10m "$@"
