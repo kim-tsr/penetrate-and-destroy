@@ -17,11 +17,12 @@ locals {
   wg   = yamldecode(data.sops_file.warpgate.raw)
   site = yamldecode(data.sops_file.site.raw)
 
-  # URL de l'API admin : par défaut l'URL publique interne https://<bastion>.<domain> (via NetBird staff + edge).
-  # Alternative depuis un poste de la zone MGMT/BASTION : https://<services.warpgate.ip>:<ports.warpgate.https>
-  # (certificat auto-signé : var.insecure_skip_verify = true).
-  bastion_url = "https://${local.c.hostnames.bastion}.${local.c.domain}"
-  api_url     = var.warpgate_api_url != "" ? var.warpgate_api_url : local.bastion_url
+  # URL de l'API admin : par défaut l'accès direct https://<services.warpgate.ip>:<ports.warpgate.https>, celui du poste
+  # opérateur en phase 11 (route VPN vers les zones, règle OPNsense m0-host-warpgate) : il n'est pas encore sur NetBird
+  # et le nom du bastion n'est résolu que par le DNS NetBird. Warpgate y sert un certificat auto-signé (voir
+  # var.insecure_skip_verify). L'API s'authentifie par jeton : la liaison de session à external_host ne s'applique pas.
+  direct_url = "https://${local.c.services.warpgate.ip}:${local.c.ports.warpgate.https}"
+  api_url    = var.warpgate_api_url != "" ? var.warpgate_api_url : local.direct_url
 }
 
 provider "warpgate" {

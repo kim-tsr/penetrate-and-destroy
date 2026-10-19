@@ -56,6 +56,8 @@ task tofu:apply-warpgate
 - **Retour au formulaire de connexion sans erreur** : Warpgate n'accepte son cookie de session que sur `external_host`
   (`bastion.<domaine>`) ; ouvrir l'UI par son IP échoue silencieusement (journal : `Session cookie rejected: request host ... is
   not authorized`). Passer par le nom (DNS NetBird, ou `/etc/hosts` avant la phase 11).
+- Stack tofu `50-warpgate` : API jointe par défaut en direct (`https://<IP du LXC>:8888`, certificat auto-signé,
+  `insecure_skip_verify` à `true`) depuis le poste opérateur ; `warpgate_api_url` pour passer par le nom via NetBird.
 
 ## Documentation officielle
 

@@ -5,15 +5,15 @@ variable "state_passphrase" {
 }
 
 variable "warpgate_api_url" {
-  description = "URL de l'API admin Warpgate. Vide = https://<hostnames.bastion>.<domain> (contrat)."
+  description = "URL de l'API admin Warpgate. Vide = accès direct https://<services.warpgate.ip>:<ports.warpgate.https> (contrat) ; https://<bastion>.<domain> depuis un poste sur NetBird."
   type        = string
   default     = ""
 }
 
 variable "insecure_skip_verify" {
-  description = "Ignore la vérification TLS de l'API Warpgate (certificat auto-signé, accès direct par IP)."
+  description = "Ignore la vérification TLS de l'API Warpgate (certificat auto-signé de l'accès direct par IP, défaut). false si warpgate_api_url pointe sur un certificat de confiance."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "access_groups" {
