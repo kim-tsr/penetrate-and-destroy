@@ -43,3 +43,8 @@ netbird_server_relay_auth_secret: ""
 netbird_server_session_cookie_key: ""
 netbird_server_datastore_key: ""
 netbird_server_authentik_client_secret: ""
+
+# Approbation manuelle des nouveaux utilisateurs (défaut NetBird : activée). Désactivée : l'accès est déjà filtré par
+# Authentik et jwt_allow_groups (seuls les groupes du contrat entrent) ; sinon chaque joueur attend le propriétaire
+# (« Your organization requires new users to be manually approved »).
+netbird_server_user_approval_required: false

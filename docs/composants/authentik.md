@@ -66,6 +66,10 @@ systemctl start authentik-backup.service
 - `tofu apply` de `30-authentik` échoue (403 ou page d'erreur) depuis un poste hors des CIDR autorisés : le lancer depuis le bastion ou le management.
 - Sans clés de captcha, `tofu plan` échoue (`captcha_enabled` vaut `true` par défaut) : [Actions manuelles](../operations/actions-post-deploiement.md).
 - Aligner la version du provider tofu sur celle du serveur.
+- `email_verified` du jeton OIDC : mapping `pad-scope-email` (stack `30-authentik`). Vrai pour les comptes des groupes à
+  privilèges (`ctf-managers`, `ctf-admins`, `infra-admins`, attribués par un administrateur) ou portant l'attribut
+  `email_verified: true` ; faux pour les joueurs inscrits seuls (le flow d'enrôlement ne vérifie pas l'adresse).
+  Warpgate exige une adresse vérifiée pour rattacher le compte.
 
 ## Documentation officielle
 

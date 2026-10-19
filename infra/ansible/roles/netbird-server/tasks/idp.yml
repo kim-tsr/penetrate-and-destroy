@@ -38,7 +38,7 @@
   changed_when: false
   no_log: true
 
-- name: Activer la synchronisation des groupes JWT
+- name: Activer la synchronisation des groupes JWT (et l'accès des nouveaux utilisateurs sans approbation manuelle)
   ansible.builtin.uri:
     # checkov:skip=CKV2_ANSIBLE_1:API NetBird jointe en HTTP sur la boucle locale de l'hôte (127.0.0.1), sans transit réseau
     url: "{{ netbird_server_api_url }}/accounts/{{ netbird_server_accounts.json[0].id }}"
@@ -47,8 +47,11 @@
       Authorization: "Token {{ netbird_server_api_token }}"
     body_format: json
     body:
-      settings: "{{ netbird_server_accounts.json[0].settings | combine(netbird_server_jwt_settings) }}"
+      settings: "{{ netbird_server_accounts.json[0].settings | combine(netbird_server_jwt_settings) | combine({'extra': netbird_server_extra}) }}"
   vars:
+    netbird_server_extra: "{{ netbird_server_accounts.json[0].settings.extra | default({}) | combine(netbird_server_approval) }}"
+    netbird_server_approval:
+      user_approval_required: "{{ netbird_server_user_approval_required }}"
     netbird_server_jwt_settings:
       jwt_groups_enabled: "{{ netbird_server_jwt_groups_enabled }}"
       jwt_groups_claim_name: "{{ netbird_server_jwt_groups_claim }}"
@@ -57,4 +60,5 @@
     netbird_server_accounts.json[0].settings.jwt_groups_enabled | default(false) != netbird_server_jwt_groups_enabled
     or netbird_server_accounts.json[0].settings.jwt_groups_claim_name | default('') != netbird_server_jwt_groups_claim
     or (netbird_server_accounts.json[0].settings.jwt_allow_groups | default([]) | sort) != (netbird_server_jwt_allow_groups | sort)
+    or (netbird_server_accounts.json[0].settings.extra.user_approval_required | default(true)) != netbird_server_user_approval_required
   no_log: true

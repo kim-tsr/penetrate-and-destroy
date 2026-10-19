@@ -84,9 +84,22 @@ locals {
 data "authentik_property_mapping_provider_scope" "default" {
   managed_list = [
     "goauthentik.io/providers/oauth2/scope-openid",
-    "goauthentik.io/providers/oauth2/scope-email",
     "goauthentik.io/providers/oauth2/scope-profile",
   ]
+}
+
+# Scope email : le mapping fourni par Authentik (2026.x) renvoie toujours email_verified = false, et Warpgate refuse alors
+# de rattacher le compte (« The SSO account's e-mail is not verified »). L'adresse est tenue pour vérifiée seulement
+# quand c'est vrai : comptes à privilèges (groupes MFA, attribués par un administrateur, jamais en libre-service) ou
+# attribut explicite email_verified: true. Les joueurs inscrits seuls (flow sans vérification d'adresse) restent à false.
+resource "authentik_property_mapping_provider_scope" "email" {
+  name       = "pad-scope-email"
+  scope_name = "email"
+  expression = <<-EOT
+    staff = ${jsonencode(local.mfa_groups)}
+    verified = bool(request.user.attributes.get("email_verified", False)) or request.user.groups.filter(name__in=staff).exists()
+    return {"email": request.user.email, "email_verified": verified}
+  EOT
 }
 
 # Scope offline_access : Authentik n'émet un refresh token que si ce mapping est rattaché au provider
@@ -145,7 +158,7 @@ resource "authentik_provider_oauth2" "client" {
 
   property_mappings = concat(
     data.authentik_property_mapping_provider_scope.default.ids,
-    [authentik_property_mapping_provider_scope.groups.id],
+    [authentik_property_mapping_provider_scope.email.id, authentik_property_mapping_provider_scope.groups.id],
     try(each.value.offline_access, false) ? data.authentik_property_mapping_provider_scope.offline_access.ids : [],
   )
 }
