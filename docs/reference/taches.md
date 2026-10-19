@@ -23,8 +23,9 @@ décrit. Le parcours complet, pas à pas : [Guide de déploiement](../guide-depl
 | `phase:8-services-2` | Ansible : monitoring, warpgate, netbird |
 | `phase:9-cluster` | `bootstrap:cluster` (kind, CAPI, VMs Talos, pivot) |
 | `phase:10-gitops` | contrôle « tout est poussé », `bootstrap:gitops` |
-| `phase:11-acces` | contrôle des jetons, Ansible netbird, `40-netbird`, `netbird:sync-keys`, `netbird:agents` (routing peers), `50-warpgate` |
+| `phase:11-acces` | contrôle des jetons, Ansible netbird, `40-netbird`, `netbird:sync-keys`, `netbird:sync-tokens`, `netbird:agents` (routing peers), `50-warpgate` |
 | `netbird:sync-keys` | setup keys de `40-netbird` vers `secrets/netbird-agent.sops.yaml` |
+| `netbird:sync-tokens` | PAT des utilisateurs de service (`netbird_token` de `40-netbird`) vers les secrets de `gitops/apps/netbird-sync` et `gitops/apps/frontend` |
 | `netbird:agents` | `/dev/net/tun` (hôte) puis agents NetBird de `nbrouter` et `warpgate` |
 | `netbird:rotate-keys` | recrée les setup keys, les recopie, rejoue les agents |
 | `phase:12-verify` | smoke tests et rappel des actions manuelles |

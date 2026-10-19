@@ -77,22 +77,20 @@ Elle est en revanche **vérifiée automatiquement** : `netbird-sync` refuse de d
 tant qu'une policy active a le groupe « All » en source ; le journal indique `refus de démarrer`, la métrique
 `netbird_sync_open_policies` reste à 1 ou plus. À refaire après toute réinstallation de NetBird.
 
-## 5. Créer les PAT NetBird
+## 5. PAT NetBird des utilisateurs de service
 
-Le provider NetBird ne sait créer un jeton que pour l'utilisateur courant. Le jeton de l'utilisateur de service
-`netbird-sync` (créé par la stack `40-netbird`) se crée à la main :
+Créés par la stack `40-netbird` (ressources `netbird_token`, validité `service_token_expiration_days`, 365 jours) et
+recopiés par la phase 11 (`task netbird:sync-tokens`) dans `gitops/apps/netbird-sync/secret.sops.yaml` et
+`gitops/apps/frontend/secret.sops.yaml` (clé `NETBIRD_API_TOKEN`). Reste à **commiter et pousser** ces secrets ; ArgoCD
+déploie. Contrôler : `kubectl -n netbird-sync logs deploy/netbird-sync` sans erreur 401/403.
 
-1. Dashboard NetBird, **Team > Service Users**, utilisateur `netbird-sync`, **Create token**.
-2. Reporter la valeur dans le secret SOPS de `gitops/apps/netbird-sync` (clé `NETBIRD_API_TOKEN`) :
-   `sops gitops/apps/netbird-sync/secret.sops.yaml`.
-3. `NETBIRD_API_URL` correspond à la sortie `management_url` de la stack `40-netbird`.
-4. Commiter et pousser ; ArgoCD déploie. Contrôler : `kubectl -n netbird-sync logs deploy/netbird-sync` sans erreur
-   401/403.
+Renouvellement (avant échéance) : `task tofu:apply-stack STACK=40-netbird -- -replace=netbird_token.netbird_sync
+-replace=netbird_token.frontend_readonly`, puis `task netbird:sync-tokens`, commit et push.
 
 Rôles : l'utilisateur `netbird-sync` est `network_admin` (moindre privilège : groupes, networks, policies, pairs) ; si le journal montre un HTTP 403 (en
 particulier sur `GET /users`), passer `netbird_sync_role = "admin"` dans la stack `40-netbird`, en connaissance de cause.
-Créer aussi le PAT de l'utilisateur `pad-frontend-readonly` (rôle `auditor`) pour `NETBIRD_API_TOKEN` du front
-(`sops gitops/apps/frontend/secret.sops.yaml`) : ne jamais y mettre le jeton de `netbird-sync` ni celui d'un administrateur, un PAT hérite des droits de son propriétaire.
+Le PAT du front appartient à `pad-frontend-readonly` (rôle `auditor`) : ne jamais y mettre le jeton de `netbird-sync` ni
+celui d'un administrateur, un PAT hérite des droits de son propriétaire.
 `PAD_INTERNAL_TOKEN` du secret `netbird-sync` est **identique** à celui de `ctfd-secrets` (netbird-sync lit
 les membres d'équipe dans CTFd pour rattacher chaque joueur au groupe `ctf-team-<id>`) : `task secrets:init` l'a déjà recopié, ne le
 changer qu'aux deux endroits à la fois. Les e-mails des comptes NetBird (SSO Authentik) et CTFd doivent correspondre.
