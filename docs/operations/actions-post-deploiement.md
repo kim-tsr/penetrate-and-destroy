@@ -139,7 +139,8 @@ comptes htpasswd (`pad-ci`, `pad-pull`) sont générés par `task secrets:init` 
 `secrets/credentials.sops.yaml`). Il reste à donner aux nœuds du pool `challenges` les identifiants de `pad-pull`, **hors Git**
 (un mot de passe ne peut pas figurer en clair dans le `TalosConfigTemplate`, et Cluster API ne déchiffre pas de configuration SOPS) :
 
-1. Pour chaque nœud du pool `challenges`, appliquer un patch de configuration machine Talos, sans écrire le mot de passe sur disque
+1. **`task zot:pull-auth`** : pose les identifiants sur **tous** les nœuds du pool `challenges` (idempotent, mot de passe jamais
+   sur disque ni affiché ; configuration appliquée sans redémarrage). Équivalent manuel, nœud par nœud
    (substitution de processus ; `registry.pad.internal` = hôte du registre du contrat) :
 
     ```bash
@@ -157,7 +158,7 @@ comptes htpasswd (`pad-ci`, `pad-pull`) sont générés par `task secrets:init` 
    Les images système de ces nœuds (kubelet, Cilium, CSI...) ne demandent aucun identifiant : elles passent par le cache
    pull-through anonyme `mirror/` de Zot.
 2. **Nœuds créés ensuite par l'autoscaler** : ils naissent du `TalosConfigTemplate` du dépôt, donc sans ces identifiants. Rejouer
-   l'étape 1 sur chaque nouveau nœud challenges (`kubectl get nodes -l pad.io/pool=challenges -o wide` donne les IP) ; tant que ce n'est
+   `task zot:pull-auth` après chaque nouveau nœud challenges (`kubectl get nodes -l pad.io/pool=challenges -o wide` donne les IP) ; tant que ce n'est
    pas fait, les pods d'instance posés sur ce nœud restent en `ImagePullBackOff`.
 3. Contrôler : un pod `inst-*` démarre (pas d'`ImagePullBackOff` ni de `401`) et un `pull` anonyme sur `ctf/` est refusé.
 4. Rotation : modifier le mot de passe à la main dans `secrets/credentials.sops.yaml`, dans la ligne htpasswd (bcrypt) de

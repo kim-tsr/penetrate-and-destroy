@@ -179,6 +179,11 @@ tasks:
       - task: secrets:netbird-tokens-sync
         vars: { CLI_ARGS: "" } # les options de tofu (ex. -auto-approve) ne concernent pas cette tâche
 
+  zot:pull-auth:
+    desc: "Identifiants de pull Zot (pad-pull, ctf/**) sur chaque nœud du pool challenges via l'API Talos, mot de passe jamais sur disque ; rejouer après chaque nouveau nœud"
+    cmds:
+      - bash {{.ROOT_DIR}}/scripts/zot-pull-auth.sh
+
   netbird:agents:
     desc: "Enrôle les routing peers NetBird : /dev/net/tun sur l'hôte (lxc-tun) puis agent sur nbrouter (CHALLENGES) et warpgate (BASTION) ; rejouable"
     cmds:
