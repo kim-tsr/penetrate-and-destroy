@@ -11,7 +11,8 @@ warpgate_uid: 1000
 # Listeners (ports du contrat).
 warpgate_ssh_port: "{{ pad.ports.warpgate.ssh }}"
 warpgate_https_port: "{{ pad.ports.warpgate.https }}"
-# Port HTTPS externe vu par les navigateurs (edge Traefik, TLS re-chiffré vers Warpgate).
+# Port HTTPS externe vu par les navigateurs (https://bastion.<domaine>/, via NetBird) : publié par Docker vers le
+# listener HTTPS ; doit figurer dans flow_ports.warpgate du contrat (règles OPNsense M0/M5, policy NetBird staff).
 warpgate_external_https_port: 443
 warpgate_memory_limit: 192m
 

@@ -59,7 +59,7 @@ flow_ports:          # ports de la matrice de flux (stack 60-opnsense-rules) ; p
   talos_trustd: 50001
   kubelet: 10250
   proxmox_api: 8006
-  warpgate: [2222, 8888]                 # SSH, HTTPS (défauts Warpgate)
+  warpgate: [2222, 8888, 443]            # SSH, HTTPS (défauts Warpgate) ; 443 = même HTTPS, l'URL publique du bastion (SSO)
   monitoring_push: [8428, 3100, 4317, 4318]   # VictoriaMetrics, Loki, OTLP gRPC, OTLP HTTP
   monitoring_scrape: ["9000-9999", 10249, 10250, 12345]   # exporters, kube-proxy/kubelet, Alloy
   uptime_kuma: 3001                      # status page publique (edge -> monitoring)

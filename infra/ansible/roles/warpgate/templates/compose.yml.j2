@@ -8,6 +8,9 @@ services:
     ports:
       - "{{ warpgate_ssh_port }}:{{ warpgate_ssh_port }}"
       - "{{ warpgate_https_port }}:{{ warpgate_https_port }}"
+      # Même listener HTTPS publié aussi sur le port externe : Warpgate construit ses URL (retour SSO, liens) sur
+      # https://<external_host>:<external_port>. Sans ce port, le retour d'Authentik échouait (« Safari can't open »).
+      - "{{ warpgate_external_https_port }}:{{ warpgate_https_port }}"
     volumes:
       - ./data:/data
     security_opt:

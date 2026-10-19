@@ -1,6 +1,6 @@
 # Rôle warpgate
 
-Warpgate dans `/opt/pad/warpgate` (Docker Compose), image épinglée par digest, données persistantes dans `data/` (base SQLite, clés SSH, certificat TLS auto-signé, `warpgate.yaml`). Listeners SSH 2222 et HTTPS 8888 (contrat `ports.warpgate`).
+Warpgate dans `/opt/pad/warpgate` (Docker Compose), image épinglée par digest, données persistantes dans `data/` (base SQLite, clés SSH, certificat TLS auto-signé, `warpgate.yaml`). Listeners SSH 2222 et HTTPS 8888 (contrat `ports.warpgate`) ; le HTTPS est aussi publié sur 443, le port des URL que Warpgate construit (retour SSO).
 
 ## Version
 

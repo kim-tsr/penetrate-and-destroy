@@ -130,6 +130,11 @@ resource "authentik_provider_oauth2" "client" {
   signing_key        = data.authentik_certificate_key_pair.signing.id
   issuer_mode        = "per_provider"
 
+  # Authentik >= 2026.x : flux autorisés par provider. Laissé vide (défaut du provider tofu), aucun n'est permis :
+  # « Invalid grant_type for provider: authorization_code » et toute connexion SSO échoue (« request is otherwise
+  # malformed » côté NetBird, Warpgate...). Code d'autorisation (+ PKCE) et refresh token (sessions du front).
+  grant_types = ["authorization_code", "refresh_token"]
+
   # Durées des jetons : le refresh token doit vivre au moins aussi longtemps qu'une session du front (>= 4 h).
   access_token_validity  = var.access_token_validity
   refresh_token_validity = var.refresh_token_validity
