@@ -53,13 +53,12 @@ task tofu:apply-warpgate
 - OIDC ne couvre que l'interface web ; en SSH, la politique par défaut des utilisateurs SSO est `ssh: [web]` (lien d'authentification à ouvrir).
 - `unattended-setup` ne s'exécute qu'une fois ; ensuite Ansible gère `warpgate.yaml` et écrase les réglages SSO de l'UI.
 - Les nœuds Talos n'ont pas de SSH : utiliser `talosctl` depuis le bastion.
+- **Retour au formulaire de connexion sans erreur** : Warpgate n'accepte son cookie de session que sur `external_host`
+  (`bastion.<domaine>`) ; ouvrir l'UI par son IP échoue silencieusement (journal : `Session cookie rejected: request host ... is
+  not authorized`). Passer par le nom (DNS NetBird, ou `/etc/hosts` avant la phase 11).
 
 ## Documentation officielle
 
 [warpgate.null.page](https://warpgate.null.page/)
 
 [Retour à l'index des composants](index.md){ .md-button }
-
-- **Retour au formulaire de connexion sans erreur** : Warpgate n'accepte son cookie de session que sur `external_host`
-  (`bastion.<domaine>`) ; ouvrir l'UI par son IP échoue silencieusement (journal : `Session cookie rejected: request host ... is
-  not authorized`). Passer par le nom (DNS NetBird, ou `/etc/hosts` avant la phase 11).
