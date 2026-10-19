@@ -883,7 +883,7 @@ pre_acces() {
     if [[ -z "$k" || "$k" == *CHANGEME* ]]; then
       case "$f" in
         *netbird*) fail "${f} : api_token à renseigner" "dashboard NetBird (https://$(fqdn vpn)) > Team > Service Users ou Settings > Personal Access Tokens ; sops ${f} ; reporter aussi le PAT dans secrets/netbird.sops.yaml (netbird_server_api_token)" ;;
-        *) fail "${f} : api_token à renseigner" "UI admin Warpgate > Config > API tokens ; sops ${f}" ;;
+        *) fail "${f} : api_token à renseigner" "Warpgate : connecté en admin, profil > API tokens (https://$(fqdn bastion):8888/@warpgate#/profile/api-tokens) ; sops ${f}" ;;
       esac
     else
       pass "${f} : api_token renseigné"

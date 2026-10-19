@@ -2,7 +2,7 @@ locals {
   c = yamldecode(file("${path.root}/../../../contracts.yaml"))
 }
 
-# Jeton d'API Warpgate (UI admin > Config > Tokens), créé après le 1er déploiement.
+# Jeton d'API Warpgate (Warpgate >= 0.29 : profil de l'utilisateur admin > API tokens (https://bastion.<domaine>:8888/@warpgate#/profile/api-tokens)), créé après le 1er déploiement ; il porte les droits de admin.
 # Modèle : secrets/warpgate-tofu.example.yaml.
 # Valeurs de site fournies par l'opérateur (secrets/site.sops.yaml, modèle : secrets/site.example.yaml).
 data "sops_file" "site" {
