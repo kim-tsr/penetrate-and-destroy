@@ -64,6 +64,20 @@ http:
           crowdsecAppsecUnreachableBlock: false
           clientTrustedIPs: {{ edge_traefik_crowdsec_trusted_cidrs | to_json }}
 
+    # Même bouncer, décisions IP de la LAPI seulement (sans WAF AppSec) : pour les flux binaires ou longs de NetBird
+    # (gRPC, WebSocket du relay). L'AppSec y lisait le protobuf comme une attaque et répondait 403 à chaque appel ; ces 403
+    # déclenchaient ensuite le scénario http-generic-403-bf et bannissaient l'IP de l'utilisateur (tout le site en 403).
+    crowdsec-bouncer-ip:
+      plugin:
+        crowdsec-bouncer:
+          enabled: true
+          crowdsecMode: live
+          crowdsecLapiScheme: http
+          crowdsecLapiHost: "crowdsec:{{ edge_traefik_crowdsec_lapi_port }}"
+          crowdsecLapiKey: {{ edge_traefik_crowdsec_secrets.crowdsec_bouncer_key | to_json }}
+          crowdsecAppsecEnabled: false
+          clientTrustedIPs: {{ edge_traefik_crowdsec_trusted_cidrs | to_json }}
+
     edge-default:
       chain:
         middlewares:
@@ -93,3 +107,10 @@ http:
           - crowdsec-bouncer@file
           - rate-limit-vpn@file
           - security-headers-csp@file
+
+    # gRPC (management, signal) et relay WebSocket de NetBird : bans IP CrowdSec, sans AppSec ni en-têtes HTML.
+    edge-vpn-stream:
+      chain:
+        middlewares:
+          - crowdsec-bouncer-ip@file
+          - rate-limit-vpn@file

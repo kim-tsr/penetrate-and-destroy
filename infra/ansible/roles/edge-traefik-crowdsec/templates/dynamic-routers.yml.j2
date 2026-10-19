@@ -53,13 +53,13 @@ http:
     vpn-relay:
       entryPoints: [websecure]
       rule: "Host(`{{ edge_traefik_crowdsec_host_vpn }}`) && (PathPrefix(`/relay`) || PathPrefix(`/ws-proxy/`))"
-      middlewares: [edge-vpn@file]
+      middlewares: [edge-vpn-stream@file]
       service: netbird-http
       tls: *pad_tls
     vpn-grpc:
       entryPoints: [websecure]
       rule: "Host(`{{ edge_traefik_crowdsec_host_vpn }}`) && (PathPrefix(`/signalexchange.SignalExchange/`) || PathPrefix(`/management.ManagementService/`))"
-      middlewares: [edge-vpn@file]
+      middlewares: [edge-vpn-stream@file]
       service: netbird-h2c
       tls: *pad_tls
 

@@ -60,6 +60,12 @@ docker compose exec crowdsec cscli decisions delete --ip <adresse>   # débannir
 
 - Un faux positif banni un joueur derrière une IP partagée : vérifier `cscli decisions list` avant tout.
 - Les journaux Traefik sont retenus 7 jours (`access_log_retention_days`).
+- **AppSec et flux binaires** : le WAF AppSec interprète le protobuf de gRPC comme une attaque (403 sur
+  `/management.ManagementService/GetServerKey`, `netbird up` en échec). Les routeurs `vpn-grpc` et `vpn-relay`
+  passent par `edge-vpn-stream` : bans IP de la LAPI seulement (`crowdsec-bouncer-ip`), sans AppSec. Ces 403 en
+  rafale avaient fait bannir l'IP de l'opérateur par `http-generic-403-bf` (tout le site en 403 pendant 4 h).
+- Lever un ban : `docker exec pad-edge-crowdsec-1 cscli decisions delete --ip <IP>` sur le LXC edge
+  (`cscli decisions list` pour voir le scénario en cause).
 
 ## Documentation officielle
 
