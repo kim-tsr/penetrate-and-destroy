@@ -43,7 +43,7 @@ jobs:
             echo "${{ matrix.name }} : Dockerfile absent, ignoré" >> "$GITHUB_STEP_SUMMARY"
           fi
       - if: steps.df.outputs.present == 'true'
-        uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
+        uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31.11.3
       - if: steps.df.outputs.present == 'true'
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - if: steps.df.outputs.present == 'true'
